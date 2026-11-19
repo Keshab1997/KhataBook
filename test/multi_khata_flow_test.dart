@@ -1,3 +1,5 @@
+import 'dart:io';
+
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:drift/native.dart';
@@ -6,10 +8,15 @@ import 'package:khatabook/app.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 void main() {
-  testWidgets('create and switch khatas keep entries and balances isolated', (
+  testWidgets('selection survives shell restart and entries stay isolated', (
     tester,
   ) async {
-    final ledger = LocalLedger(NativeDatabase.memory());
+    final Directory dir = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('khata_shell_restart_'),
+    ))!;
+    addTearDown(() => dir.delete(recursive: true));
+    final File file = File('${dir.path}/ledger.sqlite');
+    LocalLedger ledger = LocalLedger(NativeDatabase(file));
     await tester.runAsync(() => ledger.initialize());
     await tester.pumpWidget(KhataBookApp(ledger: ledger));
     await tester.pumpAndSettle();
@@ -61,6 +68,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Business lunch'), findsOneWidget);
     expect(find.text('₹80.50'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    ledger = LocalLedger(NativeDatabase(file));
+    await tester.runAsync(() => ledger.initialize());
+    await tester.pumpWidget(KhataBookApp(ledger: ledger));
+    await tester.pumpAndSettle();
+    expect(find.text('Business'), findsOneWidget);
+    expect(find.text('Business lunch'), findsOneWidget);
+    expect(find.text('₹80.50'), findsWidgets);
+
+    await tester.ensureVisible(find.text('Add New Entry'));
+    await tester.tap(find.text('Add New Entry'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('amount-field')), '5');
+    await tester.tap(find.text('Food'));
+    await tester.ensureVisible(find.byKey(const Key('description-field')));
+    await tester.enterText(
+      find.byKey(const Key('description-field')),
+      'After restart',
+    );
+    await tester.ensureVisible(find.text('Save Entry'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save Entry').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('After restart'), findsOneWidget);
+    expect(find.text('₹75.50'), findsWidgets);
+
+    await tester.ensureVisible(find.byKey(const Key('switch-khata')));
+    await tester.tap(find.byKey(const Key('switch-khata')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('khata-personal')));
+    await tester.pumpAndSettle();
+    expect(find.text('Personal Khata'), findsOneWidget);
+    expect(find.text('After restart'), findsNothing);
+    expect(find.text('₹0'), findsWidgets);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('shell shows an error instead of a missing ledger balance', (
+    tester,
+  ) async {
+    final ledger = LocalLedger(NativeDatabase.memory());
+    await tester.runAsync(() async {
+      await ledger.initialize();
+      await ledger.customStatement(
+        'UPDATE khatas SET deleted_at = ? WHERE id = ?',
+        <Object?>[DateTime.now().toUtc().toIso8601String(), 'personal'],
+      );
+    });
+    await tester.pumpWidget(KhataBookApp(ledger: ledger));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open local ledger.'), findsOneWidget);
+    expect(find.text('₹0'), findsNothing);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open local ledger.'), findsOneWidget);
+    expect(find.text('₹0'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
   });
 
   testWidgets('invalid opening and empty name do not create a khata', (

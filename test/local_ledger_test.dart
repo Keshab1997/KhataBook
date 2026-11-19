@@ -65,6 +65,178 @@ void main() {
     }
   });
 
+  test('v1 on-disk migration preserves khatas and transactions', () async {
+    final Directory dir = await Directory.systemTemp.createTemp(
+      'khata_v1_migration_',
+    );
+    final File file = File('${dir.path}/ledger.sqlite');
+    try {
+      final LocalLedger ledger = LocalLedger(
+        NativeDatabase(
+          file,
+          setup: (database) {
+            database.execute('''
+              CREATE TABLE khatas (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                opening_balance_paise INTEGER NOT NULL DEFAULT 0
+                  CHECK (typeof(opening_balance_paise) = 'integer'),
+                currency TEXT NOT NULL DEFAULT 'INR',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                sync_state TEXT NOT NULL DEFAULT 'pending'
+              )
+            ''');
+            database.execute('''
+              CREATE TABLE "transactions" (
+                id TEXT PRIMARY KEY NOT NULL,
+                khata_id TEXT NOT NULL REFERENCES khatas(id),
+                type TEXT NOT NULL CHECK (type IN ('income','expense')),
+                amount_paise INTEGER NOT NULL
+                  CHECK (typeof(amount_paise) = 'integer' AND amount_paise > 0),
+                category_id TEXT NOT NULL,
+                description TEXT CHECK (description IS NULL OR length(description) <= 120),
+                occurred_at TEXT NOT NULL,
+                note_session_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                sync_state TEXT NOT NULL DEFAULT 'pending'
+              )
+            ''');
+            database.execute(
+              'CREATE INDEX idx_transactions_khata_occurred_at '
+              'ON "transactions" (khata_id, occurred_at DESC)',
+            );
+            database.execute(
+              'CREATE INDEX idx_transactions_sync_state '
+              'ON "transactions" (sync_state)',
+            );
+            database.execute('''
+              INSERT INTO khatas
+                (id, name, opening_balance_paise, created_at, updated_at)
+              VALUES
+                ('personal', 'Personal Khata', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                ('business-v1', 'Business', 250000, '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z')
+            ''');
+            database.execute('''
+              INSERT INTO "transactions"
+                (id, khata_id, type, amount_paise, category_id, description,
+                 occurred_at, created_at, updated_at)
+              VALUES
+                ('entry-v1', 'business-v1', 'expense', 12500, 'Bills', 'V1 record',
+                 '2026-01-03T00:00:00Z', '2026-01-03T00:00:00Z', '2026-01-03T00:00:00Z')
+            ''');
+            database.execute('PRAGMA user_version = 1');
+          },
+        ),
+      );
+
+      expect(await ledger.readActiveKhataId(), 'personal');
+      final List<LocalKhata> khatas = await ledger.listKhatas();
+      expect(khatas.map((LocalKhata khata) => khata.id), <String>[
+        'personal',
+        'business-v1',
+      ]);
+      final LedgerSummary business = await ledger.readSummary(
+        khataId: 'business-v1',
+      );
+      expect(business.openingBalancePaise, 250000);
+      expect(business.entries.single.id, 'entry-v1');
+      expect(business.entries.single.title, 'V1 record');
+      expect(business.totalExpensePaise, 12500);
+      expect(business.remainingPaise, 237500);
+      expect(
+        (await ledger.customSelect('PRAGMA foreign_key_check').get()).isEmpty,
+        isTrue,
+      );
+      await ledger.setActiveKhataId('business-v1');
+      await ledger.close();
+
+      final LocalLedger reopened = LocalLedger(NativeDatabase(file));
+      expect(await reopened.readActiveKhataId(), 'business-v1');
+      expect(
+        (await reopened.readSummary(khataId: 'business-v1')).remainingPaise,
+        237500,
+      );
+      await reopened.close();
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('active khata defaults, persists, and rejects stale selections', () async {
+    final Directory dir = await Directory.systemTemp.createTemp(
+      'khata_selection_',
+    );
+    final File file = File('${dir.path}/ledger.sqlite');
+    try {
+      LocalLedger ledger = LocalLedger(NativeDatabase(file));
+      await ledger.initialize();
+      expect(
+        (await ledger.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        2,
+      );
+      expect(
+        (await ledger
+                .customSelect(
+                  "SELECT name FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'active_khata_preference'",
+                )
+                .get())
+            .length,
+        1,
+      );
+      expect(await ledger.readActiveKhataId(), 'personal');
+      final LocalKhata business = await ledger.createKhata(
+        name: 'Business',
+        openingBalancePaise: 10000,
+      );
+      await ledger.setActiveKhataId(business.id);
+      await expectLater(
+        ledger.setActiveKhataId('missing'),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      expect(await ledger.readActiveKhataId(), business.id);
+      await ledger.close();
+
+      ledger = LocalLedger(NativeDatabase(file));
+      expect(await ledger.readActiveKhataId(), business.id);
+      await ledger.customStatement(
+        'UPDATE khatas SET deleted_at = ? WHERE id = ?',
+        <Object?>[DateTime.now().toUtc().toIso8601String(), business.id],
+      );
+      expect(await ledger.readActiveKhataId(), 'personal');
+      final QueryRow preference = await ledger
+          .customSelect(
+            'SELECT khata_id FROM active_khata_preference WHERE singleton = 1',
+          )
+          .getSingle();
+      expect(preference.read<String>('khata_id'), 'personal');
+      await ledger.close();
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('deleted personal fallback does not recreate a khata', () async {
+    final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+    await ledger.initialize();
+    await ledger.customStatement(
+      'UPDATE khatas SET deleted_at = ? WHERE id = ?',
+      <Object?>[DateTime.now().toUtc().toIso8601String(), 'personal'],
+    );
+    await expectLater(
+      ledger.readActiveKhataId(),
+      throwsA(isA<KhataNotFoundException>()),
+    );
+    expect(await ledger.listKhatas(), isEmpty);
+    await ledger.close();
+  });
+
   test('initialize is idempotent and keeps the default khata empty', () async {
     final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
     await ledger.initialize();

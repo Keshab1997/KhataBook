@@ -36,6 +36,7 @@ class _MainShellState extends State<MainShell> {
     openingBalancePaise: 0,
   );
   bool _switching = false;
+  int _openRequest = 0;
   bool get _webPreview => kIsWeb && widget.ledger == null;
 
   @override
@@ -45,21 +46,40 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _open() async {
-    setState(() => _error = null);
+    final int request = ++_openRequest;
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _summary = null;
+      });
+    }
     try {
       _ledger ??= widget.ledger ?? LocalLedger.device();
-      await _ledger!.initialize();
-      final LedgerSummary value = await _ledger!.readSummary(
-        khataId: _activeKhata.id,
+      final LocalLedger ledger = _ledger!;
+      await ledger.initialize();
+      final String activeId = await ledger.readActiveKhataId();
+      final List<LocalKhata> khatas = await ledger.listKhatas();
+      final LocalKhata active = khatas.firstWhere(
+        (LocalKhata khata) => khata.id == activeId,
+        orElse: () => throw KhataNotFoundException(activeId),
       );
-      if (mounted) setState(() => _summary = value);
+      final LedgerSummary summary = await ledger.readSummary(
+        khataId: active.id,
+      );
+      if (mounted && request == _openRequest) {
+        setState(() {
+          _activeKhata = active;
+          _summary = summary;
+        });
+      }
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && request == _openRequest) setState(() => _error = error);
     }
   }
 
   @override
   void dispose() {
+    _openRequest++;
     _ledger?.close();
     super.dispose();
   }
@@ -80,10 +100,12 @@ class _MainShellState extends State<MainShell> {
       final LedgerSummary summary = await _ledger!.readSummary(
         khataId: selected.id,
       );
+      await _ledger!.setActiveKhataId(selected.id);
       if (mounted) {
         setState(() {
           _activeKhata = selected;
           _summary = summary;
+          _error = null;
         });
       }
     } catch (_) {
@@ -129,9 +151,11 @@ class _MainShellState extends State<MainShell> {
               final LedgerSummary updated = await _ledger!.readSummary(
                 khataId: khataId,
               );
-              if (mounted) setState(() => _summary = updated);
+              if (mounted && _activeKhata.id == khataId) {
+                setState(() => _summary = updated);
+              }
             } catch (error) {
-              if (mounted) {
+              if (mounted && _activeKhata.id == khataId) {
                 setState(() {
                   _summary = null;
                   _error = error;

@@ -72,7 +72,7 @@ class LocalLedger extends GeneratedDatabase {
   static const int _maxOpeningBalancePaise = 99999999999;
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
@@ -91,11 +91,62 @@ class LocalLedger extends GeneratedDatabase {
       for (final String statement in ddl.split(';')) {
         if (statement.trim().isNotEmpty) await customStatement(statement);
       }
+      await _createActiveKhataPreferenceTable();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) await _createActiveKhataPreferenceTable();
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> _createActiveKhataPreferenceTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS active_khata_preference ('
+      'singleton INTEGER PRIMARY KEY CHECK (singleton = 1), '
+      'khata_id TEXT NOT NULL)',
+    );
+  }
+
+  /// Returns the last selected active khata, or the active personal khata when
+  /// no usable selection has been stored. A stale selection is replaced only
+  /// after confirming that personal still exists; no khata row is recreated.
+  Future<String> readActiveKhataId() async {
+    return transaction<String>(() async {
+      final List<QueryRow> rows = await customSelect(
+        'SELECT khata_id FROM active_khata_preference WHERE singleton = 1',
+      ).get();
+      if (rows.isNotEmpty) {
+        final String storedId = rows.single.read<String>('khata_id');
+        if (await _findKhata(storedId) != null) return storedId;
+      }
+
+      if (await _findKhata(_defaultKhata) == null) {
+        throw const KhataNotFoundException(_defaultKhata);
+      }
+      await _writeActiveKhataId(_defaultKhata);
+      return _defaultKhata;
+    });
+  }
+
+  /// Stores a selection only when it names an existing, non-tombstoned khata.
+  /// Validation and persistence share a transaction so a rejected selection
+  /// never changes the saved choice.
+  Future<void> setActiveKhataId(String id) async {
+    await transaction(() async {
+      if (await _findKhata(id) == null) throw KhataNotFoundException(id);
+      await _writeActiveKhataId(id);
+    });
+  }
+
+  Future<void> _writeActiveKhataId(String id) async {
+    await customStatement(
+      'INSERT INTO active_khata_preference (singleton, khata_id) VALUES (1, ?) '
+      'ON CONFLICT(singleton) DO UPDATE SET khata_id = excluded.khata_id',
+      <Object>[id],
+    );
+  }
 
   /// Creates a zero-balance local khata once, never replacing existing data.
   ///
