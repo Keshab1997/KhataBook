@@ -3,34 +3,94 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 
-/// S9 - App Settings, docs/spec/screens.md#s9.
-///
-/// This build has no preference storage, no second currency, no dark theme and
-/// no language switch, so the screen offers none: every row states the value
-/// that is genuinely in force and is read-only. Nothing here is tappable
-/// except the AppBar back arrow, which [Navigator] supplies, so no control
-/// looks live and does nothing.
-///
-/// Currency (INR) and the light theme are current fixed values. English is the
-/// only language wired up; Bengali is planned, not implemented. No choice made
-/// here is saved, because no choice can be made yet - the notice at the top
-/// says so instead of implying persisted preferences.
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+/// The caller owns the committed language. Return true only once the change
+/// succeeds, false on cancellation, or throw on failure. Update [SettingsScreen.language]
+/// from the caller after success; this screen does not write to storage.
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({
+    super.key,
+    this.language = AppLanguage.en,
+    this.onLanguageChanged,
+  });
+
+  final AppLanguage language;
+  final Future<bool> Function(AppLanguage)? onLanguageChanged;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _picking = false;
+  bool _busy = false;
+  bool _failed = false;
+
+  Future<void> _chooseLanguage(AppStrings strings) async {
+    if (_picking || _busy || kIsWeb || widget.onLanguageChanged == null) return;
+    _picking = true;
+    final AppLanguage? choice = await showDialog<AppLanguage>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(strings.text(AppString.changeLanguage)),
+        children: [
+          for (final AppLanguage language in AppLanguage.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, language),
+              child: Semantics(
+                selected: widget.language == language,
+                child: Text(language.endonym),
+              ),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(strings.text(AppString.cancel)),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _picking = false;
+    final callback = widget.onLanguageChanged;
+    if (choice == null || choice == widget.language || callback == null) {
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _failed = false;
+    });
+    try {
+      // A false result is cancellation. The committed value belongs to the
+      // caller, so neither cancellation nor success is optimistic here.
+      await callback(choice);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(widget.language);
+    final text = strings.text;
+    final bool canChoose = widget.onLanguageChanged != null;
     if (kIsWeb) {
       return Scaffold(
-        appBar: AppBar(title: const Text('App Settings')),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'Web design preview only. Local ledger storage, preferences and backup are not available on the web.',
-            ),
+        appBar: AppBar(
+          title: Text(
+            text(AppString.appSettings),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Text(text(AppString.webSettings)),
           ),
         ),
       );
@@ -40,8 +100,8 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         // One line with ellipsis: at 200% text scale a wrapping title would
         // overflow the fixed AppBar height.
-        title: const Text(
-          'App Settings',
+        title: Text(
+          text(AppString.appSettings),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -51,99 +111,119 @@ class SettingsScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
-            const _ReadOnlyNotice(),
+            if (!canChoose) _ReadOnlyNotice(strings),
             const SizedBox(height: 20),
-            const _SectionTitle('Preferences'),
+            _SectionTitle(text(AppString.preferences)),
             const SizedBox(height: 8),
-            const _SettingsCard(
+            _SettingsCard(
               children: <Widget>[
                 _SettingRow(
-                  key: Key('settings-currency-row'),
+                  key: const Key('settings-currency-row'),
                   icon: Icons.currency_rupee,
-                  title: 'Currency',
-                  detail:
-                      'Amounts are shown in Indian rupees with Indian digit '
-                      'grouping. Other currencies are not available.',
-                  value: 'INR (₹)',
-                  status: 'Fixed in v1',
+                  title: text(AppString.currency),
+                  detail: text(AppString.currencyDetail),
+                  value: text(AppString.currencyInr),
+                  status: text(AppString.fixed),
                 ),
-                _CardDivider(),
+                const _CardDivider(),
                 _SettingRow(
-                  key: Key('settings-theme-row'),
+                  key: const Key('settings-theme-row'),
                   icon: Icons.light_mode_outlined,
-                  title: 'Theme',
-                  detail:
-                      'KhataBook uses its light, paper-style theme. Dark mode '
-                      'needs its own palette and is not implemented.',
-                  value: 'Light',
-                  status: 'Fixed in v1',
+                  title: text(AppString.theme),
+                  detail: text(AppString.themeDetail),
+                  value: text(AppString.light),
+                  status: text(AppString.fixed),
                 ),
-                _CardDivider(),
+                const _CardDivider(),
                 _SettingRow(
-                  key: Key('settings-language-row'),
+                  key: const Key('settings-language-row'),
                   icon: Icons.translate_outlined,
-                  title: 'Language',
-                  detail:
-                      'English is the only language wired up. Bengali strings '
-                      'are planned but not available, and choosing a language '
-                      'is not possible yet.',
-                  value: 'English',
-                  status: 'Not available yet',
+                  title: text(AppString.language),
+                  detail: text(
+                    canChoose
+                        ? AppString.languageDetail
+                        : AppString.languageUnavailable,
+                  ),
+                  value: widget.language.endonym,
+                  status: canChoose ? null : text(AppString.notAvailable),
                 ),
-                _CardDivider(),
+                if (canChoose)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OutlinedButton(
+                          key: const Key('settings-change-language'),
+                          onPressed: _busy
+                              ? null
+                              : () => _chooseLanguage(strings),
+                          child: Text(text(AppString.changeLanguage)),
+                        ),
+                        if (_busy || _failed)
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              text(
+                                _busy
+                                    ? AppString.languagePending
+                                    : AppString.languageFailed,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                const _CardDivider(),
                 _SettingRow(
-                  key: Key('settings-backup-row'),
+                  key: const Key('settings-backup-row'),
                   icon: Icons.cloud_off_outlined,
-                  title: 'Cloud backup',
-                  detail:
-                      'There is no account, no sync and no cloud copy in this '
-                      'build. The local database is your only copy.',
-                  value: 'Off',
-                  status: 'Not available yet',
+                  title: text(AppString.cloudBackup),
+                  detail: text(AppString.cloudDetail),
+                  value: text(AppString.off),
+                  status: text(AppString.notAvailable),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            const _SectionTitle('Storage'),
+            _SectionTitle(text(AppString.storage)),
             const SizedBox(height: 8),
-            const _SettingsCard(
+            _SettingsCard(
               children: <Widget>[
                 _SettingRow(
-                  key: Key('settings-storage-row'),
+                  key: const Key('settings-storage-row'),
                   icon: Icons.smartphone_outlined,
-                  title: 'Where entries are saved',
-                  detail:
-                      'Entries go straight into the local database on this '
-                      'device. Uninstalling the app removes them.',
-                  value: 'This device',
-                  status: 'Local only',
+                  title: text(AppString.storageTitle),
+                  detail: text(AppString.storageDetail),
+                  value: text(AppString.thisDevice),
+                  status: text(AppString.localOnly),
                 ),
-                _CardDivider(),
+                const _CardDivider(),
                 _SettingRow(
                   icon: Icons.wifi_off_outlined,
-                  title: 'Internet required',
-                  detail:
-                      'Nothing in this build needs a connection, and nothing '
-                      'is sent anywhere.',
-                  value: 'No',
-                  status: 'Offline-first',
+                  title: text(AppString.internetRequired),
+                  detail: text(AppString.internetDetail),
+                  value: text(AppString.no),
+                  status: text(AppString.offlineFirst),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            const Text(
-              'These values describe how KhataBook behaves today. Changing them '
-              'is not available yet, so no choice made here is saved.',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.4,
-                color: AppColors.softText,
-              ),
+            _SettingsCard(
+              children: [
+                _SettingRow(
+                  key: const Key('settings-offline-backup-row'),
+                  icon: Icons.save_alt,
+                  title: text(AppString.offlineBackupRestore),
+                  detail: text(AppString.androidBackupDetail),
+                  value: text(AppString.androidBackup),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'KhataBook 1.0.0 (build 1)',
-              style: TextStyle(
+            Text(
+              strings.buildLabel('1.0.0', 1),
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.softText,
@@ -158,15 +238,17 @@ class SettingsScreen extends StatelessWidget {
 
 /// Green-tinted banner naming the state of the screen up front.
 class _ReadOnlyNotice extends StatelessWidget {
-  const _ReadOnlyNotice();
+  const _ReadOnlyNotice(this.strings);
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
       label:
-          'Read-only settings. These are the fixed values for this build. '
-          'Nothing here can be changed and no preference is saved.',
+          '${strings.text(AppString.readOnly)}. '
+          '${strings.text(AppString.readOnlyDetail)}',
       child: ExcludeSemantics(
         child: Container(
           key: const Key('settings-readonly-notice'),
@@ -176,29 +258,31 @@ class _ReadOnlyNotice extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.outline),
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(Icons.info_outline, size: 26, color: AppColors.primaryGreen),
-              SizedBox(width: 12),
+              const Icon(
+                Icons.info_outline,
+                size: 26,
+                color: AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      'Read-only in this build',
-                      style: TextStyle(
+                      strings.text(AppString.readOnly),
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: AppColors.darkText,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'These are the fixed values for this version of '
-                      'KhataBook. Nothing on this screen can be changed, and '
-                      'no preference is saved.',
-                      style: TextStyle(
+                      strings.text(AppString.readOnlyDetail),
+                      style: const TextStyle(
                         fontSize: 13,
                         height: 1.35,
                         color: AppColors.softText,
@@ -233,7 +317,7 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Warm-ivory rounded card; no Material because no row is interactive.
+/// Warm-ivory rounded card for preference and storage information.
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({required this.children});
 
@@ -273,20 +357,20 @@ class _SettingRow extends StatelessWidget {
     required this.title,
     required this.detail,
     required this.value,
-    required this.status,
+    this.status,
   });
 
   final IconData icon;
   final String title;
   final String detail;
   final String value;
-  final String status;
+  final String? status;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      label: '$title. $value. $status. $detail',
+      label: [title, value, ?status, detail].join('. '),
       child: ExcludeSemantics(
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
@@ -333,7 +417,7 @@ class _SettingRow extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: <Widget>[
                           _ValueChip(label: value, highlighted: true),
-                          _ValueChip(label: status),
+                          if (status != null) _ValueChip(label: status!),
                         ],
                       ),
                     ],

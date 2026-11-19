@@ -331,7 +331,7 @@ void main() {
       // Settings scrolls at this scale too, instead of clipping.
       await reveal(
         tester,
-        find.textContaining('no choice made here is saved'),
+        find.byKey(const Key('settings-offline-backup-row')),
         screen: SettingsScreen,
       );
       expect(tester.takeException(), isNull);
