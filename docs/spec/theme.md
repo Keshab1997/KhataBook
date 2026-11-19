@@ -2,8 +2,9 @@
 
 Source: the **"Color Codes (Hex Values)"** panel in
 [style-guide.png](../design/style-guide.png). Every colour in that panel is
-listed below — nothing is invented, nothing is dropped. Dart names are the
-proposed identifiers for B1 (`AppColors`).
+listed below — nothing is invented, nothing is dropped. Dart names are
+implemented as `AppColors` in `lib/core/theme/app_colors.dart` and asserted in
+`test/theme_test.dart`.
 
 ## Colour tokens
 

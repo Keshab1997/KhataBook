@@ -137,10 +137,29 @@ Widget shots for B2+: `home`, `add_entry`, `calculator`, `counter`, `profile`
 registered in `tool/screenshots/shot_registry.dart` and rendered with
 `tool/local_screenshots.py` — local evidence, never committed, never a fixture.
 
-## What B0 deliberately does not include
+## Status after B1 (Flutter scaffold landed)
 
-- No `pubspec.yaml`, `lib/`, `test/`, Android/iOS/web platform folders.
-- No `.github/workflows/`, no repository secrets, no Supabase project.
+Added in B1:
+
+- `pubspec.yaml`, `lib/`, `test/`, `.metadata`, `analysis_options.yaml`,
+  `android/`, `ios/`, `web/` (Flutter 3.50.0 / Dart 3.14.0, zero third-party
+  runtime dependencies).
+- `lib/core/theme/app_colors.dart` — every token from `theme.md`;
+  `lib/core/theme/app_theme.dart` — Material 3 light theme.
+- `lib/core/format/money.dart` (integer paise → ₹ with Indian grouping) and
+  `date_format.dart`.
+- `lib/features/shell/main_shell.dart` — the four-tab `IndexedStack` +
+  `NavigationBar`; `lib/features/home/` — the Home preview with seeded totals;
+  three placeholder tabs; `test/theme_test.dart`.
+- `.github/workflows/ci.yml` and `widget-tests.yml`, both manual and pinned to
+  `flutter-builder@v1.18.6` (added with Keshab's approval).
+
+Still deliberately absent:
+
+- No Drift/SQLite database, no Riverpod/go_router/intl/Supabase packages yet —
+  each arrives with the feature that needs it (B2–B5).
+- No publishing workflows, repository secrets, GitHub Pages setup or Supabase
+  project.
 - No generated illustrations or font binaries — the two supplied PNGs are
   design references under `docs/design/`.
 - No tags, no releases, no branch other than `main`.

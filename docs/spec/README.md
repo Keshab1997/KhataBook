@@ -11,8 +11,10 @@
    + Riverpod).
 
 Where the pictures and the brief disagree, the decision is recorded below
-instead of being silently guessed. **This document is a contract proposal:
-items marked `NEEDS CONFIRMATION` are the ones to answer before B1 starts.**
+instead of being silently guessed. **This document is the contract: items
+marked `NEEDS CONFIRMATION` must be answered before the feature they govern is
+built.** B1 (scaffold + theme + shell) does not depend on any of them, so it
+shipped with the defaults recorded below.
 
 ## সারসংক্ষেপ (বাংলা)
 
@@ -57,14 +59,17 @@ yours to approve.
 | Batch | Contents | Check |
 | --- | --- | --- |
 | **B0 (this one)** | Spec docs, design references, agent pack | `python3 tool/preflight.py` |
-| B1 | Flutter scaffold, `pubspec.yaml`, theme tokens, design-system widgets, navigation shell | preflight + `test/theme_test.dart` |
+| **B1 ✅** | Flutter 3.50 scaffold, `pubspec.yaml`, `AppColors` tokens + light theme, money/date formatters, 4-tab shell, Home preview | preflight + `test/theme_test.dart` |
 | B2 | Home + Add Entry + local ledger, totals and recent list | preflight + `test/ledger_test.dart` |
 | B3 | Calculator + Note Counter | preflight + one test file each |
 | B4 | Multiple Khata switcher + Wallet Summary + Settings | preflight + `test/khata_test.dart` |
 | B5 (needs approval for secrets) | Supabase Auth, RLS, outbox sync, Profile backup UI | preflight + targeted sync test |
 
-CI is manual and belongs to Keshab's button once per finished batch. This repo
-has no workflow yet, so B0 needs no CI run.
+CI is manual and belongs to Keshab's button once per finished batch. B0 needed
+no CI run. B1 added two manual, read-only flutter-builder workflows pinned to
+`@v1.18.6` — the real Actions name is **"Flutter CI — Format, Analyze & Test"**
+(see `.github/workflows/README.md`). Publishing workflows and repository
+secrets are still not installed.
 
 ## Definition of done for B0
 
@@ -73,4 +78,12 @@ has no workflow yet, so B0 needs no CI run.
 - [x] Every HEX code in the style guide maps to a named token with a usage rule.
 - [x] Data model covers all five feature areas and the offline-first invariants.
 - [x] Contradictions between the pictures and the brief are recorded, not hidden.
-- [ ] Keshab answers Q1–Q6 → B1 starts.
+- [x] B1 shipped with the documented defaults above; Q1–Q6 remain open and
+  should be answered before B2 changes the ledger, entry form or auth flows.
+
+## Current status (B1)
+
+The spec is now backed by a compiling Flutter project. Open `README.md` at the
+repo root for what landed and what is still planned. Nothing in this document
+was deleted or silently changed: decisions D1–D10 and questions Q1–Q6 still
+stand as written.
