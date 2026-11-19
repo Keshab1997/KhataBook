@@ -1,7 +1,8 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 import '../calculator/calculator_screen.dart';
 import '../counter/note_counter_screen.dart';
@@ -9,6 +10,9 @@ import '../entry/add_entry_screen.dart';
 import '../home/home_screen.dart';
 import '../home/models.dart';
 import '../ledger/data/local_ledger.dart';
+import '../ledger/data/ledger_backup.dart';
+import '../profile/backup_files.dart';
+import '../profile/backup_screen.dart';
 import '../ledger/khata_switcher.dart';
 import '../ledger/all_transactions_screen.dart';
 import '../ledger/wallet_summary_screen.dart';
@@ -82,6 +86,47 @@ class _MainShellState extends State<MainShell> {
     _openRequest++;
     _ledger?.close();
     super.dispose();
+  }
+
+  Future<void> _openBackup() async {
+    final ledger = _ledger;
+    if (ledger == null || _summary == null) return;
+    final backup = LedgerBackup(ledger);
+    const files = BackupFiles();
+    final restored = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => BackupScreen(
+          onExport: () async {
+            final json = await backup.exportJson();
+            return await files.save(json)
+                ? BackupExportResult.saved
+                : BackupExportResult.cancelled;
+          },
+          onPickBackup: () async {
+            final json = await files.pick();
+            if (json == null) return null;
+            final counts = backup.inspect(json);
+            return BackupPreview(
+              payload: json,
+              khataCount: counts.khataCount,
+              transactionCount: counts.transactionCount,
+              deletedTransactionCount: counts.deletedTransactionCount,
+            );
+          },
+          onRestore: (preview) async {
+            await backup.restoreReplacing(preview.payload);
+            return true;
+          },
+        ),
+      ),
+    );
+    if (restored == true && mounted) {
+      await _open();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Backup restored.')));
+      }
+    }
   }
 
   Future<void> _switchKhata() async {
@@ -256,6 +301,12 @@ class _MainShellState extends State<MainShell> {
           const CalculatorScreen(),
           const NoteCounterScreen(),
           ProfileScreen(
+            onBackup:
+                !_webPreview &&
+                    defaultTargetPlatform == TargetPlatform.android &&
+                    _summary != null
+                ? _openBackup
+                : null,
             onWalletSummary: !_webPreview && _summary != null
                 ? _openWallet
                 : null,

@@ -17,17 +17,18 @@ import 'settings_screen.dart';
 /// Only controls that do something are enabled:
 ///   * [SettingsScreen], wired through [Navigator] so back works;
 ///   * the open-source licence page, rendered by Flutter itself;
-///   * wallet summary when the shell supplies an active local ledger.
+///   * wallet summary and Android offline backup when the shell provides them.
 ///
-/// Everything else (backup, sign-in) is visibly marked
+/// Unavailable features, including sign-in, are visibly marked
 /// *Not available yet* and is not tappable, rather than pretending to work.
 ///
 /// Layout is one scrolling list with no fixed heights, so a 320 dp screen at
 /// 200% text scale wraps instead of overflowing.
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, this.onWalletSummary});
+  const ProfileScreen({super.key, this.onWalletSummary, this.onBackup});
 
   final VoidCallback? onWalletSummary;
+  final VoidCallback? onBackup;
 
   /// Static build label, kept in step with `pubspec.yaml` by hand: this build
   /// ships no package-info dependency, so the number is stated, not read.
@@ -134,14 +135,13 @@ class ProfileScreen extends StatelessWidget {
                   onTap: onWalletSummary,
                 ),
                 const _MenuDivider(),
-                const _MenuRow(
-                  key: Key('profile-backup-row'),
-                  icon: Icons.cloud_upload_outlined,
-                  title: 'Back up to Supabase',
-                  subtitle:
-                      'Cloud backup needs a signed-in account, and sign-in is '
-                      'not built in this version.',
-                  status: 'Not available yet',
+                _MenuRow(
+                  key: const Key('profile-backup-row'),
+                  icon: Icons.file_upload_outlined,
+                  title: 'Offline backup / restore',
+                  subtitle: 'Save or restore an unencrypted local backup file.',
+                  status: onBackup == null ? 'Not available yet' : null,
+                  onTap: onBackup,
                 ),
                 const _MenuDivider(),
                 const _MenuRow(
