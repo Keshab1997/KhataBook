@@ -69,10 +69,16 @@ class HomeScreen extends StatelessWidget {
             const Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: <Widget>[
-                Text(
-                  'Recent Transactions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                // Flexible keeps the header safe at 200% text scale and with
+                // longer translated (bn) labels.
+                Flexible(
+                  child: Text(
+                    'Recent Transactions',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
                 ),
+                SizedBox(width: 8),
                 Text(
                   'View All >',
                   style: TextStyle(color: AppColors.primaryGreen),
