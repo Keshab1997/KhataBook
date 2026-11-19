@@ -91,6 +91,19 @@ stops `flutter test`'s Ahem font from turning text into boxes. The two TTFs in
 Add a shot when you add a screen. A screenshot that shows a red error page is
 telling the truth — fix the shot or the widget, not the capture tool.
 
+## Live web preview (local, interactive)
+
+```bash
+flutter build web --release --no-web-resources-cdn
+python3 -m http.server 8080 --bind 0.0.0.0 --directory build/web
+```
+
+The release build is static (no DDC/DWDS debug websocket), and
+`--no-web-resources-cdn` bundles CanvasKit locally so the page needs no
+external network. `build/` is git-ignored — the bundle is served, never
+committed. This is a preview artifact, not a CI build: CI still belongs to
+Keshab's manual *Flutter CI — Format, Analyze & Test* button.
+
 ## সারসংক্ষেপ (বাংলা)
 
 B0-তে স্পেসিফিকেশন লেখা হয়েছিল; **B1-তে এখন আসল Flutter প্রজেক্ট আছে** —
