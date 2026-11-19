@@ -16,7 +16,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "`in`.keshab.khatabook.khatabook"
+    namespace = "in.keshab.khatabook.khatabook"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -26,8 +26,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "`in`.keshab.khatabook.khatabook"
+        // Keep this application ID stable: Android uses it to identify installed apps.
+        applicationId = "in.keshab.khatabook.khatabook"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
