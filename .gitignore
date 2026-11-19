@@ -1,0 +1,34 @@
+# flutter-builder agent pack (installer-managed)
+.agent-screens/
+.agent-pack-backups/
+.flutter-builder-backups/
+
+# Dart / Flutter
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Secrets — never enter git (CI receives them from repo secrets)
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+key.properties
+google-services.json
+GoogleService-Info.plist
+secrets/
+service-account*.json
