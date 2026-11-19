@@ -49,7 +49,9 @@ class _MainShellState extends State<MainShell> {
     try {
       _ledger ??= widget.ledger ?? LocalLedger.device();
       await _ledger!.initialize();
-      final LedgerSummary value = await _ledger!.readSummary();
+      final LedgerSummary value = await _ledger!.readSummary(
+        khataId: _activeKhata.id,
+      );
       if (mounted) setState(() => _summary = value);
     } catch (error) {
       if (mounted) setState(() => _error = error);
@@ -142,14 +144,37 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  void _viewAll() {
+  Future<void> _viewAll() async {
     final LedgerSummary? current = _summary;
     if (current == null) return;
-    Navigator.of(context).push<void>(
+    final String khataId = _activeKhata.id;
+    await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => AllTransactionsScreen(summary: current),
+        builder: (_) => AllTransactionsScreen(
+          summary: current,
+          ledger: _ledger,
+          khataId: khataId,
+          onSummaryChanged: (value) {
+            if (mounted && _activeKhata.id == khataId) {
+              setState(() => _summary = value);
+            }
+          },
+        ),
       ),
     );
+    try {
+      final updated = await _ledger!.readSummary(khataId: khataId);
+      if (mounted && _activeKhata.id == khataId) {
+        setState(() => _summary = updated);
+      }
+    } catch (error) {
+      if (mounted && _activeKhata.id == khataId) {
+        setState(() {
+          _summary = null;
+          _error = error;
+        });
+      }
+    }
   }
 
   void _openWallet() {

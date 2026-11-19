@@ -6,10 +6,13 @@ import '../../core/format/date_format.dart';
 import '../../core/format/money.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
+import '../entry/add_entry_screen.dart';
+import '../entry/transaction_editor_screen.dart';
+import 'data/local_ledger.dart';
 
 /// S7 - All Transactions, docs/spec/screens.md (secondary screen S7).
 ///
-/// A read-only view of the khata it is given: every entry, newest first,
+/// A view of the khata it is given: every entry, newest first,
 /// grouped by local calendar day inside its calendar month. Each month heading
 /// carries that month's income and expense totals, and the card at the top
 /// carries the same two totals for exactly the rows currently shown.
@@ -20,19 +23,137 @@ import '../home/models.dart';
 /// figure on this screen - every total counts transactions only - and the card
 /// says so in words, so no number can be mistaken for the remaining balance.
 ///
-/// The screen never mutates the khata, writes nothing, and reads no storage:
-/// [summary] is supplied by the caller and all filter state lives here.
+/// With a ledger and khata ID it supports editing and reversible deletion;
+/// without them it remains a read-only view.
 class AllTransactionsScreen extends StatefulWidget {
-  const AllTransactionsScreen({super.key, required this.summary});
+  const AllTransactionsScreen({
+    super.key,
+    required this.summary,
+    this.ledger,
+    this.khataId,
+    this.onSummaryChanged,
+  });
 
   /// The khata to display. Treated as immutable, including its entry list.
   final LedgerSummary summary;
+  final LocalLedger? ledger;
+  final String? khataId;
+  final ValueChanged<LedgerSummary>? onSummaryChanged;
 
   @override
   State<AllTransactionsScreen> createState() => _AllTransactionsScreenState();
 }
 
 class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
+  late LedgerSummary _summary;
+  bool _refreshError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _summary = widget.summary;
+  }
+
+  Future<void> _refresh() async {
+    final ledger = widget.ledger!;
+    final khataId = widget.khataId!;
+    final onSummaryChanged = widget.onSummaryChanged;
+    try {
+      final updated = await ledger.readSummary(khataId: khataId);
+      if (mounted) {
+        setState(() {
+          _summary = updated;
+          _refreshError = false;
+        });
+      }
+      onSummaryChanged?.call(updated);
+    } catch (_) {
+      if (mounted) setState(() => _refreshError = true);
+    }
+  }
+
+  Future<void> _edit(LedgerEntry entry) async {
+    final ledger = widget.ledger;
+    final khataId = widget.khataId;
+    final entryId = entry.id;
+    if (ledger == null || khataId == null || entryId == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final onSummaryChanged = widget.onSummaryChanged;
+    final result = await Navigator.of(context).push<TransactionEditResult>(
+      MaterialPageRoute<TransactionEditResult>(
+        builder: (_) => TransactionEditorScreen(
+          initial: EntryFormResult(
+            kind: entry.type == EntryType.income
+                ? EntryFormKind.income
+                : EntryFormKind.expense,
+            amountPaise: entry.amountPaise,
+            category: entry.category,
+            description: entry.description ?? '',
+            occurredAt: entry.at,
+          ),
+          onUpdate: (value) => ledger.updateEntry(
+            khataId: khataId,
+            entryId: entryId,
+            entry: value,
+          ),
+          onDelete: () =>
+              ledger.softDeleteEntry(khataId: khataId, entryId: entryId),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    await _refresh();
+    if (!mounted) return;
+    messenger.hideCurrentSnackBar();
+    if (result == TransactionEditResult.updated) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Transaction updated')),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Transaction deleted'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              try {
+                final restored = await ledger.restoreEntry(
+                  khataId: khataId,
+                  entryId: entryId,
+                );
+                if (mounted) {
+                  await _refresh();
+                } else {
+                  final updated = await ledger.readSummary(khataId: khataId);
+                  onSummaryChanged?.call(updated);
+                }
+                if (!messenger.mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      restored
+                          ? 'Transaction restored'
+                          : 'Could not restore transaction',
+                    ),
+                  ),
+                );
+              } catch (_) {
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not restore transaction'),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   /// `null` means every type, so "All" is a real state rather than a flag.
   EntryType? _typeFilter;
 
@@ -59,14 +180,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   /// under the user's finger.
   List<String> get _categories {
     final Set<String> unique = <String>{
-      for (final LedgerEntry entry in widget.summary.entries) entry.category,
+      for (final LedgerEntry entry in _summary.entries) entry.category,
     };
     return unique.isEmpty ? const <String>[] : (unique.toList()..sort());
   }
 
   /// Entries matching both filters, newest first.
   List<LedgerEntry> get _visibleEntries {
-    final List<LedgerEntry> rows = widget.summary.entries
+    final List<LedgerEntry> rows = _summary.entries
         .where((LedgerEntry entry) {
           final bool typeMatches =
               _typeFilter == null || entry.type == _typeFilter;
@@ -133,7 +254,21 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<LedgerEntry> allEntries = widget.summary.entries;
+    if (_refreshError) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('All Transactions')),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Text('Could not refresh transactions.'),
+              FilledButton(onPressed: _refresh, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
+    final List<LedgerEntry> allEntries = _summary.entries;
     if (allEntries.isEmpty) {
       return Scaffold(
         key: const Key('all-transactions-screen'),
@@ -231,7 +366,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 for (final _DayGroup day in group.days) ...<Widget>[
                   _DayHeader(day: day.day),
                   for (final LedgerEntry entry in day.entries)
-                    _EntryRow(entry: entry),
+                    _EntryRow(
+                      entry: entry,
+                      onTap: widget.ledger != null && entry.id != null
+                          ? () => _edit(entry)
+                          : null,
+                    ),
                 ],
               ],
           ],
@@ -562,9 +702,10 @@ class _DayHeader extends StatelessWidget {
 
 /// One transaction: type icon, title, category and timestamp, signed amount.
 class _EntryRow extends StatelessWidget {
-  const _EntryRow({required this.entry});
+  const _EntryRow({required this.entry, this.onTap});
 
   final LedgerEntry entry;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -578,81 +719,95 @@ class _EntryRow extends StatelessWidget {
 
     return Semantics(
       container: true,
+      button: onTap != null,
+      onTap: onTap,
       label:
           '${entry.title}, ${entry.category}, '
           '${isIncome ? 'income' : 'expense'} $signedAmount, '
-          '${formatEntryDate(entry.at.toLocal())}',
+          '${formatEntryDate(entry.at.toLocal())}${onTap == null ? '' : ', tap to edit'}',
       child: ExcludeSemantics(
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: amountColor.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
+        child: InkWell(
+          key: entry.id == null ? null : Key('transaction-${entry.id}'),
+          onTap: onTap,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: amountColor.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 20,
+                    color: amountColor,
+                  ),
                 ),
-                child: Icon(
-                  isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                  size: 20,
-                  color: amountColor,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      entry.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${entry.category} · ${formatEntryDate(entry.at.toLocal())}',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        height: 1.3,
-                        color: AppColors.softText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // The amount gets its own line, so 200% text scale never
-                    // squeezes it against the title.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        signedAmount,
-                        maxLines: 1,
-                        softWrap: false,
-                        // 19 dp w800 matches Home's rows and keeps the red and
-                        // green amounts at the large-text size theme.md asks
-                        // for before they can use those colours.
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: amountColor,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text(
+                        entry.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.darkText,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        '${entry.category} · ${formatEntryDate(entry.at.toLocal())}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          height: 1.3,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // The amount gets its own line, so 200% text scale never
+                      // squeezes it against the title.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          signedAmount,
+                          maxLines: 1,
+                          softWrap: false,
+                          // 19 dp w800 matches Home's rows and keeps the red and
+                          // green amounts at the large-text size theme.md asks
+                          // for before they can use those colours.
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: amountColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                if (onTap != null) ...<Widget>[
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 20,
+                    color: AppColors.softText,
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
