@@ -9,6 +9,7 @@ import '../entry/add_entry_screen.dart';
 import '../home/home_screen.dart';
 import '../home/models.dart';
 import '../ledger/data/local_ledger.dart';
+import '../ledger/khata_switcher.dart';
 import '../profile/profile_screen.dart';
 import '../../core/format/date_format.dart';
 import '../../core/format/money.dart';
@@ -29,6 +30,12 @@ class _MainShellState extends State<MainShell> {
   LedgerSummary? _summary;
   Object? _error;
   bool _saving = false;
+  LocalKhata _activeKhata = const LocalKhata(
+    id: 'personal',
+    name: 'Personal Khata',
+    openingBalancePaise: 0,
+  );
+  bool _switching = false;
   bool get _webPreview => kIsWeb && widget.ledger == null;
 
   @override
@@ -55,9 +62,45 @@ class _MainShellState extends State<MainShell> {
     super.dispose();
   }
 
+  Future<void> _switchKhata() async {
+    if (_switching || _ledger == null) return;
+    _switching = true;
+    try {
+      final List<LocalKhata> khatas = await _ledger!.listKhatas();
+      if (!mounted) return;
+      final LocalKhata? selected = await showKhataSwitcher(
+        context,
+        _ledger!,
+        khatas,
+        _activeKhata.id,
+      );
+      if (selected == null || !mounted) return;
+      final LedgerSummary summary = await _ledger!.readSummary(
+        khataId: selected.id,
+      );
+      if (mounted) {
+        setState(() {
+          _activeKhata = selected;
+          _summary = summary;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open khata. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      _switching = false;
+    }
+  }
+
   void _addEntry() {
     final LedgerSummary? current = _summary;
     if (current == null) return;
+    final String khataId = _activeKhata.id;
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext routeContext) => AddEntryScreen(
@@ -66,7 +109,7 @@ class _MainShellState extends State<MainShell> {
             if (_saving) return;
             _saving = true;
             try {
-              await _ledger!.addEntry(entry);
+              await _ledger!.addEntry(entry, khataId: khataId);
             } catch (_) {
               _saving = false;
               if (routeContext.mounted) {
@@ -81,7 +124,9 @@ class _MainShellState extends State<MainShell> {
             _saving = false;
             if (routeContext.mounted) Navigator.of(routeContext).pop();
             try {
-              final LedgerSummary updated = await _ledger!.readSummary();
+              final LedgerSummary updated = await _ledger!.readSummary(
+                khataId: khataId,
+              );
               if (mounted) setState(() => _summary = updated);
             } catch (error) {
               if (mounted) {
@@ -158,6 +203,8 @@ class _MainShellState extends State<MainShell> {
         summary: _summary,
         onAddEntry: _addEntry,
         onViewAll: _viewAll,
+        khataName: _activeKhata.name,
+        onSwitchKhata: _switchKhata,
       );
     }
     return Scaffold(

@@ -26,7 +26,14 @@ import 'models.dart';
 /// Every text block is inside a bounded flex or a scaling box so that 200%
 /// text scale and small phone widths cannot overflow.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, this.summary, this.onAddEntry, this.onViewAll});
+  const HomeScreen({
+    super.key,
+    this.summary,
+    this.onAddEntry,
+    this.onViewAll,
+    this.khataName,
+    this.onSwitchKhata,
+  });
 
   /// Live figures to render. `null` selects the seeded preview instead.
   final LedgerSummary? summary;
@@ -36,6 +43,9 @@ class HomeScreen extends StatelessWidget {
 
   /// *View All* action; a null callback leaves that affordance disabled.
   final VoidCallback? onViewAll;
+
+  final String? khataName;
+  final VoidCallback? onSwitchKhata;
 
   /// Page padding from the 8 dp grid in docs/spec/theme.md.
   static const double _pagePadding = 16;
@@ -66,6 +76,19 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
+                    if (onSwitchKhata != null) ...<Widget>[
+                      OutlinedButton.icon(
+                        key: const Key('switch-khata'),
+                        onPressed: onSwitchKhata,
+                        icon: const Icon(Icons.account_balance_wallet_outlined),
+                        label: Text(
+                          khataName ?? 'Personal Khata',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: _cardGap),
+                    ],
                     _BalanceCard(remainingPaise: visibleSummary.remainingPaise),
                     const SizedBox(height: _cardGap),
                     _summaryRow(visibleSummary),
