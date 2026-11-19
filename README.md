@@ -73,6 +73,24 @@ agent.
 > repository secret are deliberately **not** added — those need Keshab's
 > approval.
 
+## Previewing a screen (no CI, no device)
+
+```bash
+python3 tool/local_screenshots.py --list          # home, calculator, counter, profile
+python3 tool/local_screenshots.py --shot home     # one PNG
+python3 tool/local_screenshots.py                # all four
+```
+
+The harness renders the real widgets through `flutter test` into
+`.agent-screens/local/` (git-ignored local evidence, never committed).
+`tool/screenshots/shot_registry.dart` is this project's file: it holds the shot
+list, the real `AppTheme` wrapper and the `FontLoader('Roboto')` setup that
+stops `flutter test`'s Ahem font from turning text into boxes. The two TTFs in
+`assets/fonts/` are screenshot-only (Apache-2.0, not bundled into the app).
+
+Add a shot when you add a screen. A screenshot that shows a red error page is
+telling the truth — fix the shot or the widget, not the capture tool.
+
 ## সারসংক্ষেপ (বাংলা)
 
 B0-তে স্পেসিফিকেশন লেখা হয়েছিল; **B1-তে এখন আসল Flutter প্রজেক্ট আছে** —
