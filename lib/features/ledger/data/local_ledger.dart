@@ -52,6 +52,38 @@ class KhataNotFoundException implements Exception {
   String toString() => 'KhataNotFoundException: no active khata $khataId';
 }
 
+/// Thrown when a caller tries to archive the personal khata.
+///
+/// The personal khata is the one the app opens on and the one every backup
+/// file must carry active, so it is a mandatory ledger and can never be
+/// archived. Archiving any other khata stays reversible through
+/// [LocalLedger.unarchiveKhata].
+class KhataPersonalArchiveException implements Exception {
+  const KhataPersonalArchiveException(this.khataId);
+
+  final String khataId;
+
+  @override
+  String toString() =>
+      'KhataPersonalArchiveException: khata $khataId is the personal khata '
+      'and cannot be archived';
+}
+
+/// Thrown when [LocalLedger.unarchiveKhata] names a khata that is not archived.
+///
+/// Restoring an already-active khata is a no-op request that did not happen, so
+/// it is reported instead of being silently accepted; an unknown id is
+/// [KhataNotFoundException] rather than this.
+class KhataNotArchivedException implements Exception {
+  const KhataNotArchivedException(this.khataId);
+
+  final String khataId;
+
+  @override
+  String toString() =>
+      'KhataNotArchivedException: khata $khataId is not archived';
+}
+
 /// A single local database. The SQL schema is also exercised independently
 /// by tests/test_ledger_schema.py. Sync is deliberately not implemented here.
 class LocalLedger extends GeneratedDatabase {
@@ -119,10 +151,10 @@ class LocalLedger extends GeneratedDatabase {
       ).get();
       if (rows.isNotEmpty) {
         final String storedId = rows.single.read<String>('khata_id');
-        if (await _findKhata(storedId) != null) return storedId;
+        if (await _findActiveKhata(storedId) != null) return storedId;
       }
 
-      if (await _findKhata(_defaultKhata) == null) {
+      if (await _findActiveKhata(_defaultKhata) == null) {
         throw const KhataNotFoundException(_defaultKhata);
       }
       await _writeActiveKhataId(_defaultKhata);
@@ -135,7 +167,7 @@ class LocalLedger extends GeneratedDatabase {
   /// never changes the saved choice.
   Future<void> setActiveKhataId(String id) async {
     await transaction(() async {
-      if (await _findKhata(id) == null) throw KhataNotFoundException(id);
+      if (await _findActiveKhata(id) == null) throw KhataNotFoundException(id);
       await _writeActiveKhataId(id);
     });
   }
@@ -161,8 +193,11 @@ class LocalLedger extends GeneratedDatabase {
     );
   }
 
-  /// Active (non-tombstoned) khatas in a stable order: the default personal
+  /// Active (non-archived) khatas in a stable order: the default personal
   /// khata first, then `sort_order`, then creation time and id.
+  ///
+  /// Archived khatas are excluded because archiving sets the khata's
+  /// `deleted_at`; [listArchivedKhatas] is the only way to see them again.
   Future<List<LocalKhata>> listKhatas() async {
     final List<QueryRow> rows = await customSelect(
       'SELECT id, name, opening_balance_paise FROM khatas '
@@ -171,37 +206,42 @@ class LocalLedger extends GeneratedDatabase {
       'created_at ASC, id ASC',
       variables: <Variable<Object>>[Variable<String>(_defaultKhata)],
     ).get();
-    return List<LocalKhata>.unmodifiable(
-      rows.map(
-        (QueryRow row) => LocalKhata(
-          id: row.read<String>('id'),
-          name: row.read<String>('name'),
-          openingBalancePaise: row.read<int>('opening_balance_paise'),
-        ),
-      ),
-    );
+    return List<LocalKhata>.unmodifiable(rows.map(_khataFromRow));
   }
+
+  /// Archived (soft-deleted) khatas, oldest archive first, then by id.
+  ///
+  /// This is the mirror of [listKhatas]: the same [LocalKhata] shape, so a
+  /// restore screen only needs the id. An archived khata keeps its entries,
+  /// amounts and opening balance while it is listed here; nothing about its
+  /// data is hidden, only the khata's own `deleted_at` marks it archived.
+  Future<List<LocalKhata>> listArchivedKhatas() async {
+    final List<QueryRow> rows = await customSelect(
+      'SELECT id, name, opening_balance_paise FROM khatas '
+      'WHERE deleted_at IS NOT NULL '
+      'ORDER BY deleted_at ASC, id ASC',
+    ).get();
+    return List<LocalKhata>.unmodifiable(rows.map(_khataFromRow));
+  }
+
+  /// Maps one `khatas` row to the immutable value callers compare in tests.
+  static LocalKhata _khataFromRow(QueryRow row) => LocalKhata(
+    id: row.read<String>('id'),
+    name: row.read<String>('name'),
+    openingBalancePaise: row.read<int>('opening_balance_paise'),
+  );
 
   /// Creates one UUID-backed khata in the existing schema.
   ///
   /// [name] is trimmed before validation and storage; blank or
-  /// longer-than-40-character names are rejected, as are negative or
-  /// out-of-range [openingBalancePaise] values. Nothing is written on error.
+  /// longer-than-40-rune names are rejected, as are negative or out-of-range
+  /// [openingBalancePaise] values. Nothing is written on error. The name rule
+  /// is shared with [renameKhata].
   Future<LocalKhata> createKhata({
     required String name,
     required int openingBalancePaise,
   }) async {
-    final String trimmedName = name.trim();
-    if (trimmedName.isEmpty) {
-      throw ArgumentError.value(name, 'name', 'Khata name must not be blank');
-    }
-    if (trimmedName.runes.length > _maxKhataNameLength) {
-      throw ArgumentError.value(
-        name,
-        'name',
-        'Khata name must be at most $_maxKhataNameLength characters',
-      );
-    }
+    final String trimmedName = _validateKhataName(name);
     if (openingBalancePaise < 0 ||
         openingBalancePaise > _maxOpeningBalancePaise) {
       throw ArgumentError.value(
@@ -223,17 +263,182 @@ class LocalLedger extends GeneratedDatabase {
     );
   }
 
+  /// Renames one active khata and returns its new value.
+  ///
+  /// The name rule is exactly the one [createKhata] uses: the string is
+  /// trimmed, then must be 1…40 Unicode runes, so emoji and Indic scripts
+  /// count as characters, not UTF-16 units. An invalid name throws
+  /// [ArgumentError] and writes nothing.
+  ///
+  /// Only `name`, `updated_at` and `sync_state` (back to `'pending'`, so the
+  /// change is pushed later) are touched: `id`, `opening_balance_paise`,
+  /// `created_at`, `sort_order` and every `"transactions"` row stay exactly as
+  /// they were, so totals cannot move just because a ledger was renamed.
+  ///
+  /// An unknown or already-archived [khataId] throws [KhataNotFoundException].
+  /// There is no silent success and no fallback to the personal khata, so a
+  /// stale UI cannot rename the wrong ledger. The existence check and the
+  /// update share one transaction, so a rename cannot land on a khata that was
+  /// archived in between. The personal khata may be renamed - only archiving
+  /// it is forbidden.
+  Future<LocalKhata> renameKhata({
+    required String khataId,
+    required String name,
+  }) async {
+    final String trimmedName = _validateKhataName(name);
+    final String now = DateTime.now().toUtc().toIso8601String();
+    return transaction<LocalKhata>(() async {
+      final LocalKhata? khata = await _findActiveKhata(khataId);
+      if (khata == null) throw KhataNotFoundException(khataId);
+      final int changed = await customUpdate(
+        'UPDATE khatas SET name = ?, updated_at = ?, '
+        "sync_state = 'pending' WHERE id = ? AND deleted_at IS NULL",
+        variables: <Variable<Object>>[
+          Variable<String>(trimmedName),
+          Variable<String>(now),
+          Variable<String>(khataId),
+        ],
+      );
+      if (changed != 1) throw KhataNotFoundException(khataId);
+      return LocalKhata(
+        id: khata.id,
+        name: trimmedName,
+        openingBalancePaise: khata.openingBalancePaise,
+      );
+    });
+  }
+
+  /// Soft-archives one khata: sets its `deleted_at`, and nothing else.
+  ///
+  /// Archive is a reversible marker on the **khata row only**. No
+  /// `"transactions"` row is deleted, updated, re-parented or re-summed, so
+  /// every entry, its amount, its category and the khata's opening balance stay
+  /// attached to the same `id` and come back untouched from [unarchiveKhata].
+  /// While archived, the khata is excluded from [listKhatas] (the ordinary
+  /// active list) and [readSummary] / [addEntry] reject it as inactive, so its
+  /// entries are outside every active list and wallet total instead of being
+  /// mixed into another ledger.
+  ///
+  /// The personal khata can never be archived: it throws
+  /// [KhataPersonalArchiveException]. It is the mandatory fallback selection
+  /// and the khata every backup file must carry active.
+  ///
+  /// If the archived khata is the persisted active selection, the same
+  /// transaction re-points `active_khata_preference` at the personal khata, so
+  /// no reader can observe an archived khata as the active choice. If the
+  /// personal khata itself is unusable the stale preference row is removed
+  /// instead of being left pointing at an archived id; [readActiveKhataId] then
+  /// reports the broken personal khata rather than returning the archived one.
+  ///
+  /// Throws [KhataNotFoundException] for an unknown or already-archived id.
+  /// `updated_at` is bumped and `sync_state` returns to `'pending'`.
+  Future<void> archiveKhata({required String khataId}) async {
+    if (khataId == _defaultKhata) {
+      throw const KhataPersonalArchiveException(_defaultKhata);
+    }
+    final String now = DateTime.now().toUtc().toIso8601String();
+    await transaction(() async {
+      if (await _findActiveKhata(khataId) == null) {
+        throw KhataNotFoundException(khataId);
+      }
+      final int changed = await customUpdate(
+        'UPDATE khatas SET deleted_at = ?, updated_at = ?, '
+        "sync_state = 'pending' WHERE id = ? AND deleted_at IS NULL",
+        variables: <Variable<Object>>[
+          Variable<String>(now),
+          Variable<String>(now),
+          Variable<String>(khataId),
+        ],
+      );
+      if (changed != 1) throw KhataNotFoundException(khataId);
+
+      final List<QueryRow> selected = await customSelect(
+        'SELECT khata_id FROM active_khata_preference WHERE singleton = 1',
+      ).get();
+      final bool wasSelected =
+          selected.isNotEmpty &&
+          selected.single.read<String>('khata_id') == khataId;
+      if (wasSelected) {
+        if (await _findActiveKhata(_defaultKhata) != null) {
+          await _writeActiveKhataId(_defaultKhata);
+        } else {
+          await customStatement(
+            'DELETE FROM active_khata_preference WHERE singleton = 1',
+          );
+        }
+      }
+    });
+  }
+
+  /// Reverses [archiveKhata]: clears `deleted_at` on the archived khata.
+  ///
+  /// Restore preserves the khata's original `id`, `name`, opening balance,
+  /// creation time and every entry (including entry ids, amounts and
+  /// soft-delete tombstones), because archiving never changed them.
+  /// `updated_at` is bumped and `sync_state` returns to `'pending'`.
+  ///
+  /// Restoring does **not** re-select the khata: the active selection stays
+  /// whatever it is now (normally the personal khata the archive switched to),
+  /// so a reopen never lands the user somewhere they did not choose. Throws
+  /// [KhataNotFoundException] for an unknown id and [KhataNotArchivedException]
+  /// for a khata that is already active; nothing is written in either case.
+  Future<void> unarchiveKhata({required String khataId}) async {
+    final String now = DateTime.now().toUtc().toIso8601String();
+    await transaction(() async {
+      final List<QueryRow> archived = await customSelect(
+        'SELECT id FROM khatas WHERE id = ? AND deleted_at IS NOT NULL',
+        variables: <Variable<Object>>[Variable<String>(khataId)],
+      ).get();
+      if (archived.isEmpty) {
+        // Distinguish a wrong id from a redundant request; both are rejected.
+        if (await _findActiveKhata(khataId) != null) {
+          throw KhataNotArchivedException(khataId);
+        }
+        throw KhataNotFoundException(khataId);
+      }
+      final int changed = await customUpdate(
+        'UPDATE khatas SET deleted_at = NULL, updated_at = ?, '
+        "sync_state = 'pending' WHERE id = ? AND deleted_at IS NOT NULL",
+        variables: <Variable<Object>>[
+          Variable<String>(now),
+          Variable<String>(khataId),
+        ],
+      );
+      if (changed != 1) throw KhataNotFoundException(khataId);
+    });
+  }
+
+  /// The khata-name rule shared by [createKhata] and [renameKhata]: trimmed,
+  /// then 1…40 Unicode runes. Returns the trimmed name; throws
+  /// [ArgumentError] without writing anything.
+  String _validateKhataName(String name) {
+    final String trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Khata name must not be blank');
+    }
+    if (trimmedName.runes.length > _maxKhataNameLength) {
+      throw ArgumentError.value(
+        name,
+        'name',
+        'Khata name must be at most $_maxKhataNameLength characters',
+      );
+    }
+    return trimmedName;
+  }
+
   /// Reads the opening balance and every non-deleted entry of exactly one
-  /// khata. Totals are never mixed across khatas.
+  /// active khata. Totals are never mixed across khatas, and an archived khata
+  /// reads as inactive ([KhataNotFoundException]) instead of contributing its
+  /// entries anywhere.
   Future<LedgerSummary> readSummary({String khataId = 'personal'}) async {
-    final QueryRow? khata = await _findKhata(khataId);
+    final LocalKhata? khata = await _findActiveKhata(khataId);
     if (khata == null) throw KhataNotFoundException(khataId);
     final List<QueryRow> rows = await customSelect(
       'SELECT id, type, amount_paise, category_id, description, occurred_at FROM "transactions" WHERE khata_id = ? AND deleted_at IS NULL ORDER BY occurred_at DESC, id ASC',
       variables: <Variable<Object>>[Variable<String>(khataId)],
     ).get();
     return LedgerSummary(
-      openingBalancePaise: khata.read<int>('opening_balance_paise'),
+      openingBalancePaise: khata.openingBalancePaise,
       entries: rows
           .map((QueryRow row) {
             final String category = row.read<String>('category_id');
@@ -271,7 +476,7 @@ class LocalLedger extends GeneratedDatabase {
     // One transaction so the existence check and the insert cannot be
     // interleaved with a tombstone written elsewhere.
     await transaction(() async {
-      if (await _findKhata(khataId) == null) {
+      if (await _findActiveKhata(khataId) == null) {
         throw KhataNotFoundException(khataId);
       }
       await customStatement(
@@ -393,7 +598,7 @@ class LocalLedger extends GeneratedDatabase {
     return transaction(() async {
       // A tombstoned or unknown khata is inactive: report false and never let a
       // restore resurrect an entry inside a deleted khata.
-      if (await _findKhata(khataId) == null) return false;
+      if (await _findActiveKhata(khataId) == null) return false;
       final int changed = await statement(now);
       return changed == 1;
     });
@@ -418,13 +623,18 @@ class LocalLedger extends GeneratedDatabase {
   }
 
   /// The active khata matching [khataId], or `null` when the id is blank,
-  /// unknown or tombstoned — all of which callers must reject.
-  Future<QueryRow?> _findKhata(String khataId) async {
+  /// unknown or archived — all of which callers must reject.
+  ///
+  /// Every read and write path above goes through here, so archived khatas
+  /// inherit the same rule everywhere: their entries are unreachable until
+  /// [unarchiveKhata] clears `deleted_at` again.
+  Future<LocalKhata?> _findActiveKhata(String khataId) async {
     if (khataId.trim().isEmpty) return null;
     final List<QueryRow> rows = await customSelect(
-      'SELECT opening_balance_paise FROM khatas WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, name, opening_balance_paise FROM khatas '
+      'WHERE id = ? AND deleted_at IS NULL',
       variables: <Variable<Object>>[Variable<String>(khataId)],
     ).get();
-    return rows.isEmpty ? null : rows.single;
+    return rows.isEmpty ? null : _khataFromRow(rows.single);
   }
 }

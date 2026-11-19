@@ -7,7 +7,15 @@ import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 Future<void> revealTap(WidgetTester tester, Finder finder) async {
-  await tester.ensureVisible(finder);
+  if (finder.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      finder,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+  } else {
+    await tester.ensureVisible(finder);
+  }
   await tester.pumpAndSettle();
   expect(finder.hitTestable(), findsOneWidget);
   await tester.tap(finder.hitTestable());
@@ -52,6 +60,12 @@ void main() {
     expect(find.text('Lunch'), findsNothing);
     expect(find.text('Transaction deleted'), findsOneWidget);
     await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Lunch'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Lunch'), findsOneWidget);
     expect(find.text('-₹35.50'), findsOneWidget);

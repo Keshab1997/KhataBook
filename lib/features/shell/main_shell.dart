@@ -14,6 +14,7 @@ import '../ledger/data/ledger_backup.dart';
 import '../profile/backup_files.dart';
 import '../profile/backup_screen.dart';
 import '../ledger/khata_switcher.dart';
+import '../ledger/khata_manage_screen.dart';
 import '../ledger/all_transactions_screen.dart';
 import '../ledger/wallet_summary_screen.dart';
 import '../profile/profile_screen.dart';
@@ -129,6 +130,25 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  Future<void> _manageKhatas() async {
+    final ledger = _ledger;
+    if (ledger == null) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => KhataManageScreen(
+          loadActive: ledger.listKhatas,
+          loadArchived: ledger.listArchivedKhatas,
+          onRename: (id, name) async {
+            await ledger.renameKhata(khataId: id, name: name);
+          },
+          onArchive: (id) => ledger.archiveKhata(khataId: id),
+          onUnarchive: (id) => ledger.unarchiveKhata(khataId: id),
+        ),
+      ),
+    );
+    if (changed == true && mounted) await _open();
+  }
+
   Future<void> _switchKhata() async {
     if (_switching || _ledger == null) return;
     _switching = true;
@@ -140,6 +160,7 @@ class _MainShellState extends State<MainShell> {
         _ledger!,
         khatas,
         _activeKhata.id,
+        onManage: _manageKhatas,
       );
       if (selected == null || !mounted) return;
       final LedgerSummary summary = await _ledger!.readSummary(

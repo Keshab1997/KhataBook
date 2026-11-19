@@ -10,12 +10,70 @@ import '../entry/add_entry_screen.dart';
 import '../entry/transaction_editor_screen.dart';
 import 'data/local_ledger.dart';
 
+/// The device-local calendar day of [instant].
+///
+/// Storage keeps UTC instants (see docs/spec/data-model.md), so every date
+/// comparison converts first: a 22:30 UTC entry belongs to the local day the
+/// user actually saw, never to the UTC calendar day.
+DateTime localDayOf(DateTime instant) {
+  final DateTime local = instant.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
+/// Whether [instant] falls on one of the local calendar days in [range].
+///
+/// Both ends are inclusive and compare whole local days, so an entry at 23:59
+/// on the end day still matches while one at 00:00 the next morning does not.
+/// `null` means there is no date filter, which matches every day.
+bool matchesLocalDateRange(DateTime instant, DateTimeRange? range) {
+  if (range == null) {
+    return true;
+  }
+  final DateTime day = localDayOf(instant);
+  return !day.isBefore(localDayOf(range.start)) &&
+      !day.isAfter(localDayOf(range.end));
+}
+
+/// [raw] with the surrounding whitespace removed and lower-cased, so matching
+/// ignores case and stray spaces. Bengali has no case, so the lower-casing is
+/// a no-op there and a Bengali query still matches Bengali text.
+String normalizeSearchQuery(String raw) => raw.trim().toLowerCase();
+
+/// Whether [entry] matches [rawQuery], a case-insensitive substring.
+///
+/// The query is tested against the title (the stored description, or the
+/// category when there is no description), against the category, and against
+/// the stored description. An empty or whitespace-only query matches
+/// everything, which is what "no search" means.
+bool matchesSearchQuery(LedgerEntry entry, String rawQuery) {
+  final String query = normalizeSearchQuery(rawQuery);
+  if (query.isEmpty) {
+    return true;
+  }
+  if (entry.title.toLowerCase().contains(query)) {
+    return true;
+  }
+  if (entry.category.toLowerCase().contains(query)) {
+    return true;
+  }
+  final String? description = entry.description;
+  return description != null && description.toLowerCase().contains(query);
+}
+
 /// S7 - All Transactions, docs/spec/screens.md (secondary screen S7).
 ///
 /// A view of the khata it is given: every entry, newest first,
 /// grouped by local calendar day inside its calendar month. Each month heading
 /// carries that month's income and expense totals, and the card at the top
 /// carries the same two totals for exactly the rows currently shown.
+///
+/// Four filters narrow that list and always compose: a search query over the
+/// description/title and the category, a "from"/"to" pair of local calendar
+/// days (both inclusive), and the type and category chips. One filtered list
+/// feeds the rows, the counts, the summary card and the month headings, so no
+/// figure on the screen can describe a row the user cannot see. An empty
+/// result is reported as "no matches", which is deliberately a different
+/// message from an empty khata.
 ///
 /// Money stays integer paise end to end ([formatPaise] is the only formatter)
 /// and dates come from the shared [formatEntryDate], so nothing here can
@@ -48,10 +106,39 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   late LedgerSummary _summary;
   bool _refreshError = false;
 
+  /// The search box's text. Owned by the screen so the query survives a
+  /// rebuild after an edit and the controller is released with the screen.
+  final TextEditingController _searchController = TextEditingController();
+
+  /// The live query the rows are filtered by, updated on every keystroke so
+  /// the list and the totals change together.
+  String _query = '';
+
+  /// The first local day to show; `null` means no lower bound.
+  DateTime? _fromDay;
+
+  /// The last local day to show; `null` means no upper bound.
+  DateTime? _toDay;
+
   @override
   void initState() {
     super.initState();
     _summary = widget.summary;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String value) {
+    setState(() => _query = value);
+  }
+
+  void _clearQuery() {
+    _searchController.clear();
+    setState(() => _query = '');
   }
 
   Future<void> _refresh() async {
@@ -168,24 +255,127 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     setState(() => _categoryFilter = category);
   }
 
+  /// Every filter at once: query, both days, type and category.
   void _clearFilters() {
+    _searchController.clear();
     setState(() {
+      _query = '';
       _typeFilter = null;
       _categoryFilter = null;
+      _fromDay = null;
+      _toDay = null;
     });
   }
 
-  /// Categories actually present in this khata, alphabetical. Built from every
-  /// entry, not the filtered ones, so choosing a category never moves the chips
-  /// under the user's finger.
-  List<String> get _categories {
+  void _clearDates() {
+    setState(() {
+      _fromDay = null;
+      _toDay = null;
+    });
+  }
+
+  /// The newest local day in the khata, so a picker opens near the data the
+  /// user is already looking at instead of on today's month.
+  DateTime? get _newestEntryDay {
+    DateTime? newest;
+    for (final LedgerEntry entry in _summary.entries) {
+      final DateTime day = localDayOf(entry.at);
+      if (newest == null || day.isAfter(newest)) {
+        newest = day;
+      }
+    }
+    return newest;
+  }
+
+  Future<void> _pickFromDay() async {
+    final DateTime now = DateTime.now();
+    final DateTime first = DateTime(1900);
+    final DateTime last = DateTime(now.year + 100, 12, 31);
+    final DateTime proposed = _fromDay ?? _newestEntryDay ?? now;
+    final DateTime initial = proposed.isBefore(first)
+        ? first
+        : (proposed.isAfter(last) ? last : proposed);
+    final DateTime? chosen = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
+      helpText: 'Show transactions from this day',
+    );
+    if (chosen == null || !mounted) {
+      return;
+    }
+    final DateTime day = localDayOf(chosen);
+    final DateTime? to = _toDay;
+    setState(() {
+      if (to != null && day.isAfter(to)) {
+        // A start after the current end means the user picked the two days
+        // the other way round; keep the span and let the labels follow it.
+        _fromDay = to;
+        _toDay = day;
+      } else {
+        _fromDay = day;
+      }
+    });
+  }
+
+  Future<void> _pickToDay() async {
+    final DateTime now = DateTime.now();
+    final DateTime first = DateTime(1900);
+    final DateTime last = DateTime(now.year + 100, 12, 31);
+    final DateTime proposed = _toDay ?? _fromDay ?? _newestEntryDay ?? now;
+    final DateTime initial = proposed.isBefore(first)
+        ? first
+        : (proposed.isAfter(last) ? last : proposed);
+    final DateTime? chosen = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
+      helpText: 'Show transactions up to this day',
+    );
+    if (chosen == null || !mounted) {
+      return;
+    }
+    final DateTime day = localDayOf(chosen);
+    final DateTime? from = _fromDay;
+    setState(() {
+      if (from != null && day.isBefore(from)) {
+        _fromDay = day;
+        _toDay = from;
+      } else {
+        _toDay = day;
+      }
+    });
+  }
+
+  /// 48 dp clear control, shown only while there is a query to clear.
+  Widget _clearSearchButton() {
+    return IconButton(
+      key: const Key('search-clear'),
+      tooltip: 'Clear search',
+      onPressed: _clearQuery,
+      icon: const Icon(Icons.close),
+    );
+  }
+
+  /// Categories to offer, alphabetical. Built from every entry, not the
+  /// filtered ones, so choosing a category never moves the chips under the
+  /// user's finger. The selected category stays listed even when an edit
+  /// removed its last entry, so such a filter still reads as selected and can
+  /// be changed instead of silently disappearing.
+  List<String> get _categoryOptions {
     final Set<String> unique = <String>{
       for (final LedgerEntry entry in _summary.entries) entry.category,
     };
+    final String? selected = _categoryFilter;
+    if (selected != null) {
+      unique.add(selected);
+    }
     return unique.isEmpty ? const <String>[] : (unique.toList()..sort());
   }
 
-  /// Entries matching both filters, newest first.
+  /// Entries matching all four filters, newest first.
   List<LedgerEntry> get _visibleEntries {
     final List<LedgerEntry> rows = _summary.entries
         .where((LedgerEntry entry) {
@@ -193,7 +383,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               _typeFilter == null || entry.type == _typeFilter;
           final bool categoryMatches =
               _categoryFilter == null || entry.category == _categoryFilter;
-          return typeMatches && categoryMatches;
+          return typeMatches &&
+              categoryMatches &&
+              (_fromDay == null || !localDayOf(entry.at).isBefore(_fromDay!)) &&
+              (_toDay == null || !localDayOf(entry.at).isAfter(_toDay!)) &&
+              matchesSearchQuery(entry, _query);
         })
         .toList(growable: false);
     return List<LedgerEntry>.from(rows)..sort(_newestFirst);
@@ -288,6 +482,22 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final List<LedgerEntry> visible = _visibleEntries;
     final List<_MonthGroup> groups = _group(visible);
 
+    final DateTime? fromDay = _fromDay;
+    final DateTime? toDay = _toDay;
+    final bool hasDates = fromDay != null || toDay != null;
+    final String fromLabel = fromDay == null
+        ? 'From: any date'
+        : 'From: ${_dateLabel(fromDay)}';
+    final String toLabel = toDay == null
+        ? 'To: any date'
+        : 'To: ${_dateLabel(toDay)}';
+    final String fromSemantics = fromDay == null
+        ? 'Date filter: from any date'
+        : 'Date filter: from ${_dateLabel(fromDay)}';
+    final String toSemantics = toDay == null
+        ? 'Date filter: to any date'
+        : 'Date filter: to ${_dateLabel(toDay)}';
+
     return Scaffold(
       key: const Key('all-transactions-screen'),
       appBar: AppBar(
@@ -303,6 +513,69 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
             _SummaryCard(totalCount: allEntries.length, entries: visible),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('search-field'),
+              controller: _searchController,
+              onChanged: _onQueryChanged,
+              textInputAction: TextInputAction.search,
+              style: const TextStyle(fontSize: 15, color: AppColors.darkText),
+              decoration: InputDecoration(
+                labelText: 'Search transactions',
+                hintText: 'Description or category',
+                prefixIcon: const Icon(Icons.search, color: AppColors.softText),
+                suffixIcon: _query.isEmpty ? null : _clearSearchButton(),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: AppColors.outline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppColors.primaryGreen,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const _SectionTitle('Date'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _FilterChip(
+                  key: const Key('date-filter-from'),
+                  label: fromLabel,
+                  semanticLabel: fromSemantics,
+                  selected: fromDay != null,
+                  onTap: _pickFromDay,
+                ),
+                _FilterChip(
+                  key: const Key('date-filter-to'),
+                  label: toLabel,
+                  semanticLabel: toSemantics,
+                  selected: toDay != null,
+                  onTap: _pickToDay,
+                ),
+                if (hasDates)
+                  _FilterChip(
+                    key: const Key('date-filter-clear'),
+                    label: 'Clear dates',
+                    semanticLabel: 'Date filter: clear both days',
+                    selected: false,
+                    onTap: _clearDates,
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             const _SectionTitle('Type'),
             const SizedBox(height: 8),
@@ -347,7 +620,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   selected: _categoryFilter == null,
                   onTap: () => _selectCategory(null),
                 ),
-                for (final String category in _categories)
+                for (final String category in _categoryOptions)
                   _FilterChip(
                     key: Key('category-filter-$category'),
                     label: category,
@@ -851,8 +1124,8 @@ class _NoMatches extends StatelessWidget {
       icon: Icons.filter_list,
       title: 'No transactions match these filters',
       message:
-          'Try another type or category, or clear the filters to see every '
-          'transaction again.',
+          'Try another search, type, category or date, or clear the filters '
+          'to see every transaction again.',
       action: FilledButton(
         key: const Key('clear-filters'),
         onPressed: onClear,

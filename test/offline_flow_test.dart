@@ -40,6 +40,12 @@ void main() {
     await tester.tap(find.text('View All'));
     await tester.pumpAndSettle();
     expect(find.text('All Transactions'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Lunch'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Lunch'), findsOneWidget);
   });
 }

@@ -4,10 +4,13 @@ import 'package:flutter/semantics.dart';
 // Flutter 3.50 deprecates this import; migrate with the app's dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
+import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/home/models.dart';
 import 'package:khatabook/features/ledger/all_transactions_screen.dart';
+import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 const Size smallPhone = Size(320, 568);
 const Size midPhone = Size(360, 640);
@@ -61,6 +64,8 @@ Future<void> pumpAllTransactions(
   LedgerSummary summary, {
   Size size = tallPhone,
   double scale = 1.0,
+  LocalLedger? ledger,
+  String? khataId,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -76,21 +81,26 @@ Future<void> pumpAllTransactions(
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: AllTransactionsScreen(summary: summary),
+      home: AllTransactionsScreen(
+        summary: summary,
+        ledger: ledger,
+        khataId: khataId,
+      ),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 /// Scrolls the screen's list until [finder] exists and is visible.
+///
+/// `.first` because the search field owns an inner [Scrollable] of its own:
+/// the list's scrollable is the outermost one in the tree, so this keeps
+/// scrolling the list rather than the text box.
 Future<void> reveal(WidgetTester tester, Finder finder) async {
   await tester.scrollUntilVisible(
     finder,
     120,
-    scrollable: find.descendant(
-      of: find.byType(AllTransactionsScreen),
-      matching: find.byType(Scrollable),
-    ),
+    scrollable: find.byType(Scrollable).first,
   );
   await tester.pumpAndSettle();
 }
@@ -109,6 +119,54 @@ Future<void> tapControl(WidgetTester tester, Finder finder) async {
 
 Future<void> tapChip(WidgetTester tester, String key) =>
     tapControl(tester, find.byKey(Key(key)));
+
+/// Taps something already on screen, without scrolling the list to it.
+Future<void> revealTap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder.hitTestable());
+  await tester.pumpAndSettle();
+}
+
+/// Opens a date control, taps [day] in the month it shows, and confirms.
+///
+/// The picker opens on the newest entry's month (Nov 2026 for [sampleSummary]),
+/// so a two-digit day there is unambiguous.
+Future<void> pickDate(WidgetTester tester, String key, String day) async {
+  await revealTap(tester, find.byKey(Key(key)));
+  expect(find.byType(DatePickerDialog), findsOneWidget);
+  await tester.tap(
+    find
+        .descendant(of: find.byType(DatePickerDialog), matching: find.text(day))
+        .first,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
+  expect(find.byType(DatePickerDialog), findsNothing);
+}
+
+/// Cancels the picker the way a user does - its Cancel action, or a tap
+/// outside it - and proves the dialog is gone. No day is chosen.
+Future<void> dismissDatePicker(WidgetTester tester) async {
+  expect(find.byType(DatePickerDialog), findsOneWidget);
+  final Finder cancel = find.text('Cancel');
+  if (cancel.evaluate().isEmpty) {
+    await tester.tapAt(const Offset(5, 5));
+  } else {
+    await tester.tap(cancel);
+  }
+  await tester.pumpAndSettle();
+  expect(find.byType(DatePickerDialog), findsNothing);
+}
+
+/// The query currently shown in the search box.
+String searchText(WidgetTester tester) {
+  final TextField field = tester.widget<TextField>(
+    find.byKey(const Key('search-field')),
+  );
+  return field.controller?.text ?? '';
+}
 
 /// Whether the chip's selected state is visible as a check mark.
 Finder chipCheck(String key) => find.descendant(
@@ -337,7 +395,400 @@ void main() {
       expect(find.byKey(const Key('transactions-summary')), findsNothing);
       expect(find.byKey(const Key('type-filter-all')), findsNothing);
       expect(find.byKey(const Key('category-filter-all')), findsNothing);
+      expect(find.byKey(const Key('search-field')), findsNothing);
+      expect(find.byKey(const Key('date-filter-from')), findsNothing);
       expect(find.textContaining('₹'), findsNothing);
+    });
+  });
+
+  group('search', () {
+    testWidgets('trims, ignores case, and matches the category', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+      expect(find.byKey(const Key('search-clear')), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('search-field')),
+        '  grocerY  ',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.text('Lunch with Friends'), findsNothing);
+      expect(find.text('Showing 1 of 8 transactions'), findsOneWidget);
+
+      // A category is searchable even though no title contains it.
+      await tester.enterText(find.byKey(const Key('search-field')), 'FOOD');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lunch with Friends'), findsOneWidget);
+      expect(find.text('Tea Stall'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsNothing);
+      expect(find.text('Showing 2 of 8 transactions'), findsOneWidget);
+      // One match in each month, so both month headings stay.
+      expect(find.text('Nov 2026'), findsOneWidget);
+      expect(find.text('Sep 2026'), findsOneWidget);
+      // Counts, month totals and the card describe exactly those two rows.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('month-2026-11')),
+          matching: find.text('₹580'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('month-2026-09')),
+          matching: find.text('₹25'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('transactions-summary')),
+          matching: find.text('₹605'),
+        ),
+        findsOneWidget,
+      );
+      // ...and the opening balance still never appears.
+      expect(find.textContaining('₹10,000'), findsNothing);
+
+      // The clear control is real, big enough, and empties the query.
+      final Finder clear = find.byKey(const Key('search-clear'));
+      expect(tester.getSize(clear).height, greaterThanOrEqualTo(44));
+      await revealTap(tester, clear);
+
+      expect(find.text('Showing 8 transactions'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.byKey(const Key('search-clear')), findsNothing);
+      expect(searchText(tester), isEmpty);
+    });
+
+    testWidgets('a query with no hits is a no-match, not an empty khata', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await tester.enterText(find.byKey(const Key('search-field')), 'zzz');
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('transactions-no-match')), findsOneWidget);
+      expect(find.byKey(const Key('transactions-empty')), findsNothing);
+      expect(find.text('Showing 0 of 8 transactions'), findsOneWidget);
+
+      // "Clear filters" means all four filters, including the query.
+      await tapControl(tester, find.byKey(const Key('clear-filters')));
+      expect(find.text('Showing 8 transactions'), findsOneWidget);
+      expect(searchText(tester), isEmpty);
+    });
+
+    testWidgets('a Bengali query matches Bengali text', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(
+        tester,
+        LedgerSummary(
+          openingBalancePaise: 0,
+          entries: <LedgerEntry>[
+            spent('চা ও নাস্তা', 'খাবার', DateTime(2026, 11, 19, 9, 0), 4000),
+            earned('মাসিক বেতন', 'আয়', DateTime(2026, 11, 18, 10, 0), 300000),
+            spent('বাজার', 'খাবার', DateTime(2026, 11, 17, 18, 0), 90000),
+          ],
+        ),
+      );
+
+      await tester.enterText(find.byKey(const Key('search-field')), 'খাবার');
+      await tester.pumpAndSettle();
+
+      expect(find.text('চা ও নাস্তা'), findsOneWidget);
+      expect(find.text('বাজার'), findsOneWidget);
+      expect(find.text('মাসিক বেতন'), findsNothing);
+      expect(find.text('Showing 2 of 3 transactions'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('search-field')), '  বাজার ');
+      await tester.pumpAndSettle();
+
+      expect(find.text('বাজার'), findsOneWidget);
+      expect(find.text('চা ও নাস্তা'), findsNothing);
+      expect(find.text('Showing 1 of 3 transactions'), findsOneWidget);
+    });
+  });
+
+  group('date range', () {
+    testWidgets('includes the picked day at both ends', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await pickDate(tester, 'date-filter-from', '18');
+      expect(find.text('From: 18 Nov 2026'), findsOneWidget);
+      expect(find.text('To: any date'), findsOneWidget);
+      expect(find.text('Salary'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.text('Bus Fare'), findsNothing);
+      expect(find.text('Showing 4 of 8 transactions'), findsOneWidget);
+      // October and September are entirely before the first day.
+      expect(find.byKey(const Key('month-2026-10')), findsNothing);
+      expect(find.byKey(const Key('month-2026-09')), findsNothing);
+
+      // An end before the start is the same span, labelled in order.
+      await pickDate(tester, 'date-filter-to', '17');
+      expect(find.text('From: 17 Nov 2026'), findsOneWidget);
+      expect(find.text('To: 18 Nov 2026'), findsOneWidget);
+      expect(find.text('Bus Fare'), findsOneWidget);
+      expect(find.text('Salary'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsNothing);
+      expect(find.text('Showing 2 of 8 transactions'), findsOneWidget);
+
+      await tapChip(tester, 'date-filter-clear');
+      expect(find.text('From: any date'), findsOneWidget);
+      expect(find.text('To: any date'), findsOneWidget);
+      expect(find.byKey(const Key('date-filter-clear')), findsNothing);
+      expect(find.text('Showing 8 transactions'), findsOneWidget);
+    });
+
+    testWidgets('a single bound remains open-ended', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+      await pickDate(tester, 'date-filter-from', '17');
+      expect(find.text('Showing 5 of 8 transactions'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.text('Bus Fare'), findsOneWidget);
+      await tapChip(tester, 'date-filter-clear');
+      await pickDate(tester, 'date-filter-to', '18');
+      expect(find.text('Showing 5 of 8 transactions'), findsOneWidget);
+      expect(find.text('Salary'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsNothing);
+    });
+
+    testWidgets('a single picked day keeps its first and last entry', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await pickDate(tester, 'date-filter-from', '19');
+      await pickDate(tester, 'date-filter-to', '19');
+
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.text('Lunch with Friends'), findsOneWidget);
+      expect(find.text('Mobile Recharge'), findsOneWidget);
+      expect(find.text('Salary'), findsNothing);
+      expect(find.text('Showing 3 of 8 transactions'), findsOneWidget);
+      // The month total follows the three rows that are left.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('month-2026-11')),
+          matching: find.text('₹1,979'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('dismissing the picker changes nothing', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await revealTap(tester, find.byKey(const Key('date-filter-from')));
+      await dismissDatePicker(tester);
+      expect(find.text('From: any date'), findsOneWidget);
+      expect(find.text('Showing 8 transactions'), findsOneWidget);
+      expect(find.byKey(const Key('date-filter-clear')), findsNothing);
+
+      // A second dismissal keeps the first choice intact.
+      await pickDate(tester, 'date-filter-from', '19');
+      await revealTap(tester, find.byKey(const Key('date-filter-to')));
+      await dismissDatePicker(tester);
+      expect(find.text('From: 19 Nov 2026'), findsOneWidget);
+      expect(find.text('To: any date'), findsOneWidget);
+      expect(find.text('Showing 3 of 8 transactions'), findsOneWidget);
+    });
+
+    testWidgets('query, type, category and dates compose', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await tapChip(tester, 'category-filter-Food');
+      await tapChip(tester, 'type-filter-expense');
+      await tester.enterText(find.byKey(const Key('search-field')), 'lunch');
+      await tester.pumpAndSettle();
+      await pickDate(tester, 'date-filter-from', '18');
+
+      expect(find.text('Lunch with Friends'), findsOneWidget);
+      // The other Food row is in September, before the first day.
+      expect(find.text('Tea Stall'), findsNothing);
+      expect(find.text('Showing 1 of 8 transactions'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('month-2026-11')),
+          matching: find.text('₹580'),
+        ),
+        findsOneWidget,
+      );
+
+      // One more filter that no row satisfies: still a no-match, not empty.
+      await tapChip(tester, 'type-filter-income');
+      expect(find.byKey(const Key('transactions-no-match')), findsOneWidget);
+      expect(find.text('Showing 0 of 8 transactions'), findsOneWidget);
+
+      // Clear all four at once.
+      await tapControl(tester, find.byKey(const Key('clear-filters')));
+      expect(find.text('Showing 8 transactions'), findsOneWidget);
+      expect(find.text('Grocery Shopping'), findsOneWidget);
+      expect(find.text('From: any date'), findsOneWidget);
+      expect(find.text('To: any date'), findsOneWidget);
+      expect(chipCheck('type-filter-all'), findsOneWidget);
+      expect(chipCheck('category-filter-all'), findsOneWidget);
+      expect(searchText(tester), isEmpty);
+    });
+  });
+
+  group('filter rules', () {
+    final DateTimeRange nov19 = DateTimeRange(
+      start: DateTime(2026, 11, 19),
+      end: DateTime(2026, 11, 19),
+    );
+
+    test('both ends of a single local day are inclusive', () {
+      expect(matchesLocalDateRange(DateTime(2026, 11, 19), nov19), isTrue);
+      expect(
+        matchesLocalDateRange(DateTime(2026, 11, 19, 0, 0), nov19),
+        isTrue,
+      );
+      expect(
+        matchesLocalDateRange(DateTime(2026, 11, 19, 23, 59, 59, 999), nov19),
+        isTrue,
+      );
+      // One instant either side of the day is already outside it.
+      expect(
+        matchesLocalDateRange(DateTime(2026, 11, 18, 23, 59, 59, 999), nov19),
+        isFalse,
+      );
+      expect(matchesLocalDateRange(DateTime(2026, 11, 20), nov19), isFalse);
+    });
+
+    test('a UTC instant is read on the local day the user saw', () {
+      for (final DateTime local in <DateTime>[
+        DateTime(2026, 11, 19),
+        DateTime(2026, 11, 19, 12, 30),
+        DateTime(2026, 11, 19, 23, 59, 59),
+      ]) {
+        expect(
+          matchesLocalDateRange(local.toUtc(), nov19),
+          isTrue,
+          reason: '${local.toIso8601String()} is 19 Nov in local time',
+        );
+      }
+      for (final DateTime local in <DateTime>[
+        DateTime(2026, 11, 18, 23, 59, 59),
+        DateTime(2026, 11, 20),
+      ]) {
+        expect(
+          matchesLocalDateRange(local.toUtc(), nov19),
+          isFalse,
+          reason: '${local.toIso8601String()} is outside 19 Nov locally',
+        );
+      }
+    });
+
+    test('no date filter matches every day', () {
+      expect(matchesLocalDateRange(DateTime(2020, 1, 1), null), isTrue);
+      expect(
+        matchesLocalDateRange(DateTime(2030, 6, 15, 23, 30), null),
+        isTrue,
+      );
+    });
+
+    test('search trims and ignores case on title or category', () {
+      final LedgerEntry entry = spent(
+        'Grocery Shopping',
+        'Shopping',
+        DateTime(2026, 11, 19),
+        120000,
+      );
+      expect(matchesSearchQuery(entry, ''), isTrue);
+      expect(matchesSearchQuery(entry, '   '), isTrue);
+      expect(matchesSearchQuery(entry, '  grocerY  '), isTrue);
+      expect(matchesSearchQuery(entry, 'SHOP'), isTrue);
+      expect(matchesSearchQuery(entry, 'Food'), isFalse);
+    });
+
+    test('search reads the stored description, not only the title', () {
+      final LedgerEntry entry = LedgerEntry(
+        title: 'Food',
+        description: 'Chai and samosa',
+        category: 'Food',
+        at: DateTime(2026, 11, 19),
+        amountPaise: 1000,
+      );
+      expect(matchesSearchQuery(entry, 'samosa'), isTrue);
+      expect(matchesSearchQuery(entry, 'biryani'), isFalse);
+    });
+  });
+
+  group('editing', () {
+    testWidgets('an edit refresh keeps filters, even a vanished category', (
+      WidgetTester tester,
+    ) async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      await tester.runAsync(() async {
+        await ledger.initialize();
+        await ledger.addEntry(
+          EntryFormResult(
+            kind: EntryFormKind.expense,
+            amountPaise: 12000,
+            category: 'Food',
+            description: 'Lunch',
+            occurredAt: DateTime(2026, 11, 19, 13, 15),
+          ),
+        );
+        await ledger.addEntry(
+          EntryFormResult(
+            kind: EntryFormKind.expense,
+            amountPaise: 3000,
+            category: 'Travel',
+            description: 'Bus',
+            occurredAt: DateTime(2026, 11, 18, 9, 0),
+          ),
+        );
+      });
+      final LedgerSummary? loaded = await tester.runAsync(
+        () => ledger.readSummary(),
+      );
+      expect(loaded, isNotNull);
+
+      await pumpAllTransactions(
+        tester,
+        loaded!,
+        ledger: ledger,
+        khataId: 'personal',
+      );
+
+      await tester.enterText(find.byKey(const Key('search-field')), 'lunch');
+      await tester.pumpAndSettle();
+      await tapChip(tester, 'category-filter-Food');
+      expect(find.text('Showing 1 of 2 transactions'), findsOneWidget);
+
+      // Recategorise the only Food row; the filter must survive the refresh.
+      await revealTap(tester, find.text('Lunch'));
+      await revealTap(tester, find.byKey(const Key('editor-category-Travel')));
+      await revealTap(tester, find.byKey(const Key('editor-update-button')));
+
+      expect(find.text('Showing 0 of 2 transactions'), findsOneWidget);
+      expect(find.byKey(const Key('transactions-no-match')), findsOneWidget);
+      // The category no longer exists, yet the chip is still listed and still
+      // selected, so the filter reads honestly and can be changed.
+      expect(find.byKey(const Key('category-filter-Food')), findsOneWidget);
+      expect(chipCheck('category-filter-Food'), findsOneWidget);
+      expect(searchText(tester), 'lunch');
+
+      await tapControl(tester, find.byKey(const Key('clear-filters')));
+      expect(find.text('Showing 2 transactions'), findsOneWidget);
+      expect(find.text('Lunch'), findsOneWidget);
+      expect(find.text('Bus'), findsOneWidget);
     });
   });
 
@@ -355,6 +806,9 @@ void main() {
         'type-filter-expense',
         'category-filter-all',
         'category-filter-Food',
+        'date-filter-from',
+        'date-filter-to',
+        'search-field',
       ]) {
         expect(
           tester.getSize(find.byKey(Key(key))).height,
@@ -366,11 +820,36 @@ void main() {
       expect(find.bySemanticsLabel('Type filter: all entries'), findsWidgets);
       expect(find.bySemanticsLabel('Type filter: income'), findsWidgets);
       expect(find.bySemanticsLabel('Category filter: Food'), findsWidgets);
+      expect(find.bySemanticsLabel('Date filter: from any date'), findsWidgets);
+      expect(find.bySemanticsLabel('Date filter: to any date'), findsWidgets);
 
       // Selection is not carried by colour alone.
       expect(chipCheck('type-filter-all'), findsOneWidget);
       expect(chipCheck('type-filter-expense'), findsNothing);
+      expect(chipCheck('date-filter-from'), findsNothing);
       handle.dispose();
+    });
+
+    testWidgets('the search box works at 320 dp and 200% text', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(
+        tester,
+        sampleSummary(),
+        size: smallPhone,
+        scale: 2.0,
+      );
+      expect(tester.takeException(), isNull);
+
+      await reveal(tester, find.byKey(const Key('search-field')));
+      await tester.enterText(find.byKey(const Key('search-field')), 'food');
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Showing 2 of 8 transactions'), findsOneWidget);
+
+      await reveal(tester, find.text('Lunch with Friends'));
+      expect(find.text('Lunch with Friends'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('fits 320 dp at 200% text scale and keeps working', (

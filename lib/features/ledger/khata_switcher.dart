@@ -9,8 +9,9 @@ Future<LocalKhata?> showKhataSwitcher(
   BuildContext context,
   LocalLedger ledger,
   List<LocalKhata> khatas,
-  String activeId,
-) async {
+  String activeId, {
+  Future<void> Function()? onManage,
+}) async {
   final String? choice = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
@@ -32,11 +33,22 @@ Future<LocalKhata?> showKhataSwitcher(
             title: const Text('New Khata'),
             onTap: () => Navigator.pop(context, '__new__'),
           ),
+          if (onManage != null)
+            ListTile(
+              key: const Key('manage-khatas'),
+              leading: const Icon(Icons.manage_accounts_outlined),
+              title: const Text('Manage Khatas'),
+              onTap: () => Navigator.pop(context, '__manage__'),
+            ),
         ],
       ),
     ),
   );
   if (choice == null || !context.mounted) return null;
+  if (choice == '__manage__') {
+    await onManage?.call();
+    return null;
+  }
   if (choice != '__new__') return khatas.firstWhere((k) => k.id == choice);
   return showDialog<LocalKhata>(
     context: context,

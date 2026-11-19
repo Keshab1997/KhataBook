@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/home/models.dart';
+import 'package:khatabook/features/ledger/data/ledger_backup.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 EntryFormResult _entry({
@@ -1014,6 +1015,554 @@ void main() {
       } finally {
         await dir.delete(recursive: true);
       }
+    });
+  });
+
+  group('khata rename, archive and unarchive', () {
+    Future<QueryRow> khataRow(LocalLedger ledger, String id) => ledger
+        .customSelect(
+          'SELECT * FROM khatas WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(id)],
+        )
+        .getSingle();
+
+    Future<List<QueryRow>> entries(LocalLedger ledger, String khataId) async {
+      return ledger
+          .customSelect(
+            'SELECT * FROM "transactions" WHERE khata_id = ? ORDER BY id ASC',
+            variables: <Variable<Object>>[Variable<String>(khataId)],
+          )
+          .get();
+    }
+
+    Future<String?> selectedKhataId(LocalLedger ledger) async {
+      final List<QueryRow> rows = await ledger
+          .customSelect(
+            'SELECT khata_id FROM active_khata_preference WHERE singleton = 1',
+          )
+          .get();
+      return rows.isEmpty ? null : rows.single.read<String>('khata_id');
+    }
+
+    test(
+      'rename trims the name and keeps the id, balance and entries',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata business = await ledger.createKhata(
+          name: 'Business',
+          openingBalancePaise: 250000,
+        );
+        await ledger.addEntry(
+          _entry(
+            kind: EntryFormKind.income,
+            amountPaise: 120000,
+            category: 'Income',
+            description: 'Client payment',
+            occurredAt: DateTime(2026, 5, 1),
+          ),
+          khataId: business.id,
+        );
+        final LedgerSummary before = await ledger.readSummary(
+          khataId: business.id,
+        );
+        final QueryRow beforeRow = await khataRow(ledger, business.id);
+        final String createdAt = beforeRow.read<String>('created_at');
+
+        final LocalKhata renamed = await ledger.renameKhata(
+          khataId: business.id,
+          name: '  Shop Khata  ',
+        );
+        expect(renamed.id, business.id);
+        expect(renamed.name, 'Shop Khata');
+        expect(renamed.openingBalancePaise, 250000);
+
+        final QueryRow row = await khataRow(ledger, business.id);
+        expect(row.read<String>('name'), 'Shop Khata');
+        expect(row.read<String>('created_at'), createdAt);
+        expect(row.read<int>('opening_balance_paise'), 250000);
+        expect(row.read<String>('sync_state'), 'pending');
+        expect(row.readNullable<String>('deleted_at'), isNull);
+
+        // Renaming moves no money: same entries, same opening balance.
+        final LedgerSummary after = await ledger.readSummary(
+          khataId: business.id,
+        );
+        expect(after.openingBalancePaise, 250000);
+        expect(after.entries.single.id, before.entries.single.id);
+        expect(after.entries.single.amountPaise, 120000);
+        expect(after.remainingPaise, 370000);
+
+        // The other khata keeps its own name.
+        final List<LocalKhata> khatas = await ledger.listKhatas();
+        expect(khatas.map((LocalKhata k) => k.id), <String>[
+          'personal',
+          business.id,
+        ]);
+        expect(khatas.first.name, 'Personal Khata');
+        expect(khatas.last.name, 'Shop Khata');
+        await ledger.close();
+      },
+    );
+
+    test(
+      'rename counts Unicode runes and writes nothing when invalid',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata shop = await ledger.createKhata(
+          name: 'Shop',
+          openingBalancePaise: 1000,
+        );
+
+        for (final String bad in <String>['', '   ', '\n\t']) {
+          await expectLater(
+            ledger.renameKhata(khataId: shop.id, name: bad),
+            throwsArgumentError,
+          );
+        }
+        final String fortyDevanagari = List<String>.filled(40, 'क').join();
+        final String fortyOneDevanagari = List<String>.filled(41, 'क').join();
+        expect(fortyDevanagari.runes.length, 40);
+        expect(fortyOneDevanagari.runes.length, 41);
+        await expectLater(
+          ledger.renameKhata(khataId: shop.id, name: fortyOneDevanagari),
+          throwsArgumentError,
+        );
+
+        // 40 emoji are 80 UTF-16 units but still 40 characters (runes).
+        final String fortyEmoji = List<String>.filled(40, '🙂').join();
+        expect(fortyEmoji.length, 80);
+        expect(fortyEmoji.runes.length, 40);
+        final LocalKhata renamed = await ledger.renameKhata(
+          khataId: shop.id,
+          name: fortyEmoji,
+        );
+        expect(renamed.name, fortyEmoji);
+        final QueryRow emojiRow = await khataRow(ledger, shop.id);
+        expect(emojiRow.read<String>('name'), fortyEmoji);
+
+        // Surrounding whitespace is trimmed before the length check.
+        final LocalKhata trimmed = await ledger.renameKhata(
+          khataId: shop.id,
+          name: '  $fortyDevanagari  ',
+        );
+        expect(trimmed.name, fortyDevanagari);
+        await ledger.close();
+      },
+    );
+
+    test('rename rejects unknown and archived khatas', () async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      await ledger.initialize();
+      final LocalKhata temp = await ledger.createKhata(
+        name: 'Temp',
+        openingBalancePaise: 0,
+      );
+      await expectLater(
+        ledger.renameKhata(khataId: 'does-not-exist', name: 'Nope'),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      await expectLater(
+        ledger.renameKhata(khataId: '  ', name: 'Nope'),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      await ledger.archiveKhata(khataId: temp.id);
+      await expectLater(
+        ledger.renameKhata(khataId: temp.id, name: 'Nope'),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      expect((await ledger.listArchivedKhatas()).single.name, 'Temp');
+
+      // The personal khata may be renamed; only archiving it is forbidden.
+      final LocalKhata personal = await ledger.renameKhata(
+        khataId: 'personal',
+        name: 'My Cash',
+      );
+      expect(personal.id, 'personal');
+      expect(personal.name, 'My Cash');
+      expect((await ledger.listKhatas()).first.name, 'My Cash');
+      await ledger.close();
+    });
+
+    test('archive hides a populated khata but keeps every entry row', () async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      await ledger.initialize();
+      final LocalKhata business = await ledger.createKhata(
+        name: 'Business',
+        openingBalancePaise: 250000,
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.income,
+          amountPaise: 300000,
+          category: 'Income',
+          description: 'Client payment',
+          occurredAt: DateTime(2026, 6, 1),
+        ),
+        khataId: business.id,
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 45000,
+          category: 'Bills',
+          description: 'Electricity',
+          occurredAt: DateTime(2026, 6, 2),
+        ),
+        khataId: business.id,
+      );
+      final List<QueryRow> entriesBefore = await entries(ledger, business.id);
+      expect(entriesBefore.length, 2);
+
+      await ledger.archiveKhata(khataId: business.id);
+
+      // Gone from the ordinary active list, present in the archive list.
+      expect((await ledger.listKhatas()).map((LocalKhata k) => k.id), <String>[
+        'personal',
+      ]);
+      final List<LocalKhata> archived = await ledger.listArchivedKhatas();
+      expect(archived.single.id, business.id);
+      expect(archived.single.name, 'Business');
+      expect(archived.single.openingBalancePaise, 250000);
+
+      // Inactive everywhere: reads and writes reject it, and no entry leaks
+      // into the personal khata totals.
+      await expectLater(
+        ledger.readSummary(khataId: business.id),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      await expectLater(
+        ledger.addEntry(
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 100,
+            category: 'Food',
+            occurredAt: DateTime(2026, 6, 3),
+          ),
+          khataId: business.id,
+        ),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      expect((await ledger.readSummary()).entries, isEmpty);
+      expect((await ledger.readSummary()).remainingPaise, 0);
+
+      // Every entry row is untouched: same ids, amounts and khata ids, no
+      // tombstone, no re-parenting.
+      final List<QueryRow> entriesAfter = await entries(ledger, business.id);
+      expect(entriesAfter.length, entriesBefore.length);
+      for (int i = 0; i < entriesAfter.length; i++) {
+        expect(
+          entriesAfter[i].read<String>('id'),
+          entriesBefore[i].read<String>('id'),
+        );
+        expect(
+          entriesAfter[i].read<int>('amount_paise'),
+          entriesBefore[i].read<int>('amount_paise'),
+        );
+        expect(entriesAfter[i].read<String>('khata_id'), business.id);
+        expect(entriesAfter[i].readNullable<String>('deleted_at'), isNull);
+      }
+
+      // Only the khata row carries the archive marker.
+      final QueryRow khata = await khataRow(ledger, business.id);
+      expect(khata.readNullable<String>('deleted_at'), isNotNull);
+      expect(khata.read<String>('sync_state'), 'pending');
+      expect(khata.read<int>('opening_balance_paise'), 250000);
+      await ledger.close();
+    });
+
+    test(
+      'archive rejects the personal, unknown and already-archived khatas',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata temp = await ledger.createKhata(
+          name: 'Temp',
+          openingBalancePaise: 0,
+        );
+
+        await expectLater(
+          ledger.archiveKhata(khataId: 'personal'),
+          throwsA(isA<KhataPersonalArchiveException>()),
+        );
+        await expectLater(
+          ledger.archiveKhata(khataId: 'does-not-exist'),
+          throwsA(isA<KhataNotFoundException>()),
+        );
+        await ledger.archiveKhata(khataId: temp.id);
+        await expectLater(
+          ledger.archiveKhata(khataId: temp.id),
+          throwsA(isA<KhataNotFoundException>()),
+        );
+
+        // The mandatory personal khata is still active and unmarked.
+        final List<LocalKhata> active = await ledger.listKhatas();
+        expect(active.single.id, 'personal');
+        final QueryRow personalRow = await khataRow(ledger, 'personal');
+        expect(personalRow.readNullable<String>('deleted_at'), isNull);
+        expect(await ledger.listArchivedKhatas(), hasLength(1));
+        await ledger.close();
+      },
+    );
+
+    test('unarchive restores the same entries and opening balance', () async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      await ledger.initialize();
+      final LocalKhata shop = await ledger.createKhata(
+        name: 'Shop',
+        openingBalancePaise: 50000,
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 12000,
+          category: 'Shopping',
+          description: 'Boxes',
+          occurredAt: DateTime(2026, 7, 1),
+        ),
+        khataId: shop.id,
+      );
+      final LedgerSummary before = await ledger.readSummary(khataId: shop.id);
+      final String entryId = before.entries.single.id!;
+      final QueryRow beforeRow = await khataRow(ledger, shop.id);
+      final String createdAt = beforeRow.read<String>('created_at');
+
+      await ledger.archiveKhata(khataId: shop.id);
+      await ledger.unarchiveKhata(khataId: shop.id);
+
+      final LedgerSummary after = await ledger.readSummary(khataId: shop.id);
+      expect(after.openingBalancePaise, 50000);
+      expect(after.entries.single.id, entryId);
+      expect(after.entries.single.amountPaise, 12000);
+      expect(after.entries.single.description, 'Boxes');
+      expect(after.remainingPaise, 38000);
+
+      final QueryRow row = await khataRow(ledger, shop.id);
+      expect(row.readNullable<String>('deleted_at'), isNull);
+      expect(row.read<String>('created_at'), createdAt);
+      expect(row.read<String>('name'), 'Shop');
+      expect(await ledger.listArchivedKhatas(), isEmpty);
+
+      // Restoring an active or unknown khata is reported, never silent.
+      await expectLater(
+        ledger.unarchiveKhata(khataId: shop.id),
+        throwsA(isA<KhataNotArchivedException>()),
+      );
+      await expectLater(
+        ledger.unarchiveKhata(khataId: 'personal'),
+        throwsA(isA<KhataNotArchivedException>()),
+      );
+      await expectLater(
+        ledger.unarchiveKhata(khataId: 'does-not-exist'),
+        throwsA(isA<KhataNotFoundException>()),
+      );
+      await ledger.close();
+    });
+
+    test(
+      'archiving the selected khata falls back to personal and persists',
+      () async {
+        final Directory dir = await Directory.systemTemp.createTemp(
+          'khata_archive_',
+        );
+        final File file = File('${dir.path}/ledger.sqlite');
+        try {
+          LocalLedger store = LocalLedger(NativeDatabase(file));
+          await store.initialize();
+          final LocalKhata business = await store.createKhata(
+            name: 'Business',
+            openingBalancePaise: 10000,
+          );
+          await store.addEntry(
+            _entry(
+              kind: EntryFormKind.income,
+              amountPaise: 5000,
+              category: 'Income',
+              description: 'Sale',
+              occurredAt: DateTime(2026, 8, 1),
+            ),
+            khataId: business.id,
+          );
+          final LedgerSummary opened = await store.readSummary(
+            khataId: business.id,
+          );
+          final String entryId = opened.entries.single.id!;
+          await store.setActiveKhataId(business.id);
+          expect(await store.readActiveKhataId(), business.id);
+
+          await store.archiveKhata(khataId: business.id);
+          // The preference moved in the same transaction, so no reader sees an
+          // archived khata as the active choice.
+          expect(await store.readActiveKhataId(), 'personal');
+          expect(await selectedKhataId(store), 'personal');
+          await store.close();
+
+          // Reopen: the archive and the fallback both persisted.
+          store = LocalLedger(NativeDatabase(file));
+          await store.initialize();
+          expect(await store.readActiveKhataId(), 'personal');
+          expect(await selectedKhataId(store), 'personal');
+          expect(
+            (await store.listKhatas()).map((LocalKhata k) => k.id),
+            <String>['personal'],
+          );
+          expect(
+            (await store.listArchivedKhatas()).map((LocalKhata k) => k.id),
+            <String>[business.id],
+          );
+
+          // Restore after the reopen brings the entry back unchanged, and does
+          // not steal the selection back.
+          await store.unarchiveKhata(khataId: business.id);
+          final LedgerSummary restored = await store.readSummary(
+            khataId: business.id,
+          );
+          expect(restored.openingBalancePaise, 10000);
+          expect(restored.entries.single.id, entryId);
+          expect(restored.entries.single.amountPaise, 5000);
+          expect(restored.remainingPaise, 15000);
+          expect(await store.readActiveKhataId(), 'personal');
+          await store.close();
+        } finally {
+          await dir.delete(recursive: true);
+        }
+      },
+    );
+
+    test(
+      'archiving a khata that is not selected keeps the selection',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata business = await ledger.createKhata(
+          name: 'Business',
+          openingBalancePaise: 0,
+        );
+        expect(await ledger.readActiveKhataId(), 'personal');
+
+        await ledger.archiveKhata(khataId: business.id);
+
+        expect(await ledger.readActiveKhataId(), 'personal');
+        expect(await selectedKhataId(ledger), 'personal');
+        await ledger.close();
+      },
+    );
+
+    test(
+      'archiving with an unusable personal khata drops the stale selection',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata business = await ledger.createKhata(
+          name: 'Business',
+          openingBalancePaise: 0,
+        );
+        await ledger.setActiveKhataId(business.id);
+        await ledger.customStatement(
+          'UPDATE khatas SET deleted_at = ? WHERE id = ?',
+          <Object?>[DateTime.now().toUtc().toIso8601String(), 'personal'],
+        );
+
+        await ledger.archiveKhata(khataId: business.id);
+
+        // A broken personal khata is never replaced by an archived id.
+        expect(await selectedKhataId(ledger), isNull);
+        final List<String> archivedIds = (await ledger.listArchivedKhatas())
+            .map((LocalKhata k) => k.id)
+            .toList();
+        expect(archivedIds, hasLength(2));
+        expect(archivedIds, containsAll(<String>[business.id, 'personal']));
+        await expectLater(
+          ledger.readActiveKhataId(),
+          throwsA(isA<KhataNotFoundException>()),
+        );
+        await ledger.close();
+      },
+    );
+
+    test(
+      'failed rename, archive and unarchive leave every khata row unchanged',
+      () async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        final LocalKhata business = await ledger.createKhata(
+          name: 'Business',
+          openingBalancePaise: 25000,
+        );
+        await ledger.setActiveKhataId(business.id);
+        const String sql =
+            'SELECT id, name, opening_balance_paise, created_at, updated_at, '
+            'deleted_at, sync_state FROM khatas ORDER BY id ASC';
+        final List<QueryRow> before = await ledger.customSelect(sql).get();
+
+        await expectLater(
+          ledger.renameKhata(
+            khataId: business.id,
+            name: List<String>.filled(41, 'a').join(),
+          ),
+          throwsArgumentError,
+        );
+        await expectLater(
+          ledger.archiveKhata(khataId: 'personal'),
+          throwsA(isA<KhataPersonalArchiveException>()),
+        );
+        await expectLater(
+          ledger.unarchiveKhata(khataId: business.id),
+          throwsA(isA<KhataNotArchivedException>()),
+        );
+
+        final List<QueryRow> after = await ledger.customSelect(sql).get();
+        expect(after.length, before.length);
+        for (int i = 0; i < after.length; i++) {
+          expect(after[i].data, before[i].data);
+        }
+        expect(await ledger.readActiveKhataId(), business.id);
+        await ledger.close();
+      },
+    );
+
+    test('archived khatas travel through a backup and restore', () async {
+      final LocalLedger source = LocalLedger(NativeDatabase.memory());
+      await source.initialize();
+      final LocalKhata business = await source.createKhata(
+        name: 'Business',
+        openingBalancePaise: 1000,
+      );
+      await source.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 250,
+          category: 'Food',
+          description: 'Tea',
+          occurredAt: DateTime(2026, 9, 1),
+        ),
+        khataId: business.id,
+      );
+      await source.archiveKhata(khataId: business.id);
+
+      // The unchanged codec already exports and validates khata tombstones.
+      final String json = await LedgerBackup(source).exportJson();
+      final BackupInspection inspection = LedgerBackup(source).inspect(json);
+      expect(inspection.khataCount, 2);
+      expect(inspection.transactionCount, 1);
+      await source.close();
+
+      final LocalLedger target = LocalLedger(NativeDatabase.memory());
+      await target.initialize();
+      await LedgerBackup(target).restoreReplacing(json);
+      expect((await target.listKhatas()).single.id, 'personal');
+      expect((await target.listArchivedKhatas()).single.id, business.id);
+
+      await target.unarchiveKhata(khataId: business.id);
+      final LedgerSummary restored = await target.readSummary(
+        khataId: business.id,
+      );
+      expect(restored.openingBalancePaise, 1000);
+      expect(restored.entries.single.amountPaise, 250);
+      expect(restored.entries.single.description, 'Tea');
+      expect(restored.remainingPaise, 750);
+      await target.close();
     });
   });
 }
