@@ -10,9 +10,9 @@ import '../home/home_screen.dart';
 import '../home/models.dart';
 import '../ledger/data/local_ledger.dart';
 import '../ledger/khata_switcher.dart';
+import '../ledger/all_transactions_screen.dart';
+import '../ledger/wallet_summary_screen.dart';
 import '../profile/profile_screen.dart';
-import '../../core/format/date_format.dart';
-import '../../core/format/money.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key, this.ledger});
@@ -145,27 +145,19 @@ class _MainShellState extends State<MainShell> {
   void _viewAll() {
     final LedgerSummary? current = _summary;
     if (current == null) return;
-    final List<LedgerEntry> entries = current.recent(current.entries.length);
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (BuildContext context) => Scaffold(
-          appBar: AppBar(title: const Text('All Transactions')),
-          body: entries.isEmpty
-              ? const Center(child: Text('No transactions yet.'))
-              : ListView.builder(
-                  itemCount: entries.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    final LedgerEntry e = entries[index];
-                    return ListTile(
-                      title: Text(e.title),
-                      subtitle: Text(formatEntryDate(e.at)),
-                      trailing: Text(
-                        '${e.type == EntryType.income ? '+' : '-'}${formatPaise(e.amountPaise)}',
-                      ),
-                    );
-                  },
-                ),
-        ),
+        builder: (_) => AllTransactionsScreen(summary: current),
+      ),
+    );
+  }
+
+  void _openWallet() {
+    final LocalLedger? ledger = _ledger;
+    if (ledger == null || _summary == null) return;
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => WalletSummaryScreen(ledger: ledger),
       ),
     );
   }
@@ -214,7 +206,11 @@ class _MainShellState extends State<MainShell> {
           home,
           const CalculatorScreen(),
           const NoteCounterScreen(),
-          const ProfileScreen(),
+          ProfileScreen(
+            onWalletSummary: !_webPreview && _summary != null
+                ? _openWallet
+                : null,
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

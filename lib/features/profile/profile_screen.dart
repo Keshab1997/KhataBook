@@ -16,15 +16,18 @@ import 'settings_screen.dart';
 ///
 /// Only controls that do something are enabled:
 ///   * [SettingsScreen], wired through [Navigator] so back works;
-///   * the open-source licence page, rendered by Flutter itself.
+///   * the open-source licence page, rendered by Flutter itself;
+///   * wallet summary when the shell supplies an active local ledger.
 ///
-/// Everything else (wallet summary, backup, sign-in) is visibly marked
+/// Everything else (backup, sign-in) is visibly marked
 /// *Not available yet* and is not tappable, rather than pretending to work.
 ///
 /// Layout is one scrolling list with no fixed heights, so a 320 dp screen at
 /// 200% text scale wraps instead of overflowing.
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.onWalletSummary});
+
+  final VoidCallback? onWalletSummary;
 
   /// Static build label, kept in step with `pubspec.yaml` by hand: this build
   /// ships no package-info dependency, so the number is stated, not read.
@@ -121,13 +124,14 @@ class ProfileScreen extends StatelessWidget {
                   onTap: () => _openSettings(context),
                 ),
                 const _MenuDivider(),
-                const _MenuRow(
-                  key: Key('profile-wallet-row'),
+                _MenuRow(
+                  key: const Key('profile-wallet-row'),
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'My Wallet Summary',
                   subtitle:
                       'Opening balance, income and expense for each khata.',
-                  status: 'Not available yet',
+                  status: onWalletSummary == null ? 'Not available yet' : null,
+                  onTap: onWalletSummary,
                 ),
                 const _MenuDivider(),
                 const _MenuRow(
