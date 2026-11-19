@@ -9,13 +9,29 @@ class LedgerEntry {
     required this.at,
     required this.amountPaise,
     this.type = EntryType.expense,
+    this.id,
+    this.description,
   });
 
+  /// Display label. For an entry read from the database this is the stored
+  /// description, falling back to the category when the description is empty or
+  /// null - a display-only fallback, never the stored data.
   final String title;
   final String category;
   final DateTime at;
   final int amountPaise;
   final EntryType type;
+
+  /// The persisted transaction id, present only on rows read from the database.
+  ///
+  /// Edit/delete/restore act on this id. Preview and seed entries leave it
+  /// null, so a preview row can never be mistaken for a stored one.
+  final String? id;
+
+  /// The stored description exactly as persisted: `null` when the row has no
+  /// description, and never the category substituted in. [title] is the
+  /// display fallback for this value.
+  final String? description;
 }
 
 class LedgerSummary {

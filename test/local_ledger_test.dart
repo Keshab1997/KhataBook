@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
@@ -347,5 +347,501 @@ void main() {
     } finally {
       await dir.delete(recursive: true);
     }
+  });
+
+  group('entry ids and descriptions', () {
+    test('reads expose the stored id and raw nullable description', () async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      await ledger.initialize();
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 45000,
+          category: 'Bills',
+          description: '  Electricity  ',
+          occurredAt: DateTime(2026, 1, 1),
+        ),
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.income,
+          amountPaise: 300000,
+          category: 'Income',
+          occurredAt: DateTime(2026, 1, 2),
+        ),
+      );
+
+      final LedgerSummary summary = await ledger.readSummary();
+      final LedgerEntry withText = summary.entries.firstWhere(
+        (LedgerEntry e) => e.category == 'Bills',
+      );
+      final LedgerEntry noText = summary.entries.firstWhere(
+        (LedgerEntry e) => e.category == 'Income',
+      );
+
+      // Real ids, unique and non-empty.
+      expect(withText.id, isNotNull);
+      expect(noText.id, isNotNull);
+      expect(withText.id, isNot(noText.id));
+      expect(withText.id, isNotEmpty);
+
+      // Stored description is trimmed before insert and reported as stored.
+      expect(withText.description, 'Electricity');
+      expect(withText.title, 'Electricity');
+
+      // An empty description stays null; the category is only the title
+      // fallback and is never reported as stored data.
+      expect(noText.description, isNull);
+      expect(noText.title, 'Income');
+
+      // The default constructor's optional fields stay compatible.
+      final LedgerEntry legacy = LedgerEntry(
+        title: 'Lunch',
+        category: 'Food',
+        at: DateTime(2026, 1, 1),
+        amountPaise: 1,
+      );
+      expect(legacy.id, isNull);
+      expect(legacy.description, isNull);
+      await ledger.close();
+    });
+  });
+
+  group('edit, soft delete and restore', () {
+    late LocalLedger ledger;
+    late String personalEntryId;
+    late String businessEntryId;
+    late LocalKhata business;
+
+    setUp(() async {
+      ledger = LocalLedger(NativeDatabase.memory());
+      await ledger.initialize();
+      business = await ledger.createKhata(
+        name: 'Business',
+        openingBalancePaise: 100000,
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 45000,
+          category: 'Bills',
+          description: 'Electricity',
+          occurredAt: DateTime(2026, 2, 1),
+        ),
+      );
+      await ledger.addEntry(
+        _entry(
+          kind: EntryFormKind.expense,
+          amountPaise: 10000,
+          category: 'Food',
+          description: 'Stock lunch',
+          occurredAt: DateTime(2026, 2, 2),
+        ),
+        khataId: business.id,
+      );
+      personalEntryId = (await ledger.readSummary()).entries.single.id!;
+      businessEntryId = (await ledger.readSummary(khataId: business.id))
+          .entries
+          .single
+          .id!;
+    });
+
+    tearDown(() async {
+      await ledger.close();
+    });
+
+    Future<QueryRow> row(String id) => ledger
+        .customSelect(
+          'SELECT * FROM "transactions" WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(id)],
+        )
+        .getSingle();
+
+    test('update edits the exact row and moves the balance', () async {
+      final QueryRow before = await row(personalEntryId);
+      final String createdAt = before.read<String>('created_at');
+
+      final bool ok = await ledger.updateEntry(
+        khataId: 'personal',
+        entryId: personalEntryId,
+        entry: _entry(
+          kind: EntryFormKind.income,
+          amountPaise: 99900,
+          category: 'Gifts',
+          description: 'Diwali gift',
+          occurredAt: DateTime(2026, 3, 5),
+        ),
+      );
+      expect(ok, isTrue);
+
+      final LedgerSummary summary = await ledger.readSummary();
+      expect(summary.entries.length, 1);
+      final LedgerEntry edited = summary.entries.single;
+      expect(edited.id, personalEntryId);
+      expect(edited.type, EntryType.income);
+      expect(edited.amountPaise, 99900);
+      expect(edited.category, 'Gifts');
+      expect(edited.description, 'Diwali gift');
+      expect(edited.title, 'Diwali gift');
+      expect(edited.at, DateTime(2026, 3, 5).toLocal());
+      expect(summary.totalExpensePaise, 0);
+      expect(summary.remainingPaise, 99900);
+
+      // id and created_at are preserved; updated_at and sync_state are bumped.
+      final QueryRow after = await row(personalEntryId);
+      expect(after.read<String>('id'), personalEntryId);
+      expect(after.read<String>('created_at'), createdAt);
+      expect(after.read<String>('sync_state'), 'pending');
+      expect(after.readNullable<String>('deleted_at'), isNull);
+
+      // The other khata is untouched.
+      final LedgerSummary other = await ledger.readSummary(
+        khataId: business.id,
+      );
+      expect(other.entries.single.amountPaise, 10000);
+      expect(other.remainingPaise, 90000);
+    });
+
+    test(
+      'update can clear a description back to NULL, never the category',
+      () async {
+        final bool ok = await ledger.updateEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+          entry: _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 45000,
+            category: 'Bills',
+            occurredAt: DateTime(2026, 2, 1),
+          ),
+        );
+        expect(ok, isTrue);
+        expect(
+          (await row(personalEntryId)).readNullable<String>('description'),
+          isNull,
+        );
+        final LedgerEntry entry = (await ledger.readSummary()).entries.single;
+        expect(entry.description, isNull);
+        expect(entry.title, 'Bills'); // display fallback only
+      },
+    );
+
+    test('soft delete removes an entry and restore brings it back', () async {
+      expect((await ledger.readSummary()).remainingPaise, -45000);
+
+      expect(
+        await ledger.softDeleteEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isTrue,
+      );
+      LedgerSummary deleted = await ledger.readSummary();
+      expect(deleted.entries, isEmpty);
+      expect(deleted.remainingPaise, 0);
+      // The row survives as a tombstone; nothing was destroyed.
+      final QueryRow tombstone = await row(personalEntryId);
+      expect(tombstone.readNullable<String>('deleted_at'), isNotNull);
+      expect(tombstone.read<String>('sync_state'), 'pending');
+
+      expect(
+        await ledger.restoreEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isTrue,
+      );
+      deleted = await ledger.readSummary();
+      expect(deleted.entries.single.id, personalEntryId);
+      expect(deleted.entries.single.title, 'Electricity');
+      expect(deleted.remainingPaise, -45000);
+      expect(
+        (await row(personalEntryId)).readNullable<String>('deleted_at'),
+        isNull,
+      );
+    });
+
+    test('wrong khata, missing ids and wrong states are no-ops', () async {
+      // Cross-khata: a real id addressed through the other khata.
+      expect(
+        await ledger.updateEntry(
+          khataId: business.id,
+          entryId: personalEntryId,
+          entry: _entry(
+            kind: EntryFormKind.income,
+            amountPaise: 1,
+            category: 'Income',
+            occurredAt: DateTime(2026, 4, 4),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        await ledger.softDeleteEntry(
+          khataId: business.id,
+          entryId: personalEntryId,
+        ),
+        isFalse,
+      );
+      // Missing ids.
+      expect(
+        await ledger.softDeleteEntry(khataId: 'personal', entryId: 'nope'),
+        isFalse,
+      );
+      expect(
+        await ledger.restoreEntry(khataId: 'personal', entryId: 'nope'),
+        isFalse,
+      );
+      // Unknown khata is reported false, not redirected to personal.
+      expect(
+        await ledger.softDeleteEntry(
+          khataId: 'ghost',
+          entryId: personalEntryId,
+        ),
+        isFalse,
+      );
+
+      // Nothing changed anywhere.
+      expect((await row(personalEntryId)).read<int>('amount_paise'), 45000);
+      expect(
+        (await row(personalEntryId)).readNullable<String>('deleted_at'),
+        isNull,
+      );
+      expect((await ledger.readSummary()).entries.length, 1);
+      expect(
+        (await ledger.readSummary(khataId: business.id)).entries.length,
+        1,
+      );
+
+      // Already deleted: second delete is false; restoring an active row is
+      // false.
+      expect(
+        await ledger.softDeleteEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isTrue,
+      );
+      expect(
+        await ledger.softDeleteEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isFalse,
+      );
+      expect(
+        await ledger.restoreEntry(
+          khataId: business.id,
+          entryId: businessEntryId,
+        ),
+        isFalse,
+      );
+      expect(
+        await ledger.restoreEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isTrue,
+      );
+      expect(
+        await ledger.restoreEntry(
+          khataId: 'personal',
+          entryId: personalEntryId,
+        ),
+        isFalse,
+      );
+    });
+
+    test('an edit inside a deleted khata writes nothing', () async {
+      await ledger.customStatement(
+        'UPDATE khatas SET deleted_at = ? WHERE id = ?',
+        <Object?>[DateTime.now().toUtc().toIso8601String(), business.id],
+      );
+      expect(
+        await ledger.updateEntry(
+          khataId: business.id,
+          entryId: businessEntryId,
+          entry: _entry(
+            kind: EntryFormKind.income,
+            amountPaise: 7,
+            category: 'Income',
+            occurredAt: DateTime(2026, 5, 5),
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        await ledger.restoreEntry(
+          khataId: business.id,
+          entryId: businessEntryId,
+        ),
+        isFalse,
+      );
+      expect((await row(businessEntryId)).read<int>('amount_paise'), 10000);
+    });
+
+    test(
+      'invalid edits throw and leave the row byte-for-byte unchanged',
+      () async {
+        Map<String, Object?> snapshot(QueryRow r) => <String, Object?>{
+          for (final String column in <String>[
+            'type',
+            'amount_paise',
+            'category_id',
+            'description',
+            'occurred_at',
+            'updated_at',
+            'deleted_at',
+            'sync_state',
+          ])
+            column: r.data[column],
+        };
+        final Map<String, Object?> before = snapshot(
+          await row(personalEntryId),
+        );
+
+        for (final EntryFormResult invalid in <EntryFormResult>[
+          // Zero and negative amounts.
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 0,
+            category: 'Bills',
+            occurredAt: DateTime(2026, 6, 1),
+          ),
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: -500,
+            category: 'Bills',
+            occurredAt: DateTime(2026, 6, 1),
+          ),
+          // Blank and whitespace-only categories.
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 100,
+            category: '',
+            occurredAt: DateTime(2026, 6, 1),
+          ),
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 100,
+            category: '   ',
+            occurredAt: DateTime(2026, 6, 1),
+          ),
+          // 121 Unicode characters (runes, not bytes).
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 100,
+            category: 'Bills',
+            description: List<String>.filled(121, '₹').join(),
+            occurredAt: DateTime(2026, 6, 1),
+          ),
+        ]) {
+          await expectLater(
+            ledger.updateEntry(
+              khataId: 'personal',
+              entryId: personalEntryId,
+              entry: invalid,
+            ),
+            throwsArgumentError,
+          );
+        }
+
+        expect(snapshot(await row(personalEntryId)), before);
+
+        // A 120-rune description with multi-byte characters is accepted.
+        expect(
+          await ledger.updateEntry(
+            khataId: 'personal',
+            entryId: personalEntryId,
+            entry: _entry(
+              kind: EntryFormKind.expense,
+              amountPaise: 45000,
+              category: 'Bills',
+              description: List<String>.filled(120, '₹').join(),
+              occurredAt: DateTime(2026, 2, 1),
+            ),
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('edits, deletes and restores survive close and reopen', () async {
+      final Directory dir = await Directory.systemTemp.createTemp('khata_upd_');
+      final File file = File('${dir.path}/ledger.sqlite');
+      try {
+        LocalLedger store = LocalLedger(NativeDatabase(file));
+        await store.initialize();
+        final LocalKhata shop = await store.createKhata(
+          name: 'Shop',
+          openingBalancePaise: 50000,
+        );
+        await store.addEntry(
+          _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 12000,
+            category: 'Shopping',
+            description: 'Boxes',
+            occurredAt: DateTime(2026, 7, 1),
+          ),
+          khataId: shop.id,
+        );
+        await store.addEntry(
+          _entry(
+            kind: EntryFormKind.income,
+            amountPaise: 8000,
+            category: 'Income',
+            occurredAt: DateTime(2026, 7, 2),
+          ),
+          khataId: shop.id,
+        );
+        final List<LedgerEntry> entries = (await store.readSummary(
+          khataId: shop.id,
+        )).entries;
+        final String boxesId = entries
+            .firstWhere((LedgerEntry e) => e.description == 'Boxes')
+            .id!;
+        final String salaryId = entries
+            .firstWhere((LedgerEntry e) => e.description == null)
+            .id!;
+
+        await store.updateEntry(
+          khataId: shop.id,
+          entryId: boxesId,
+          entry: _entry(
+            kind: EntryFormKind.expense,
+            amountPaise: 15000,
+            category: 'Shopping',
+            description: 'Bigger boxes',
+            occurredAt: DateTime(2026, 7, 1),
+          ),
+        );
+        await store.softDeleteEntry(khataId: shop.id, entryId: salaryId);
+        await store.close();
+
+        store = LocalLedger(NativeDatabase(file));
+        await store.initialize();
+        LedgerSummary reopened = await store.readSummary(khataId: shop.id);
+        expect(reopened.entries.length, 1);
+        expect(reopened.entries.single.id, boxesId);
+        expect(reopened.entries.single.amountPaise, 15000);
+        expect(reopened.entries.single.description, 'Bigger boxes');
+        expect(reopened.totalExpensePaise, 15000);
+        expect(reopened.remainingPaise, 35000);
+
+        // The tombstone persisted, so it can still be restored after a reopen.
+        expect(
+          await store.restoreEntry(khataId: shop.id, entryId: salaryId),
+          isTrue,
+        );
+        reopened = await store.readSummary(khataId: shop.id);
+        expect(reopened.entries.length, 2);
+        expect(reopened.remainingPaise, 43000);
+        expect((await store.readSummary()).entries, isEmpty);
+        await store.close();
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
   });
 }
