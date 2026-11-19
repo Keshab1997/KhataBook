@@ -6,13 +6,14 @@ An offline-first personal finance ledger: write an entry without internet, see
 the remaining balance drop immediately, and sync to Supabase later when a
 connection is available.
 
-**Status: batch B1 — Flutter scaffold + builder CI landed.** B0 wrote the
-screen, theme and data-model specification; that spec is still the contract.
-The Flutter project now has `pubspec.yaml`, `lib/`, `test/`, `android/`, `ios/`
-and `web/`, with the full colour palette, Indian-currency formatter, a
-four-destination navigation shell and a faithful Home preview reproducing
-₹10,000 / ₹3,580 / ₹6,420. Local ledger, Add Entry, Calculator, Note Counter,
-Multiple Khata and Supabase sync are still to come (B2–B5).
+**Status:** Home and Add Entry are connected to an offline Drift/SQLite ledger
+on native platforms. A new installation starts with a single empty Personal
+Khata at ₹0; add income or expenses to update the balance and recent list.
+Data is stored locally and survives restarting the app. Calculator, Note
+Counter, multiple khatas, editing/undo, opening-balance setup and Supabase sync
+are still planned. The web version remains a read-only design preview: offline
+web storage is not yet configured. The preview numbers shown there are sample
+data, never production ledger entries.
 
 ## In this repository now
 
@@ -48,14 +49,13 @@ Multiple Khata and Supabase sync are still to come (B2–B5).
 | App / language | Flutter 3.50.0 / Dart 3.14.0 | ✅ scaffolded |
 | Theme | Material 3, tokens from `docs/spec/theme.md` | ✅ B1 |
 | Navigation | `IndexedStack` + `NavigationBar` (4 tabs) | ✅ B1 |
-| Local store | SQLite via Drift — the offline source of truth | ⏳ B2 |
+| Local store | SQLite via Drift — the offline source of truth | ✅ native ledger |
 | State / routing | Riverpod + go_router | ⏳ B2 (versions pinned then) |
 | Backend | Supabase (PostgreSQL + Auth + RLS) | ⏳ B5, needs approval |
 | Money | integer **paise**, INR, Indian grouping | ✅ B1 |
 
-B1 intentionally has **no third-party runtime dependencies**, so the scaffold
-compiles offline. Packages arrive with the features that need them, each with a
-version pinned by `flutter pub add`.
+The local ledger uses Drift and SQLite. Dependencies are resolved in
+`pubspec.lock`; no Supabase project or credentials are required for local use.
 
 ## Working rules
 

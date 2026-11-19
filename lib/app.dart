@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/shell/main_shell.dart';
+import 'features/ledger/data/local_ledger.dart';
 
 class KhataBookApp extends StatelessWidget {
-  const KhataBookApp({super.key});
+  const KhataBookApp({super.key, this.ledger});
+
+  final LocalLedger? ledger;
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +17,7 @@ class KhataBookApp extends StatelessWidget {
       title: 'KhataBook',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const MainShell(),
+      home: MainShell(ledger: ledger),
     );
   }
 }

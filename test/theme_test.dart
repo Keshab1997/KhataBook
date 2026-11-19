@@ -2,6 +2,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/native.dart';
+import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/app.dart';
 import 'package:khatabook/core/format/money.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
@@ -58,7 +60,9 @@ void main() {
   testWidgets('shell shows four tabs and the remaining balance', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const KhataBookApp());
+    final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+    await ledger.initialize();
+    await tester.pumpWidget(KhataBookApp(ledger: ledger));
     await tester.pumpAndSettle();
 
     expect(find.byType(NavigationBar), findsOneWidget);
@@ -77,8 +81,10 @@ void main() {
       );
     }
     expect(find.text('Remaining Balance'), findsOneWidget);
-    expect(find.text('₹6,420'), findsOneWidget);
-    expect(find.text('₹10,000'), findsOneWidget);
-    expect(find.text('₹3,580'), findsOneWidget);
+    expect(find.text('₹0'), findsNWidgets(3));
+    expect(
+      find.text('No transactions yet. Add an entry to see it here.'),
+      findsOneWidget,
+    );
   });
 }
