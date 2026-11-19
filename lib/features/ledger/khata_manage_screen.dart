@@ -3,12 +3,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MaxLengthEnforcement;
 
+import '../../core/l10n/app_strings.dart';
 import 'data/local_ledger.dart';
 
 /// Callback-driven screen for managing active and archived khatas.
 ///
 /// Pops with `true` when at least one mutation (rename, archive, unarchive)
 /// succeeded, or `false` when no changes were made.
+///
+/// [language] localizes every label, warning and confirmation in this screen
+/// and in its rename dialog. Khata names are user data and stay verbatim.
 class KhataManageScreen extends StatefulWidget {
   const KhataManageScreen({
     super.key,
@@ -17,6 +21,7 @@ class KhataManageScreen extends StatefulWidget {
     required this.onRename,
     required this.onArchive,
     required this.onUnarchive,
+    this.language = AppLanguage.en,
   });
 
   final Future<List<LocalKhata>> Function() loadActive;
@@ -24,6 +29,9 @@ class KhataManageScreen extends StatefulWidget {
   final Future<void> Function(String id, String name) onRename;
   final Future<void> Function(String id) onArchive;
   final Future<void> Function(String id) onUnarchive;
+
+  /// Copy language for this screen and its dialogs. Display only.
+  final AppLanguage language;
 
   @override
   State<KhataManageScreen> createState() => _KhataManageScreenState();
@@ -40,6 +48,9 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
   bool _hasChanges = false;
   String? _loadError;
   String? _actionError;
+
+  /// Copy for this screen and its dialogs. Display only.
+  AppStrings get _strings => AppStrings(widget.language);
 
   @override
   void initState() {
@@ -66,7 +77,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _loadError = 'Could not load khatas. Please try again.';
+        _loadError = _strings.text(AppString.loadKhatasFailed);
       });
     }
   }
@@ -85,7 +96,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       if (!mounted) return;
       setState(() {
         _mutating = false;
-        _actionError = 'Could not update khata. Please try again.';
+        _actionError = _strings.text(AppString.updateKhataFailed);
       });
       return;
     }
@@ -104,8 +115,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       if (!mounted) return;
       setState(() {
         _mutating = false;
-        _actionError =
-            'Updated khata, but could not refresh list. Please retry.';
+        _actionError = _strings.text(AppString.refreshKhatasFailed);
       });
     }
   }
@@ -114,8 +124,11 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
     if (_mutating) return;
     final String? newName = await showDialog<String>(
       context: context,
-      builder: (BuildContext context) =>
-          _RenameKhataDialog(initialName: khata.name, maxRunes: _maxNameRunes),
+      builder: (BuildContext context) => _RenameKhataDialog(
+        initialName: khata.name,
+        maxRunes: _maxNameRunes,
+        language: widget.language,
+      ),
     );
     if (newName == null || !mounted) return;
     await _runMutation(() => widget.onRename(khata.id, newName));
@@ -123,26 +136,24 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
 
   Future<void> _promptArchive(LocalKhata khata) async {
     if (_mutating || khata.id == _personalId) return;
+    final AppStrings strings = _strings;
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text('Archive Khata?'),
+        title: Text(strings.text(AppString.archiveQuestion)),
         content: SingleChildScrollView(
-          child: Text(
-            'Archive "${khata.name}"? Its entries will be retained, '
-            'but this khata will be hidden from the active switcher.',
-          ),
+          child: Text(strings.archiveConfirmation(khata.name)),
         ),
         actions: <Widget>[
           TextButton(
             key: const Key('cancel-archive'),
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(strings.text(AppString.cancel)),
           ),
           FilledButton(
             key: const Key('confirm-archive'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
+            child: Text(strings.text(AppString.archive)),
           ),
         ],
       ),
@@ -153,23 +164,24 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
 
   Future<void> _promptUnarchive(LocalKhata khata) async {
     if (_mutating) return;
+    final AppStrings strings = _strings;
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text('Unarchive Khata?'),
+        title: Text(strings.text(AppString.unarchiveQuestion)),
         content: SingleChildScrollView(
-          child: Text('Restore "${khata.name}" to your active khatas?'),
+          child: Text(strings.unarchiveConfirmation(khata.name)),
         ),
         actions: <Widget>[
           TextButton(
             key: const Key('cancel-unarchive'),
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(strings.text(AppString.cancel)),
           ),
           FilledButton(
             key: const Key('confirm-unarchive'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Unarchive'),
+            child: Text(strings.text(AppString.unarchive)),
           ),
         ],
       ),
@@ -185,6 +197,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppStrings strings = _strings;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
@@ -193,20 +206,20 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Manage Khatas'),
+          title: Text(strings.text(AppString.manageKhatas)),
           leading: IconButton(
             key: const Key('manage-khatas-back'),
             icon: const Icon(Icons.arrow_back),
-            tooltip: 'Back',
+            tooltip: strings.text(AppString.back),
             onPressed: _mutating ? null : _handleBack,
           ),
         ),
-        body: _buildBody(context),
+        body: _buildBody(context, strings),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, AppStrings strings) {
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(key: Key('manage-khatas-loading')),
@@ -225,7 +238,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
               FilledButton(
                 key: const Key('manage-khatas-retry'),
                 onPressed: _mutating ? null : _loadAll,
-                child: const Text('Retry'),
+                child: Text(strings.text(AppString.retry)),
               ),
             ],
           ),
@@ -245,28 +258,32 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                 onPressed: _mutating
                     ? null
                     : () => setState(() => _actionError = null),
-                child: const Text('Dismiss'),
+                child: Text(strings.text(AppString.dismiss)),
               ),
               TextButton(
                 onPressed: _mutating ? null : _loadAll,
-                child: const Text('Retry'),
+                child: Text(strings.text(AppString.retry)),
               ),
             ],
           ),
           const SizedBox(height: 12),
         ],
-        Text('Active Khatas', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          strings.text(AppString.activeKhatas),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
         if (_active.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('No active khatas'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(strings.text(AppString.noActiveKhatas)),
           )
         else
           for (final LocalKhata khata in _active)
             _KhataRow(
               key: Key('active-khata-${khata.id}'),
               khata: khata,
+              strings: strings,
               isPersonal: khata.id == _personalId,
               isArchived: false,
               busy: _mutating,
@@ -276,19 +293,23 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                   : () => _promptArchive(khata),
             ),
         const SizedBox(height: 24),
-        Text('Archived Khatas', style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          strings.text(AppString.archivedKhatas),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
         const SizedBox(height: 8),
         if (_archived.isEmpty)
-          const Padding(
-            key: Key('empty-archived-khatas'),
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('No archived khatas'),
+          Padding(
+            key: const Key('empty-archived-khatas'),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(strings.text(AppString.noArchivedKhatas)),
           )
         else
           for (final LocalKhata khata in _archived)
             _KhataRow(
               key: Key('archived-khata-${khata.id}'),
               khata: khata,
+              strings: strings,
               isPersonal: khata.id == _personalId,
               isArchived: true,
               busy: _mutating,
@@ -303,6 +324,7 @@ class _KhataRow extends StatelessWidget {
   const _KhataRow({
     super.key,
     required this.khata,
+    required this.strings,
     required this.isPersonal,
     required this.isArchived,
     required this.busy,
@@ -312,6 +334,7 @@ class _KhataRow extends StatelessWidget {
   });
 
   final LocalKhata khata;
+  final AppStrings strings;
   final bool isPersonal;
   final bool isArchived;
   final bool busy;
@@ -343,7 +366,7 @@ class _KhataRow extends StatelessWidget {
                   ),
                   if (isPersonal)
                     Text(
-                      'Default',
+                      strings.text(AppString.defaultKhata),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                 ],
@@ -357,21 +380,21 @@ class _KhataRow extends StatelessWidget {
                   IconButton(
                     key: Key('rename-khata-${khata.id}'),
                     icon: const Icon(Icons.edit_outlined),
-                    tooltip: 'Rename ${khata.name}',
+                    tooltip: strings.renameLabel(khata.name),
                     onPressed: busy ? null : onRename,
                   ),
                 if (!isArchived && !isPersonal && onArchive != null)
                   IconButton(
                     key: Key('archive-khata-${khata.id}'),
                     icon: const Icon(Icons.archive_outlined),
-                    tooltip: 'Archive ${khata.name}',
+                    tooltip: strings.archiveLabel(khata.name),
                     onPressed: busy ? null : onArchive,
                   ),
                 if (isArchived && onUnarchive != null)
                   TextButton.icon(
                     key: Key('unarchive-khata-${khata.id}'),
                     icon: const Icon(Icons.unarchive_outlined),
-                    label: const Text('Unarchive'),
+                    label: Text(strings.text(AppString.unarchive)),
                     onPressed: busy ? null : onUnarchive,
                   ),
               ],
@@ -384,10 +407,15 @@ class _KhataRow extends StatelessWidget {
 }
 
 class _RenameKhataDialog extends StatefulWidget {
-  const _RenameKhataDialog({required this.initialName, required this.maxRunes});
+  const _RenameKhataDialog({
+    required this.initialName,
+    required this.maxRunes,
+    required this.language,
+  });
 
   final String initialName;
   final int maxRunes;
+  final AppLanguage language;
 
   @override
   State<_RenameKhataDialog> createState() => _RenameKhataDialogState();
@@ -412,7 +440,7 @@ class _RenameKhataDialogState extends State<_RenameKhataDialog> {
   String? _validate(String? value) {
     final String trimmed = (value ?? '').trim();
     if (trimmed.isEmpty || trimmed.runes.length > widget.maxRunes) {
-      return 'Enter a name of 1 to ${widget.maxRunes} characters';
+      return AppStrings(widget.language).nameLength(widget.maxRunes);
     }
     return null;
   }
@@ -424,8 +452,9 @@ class _RenameKhataDialogState extends State<_RenameKhataDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final AppStrings strings = AppStrings(widget.language);
     return AlertDialog(
-      title: const Text('Rename Khata'),
+      title: Text(strings.text(AppString.renameKhata)),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -435,7 +464,9 @@ class _RenameKhataDialogState extends State<_RenameKhataDialog> {
             autofocus: true,
             maxLength: widget.maxRunes,
             maxLengthEnforcement: MaxLengthEnforcement.none,
-            decoration: const InputDecoration(labelText: 'Khata name'),
+            decoration: InputDecoration(
+              labelText: strings.text(AppString.khataName),
+            ),
             validator: _validate,
             onFieldSubmitted: (_) => _submit(),
           ),
@@ -445,12 +476,12 @@ class _RenameKhataDialogState extends State<_RenameKhataDialog> {
         TextButton(
           key: const Key('cancel-rename'),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(strings.text(AppString.cancel)),
         ),
         FilledButton(
           key: const Key('save-rename'),
           onPressed: _submit,
-          child: const Text('Save'),
+          child: Text(strings.text(AppString.save)),
         ),
       ],
     );

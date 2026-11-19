@@ -2,7 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-import '../../core/format/money.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 
 enum EntryFormKind { expense, income }
@@ -23,11 +23,12 @@ class EntryFormResult {
   final DateTime occurredAt;
 }
 
-/// One choice in the expense category row: the tile label and its icon.
+/// One choice in the expense category row: the stored ID, display label and icon.
 class _CategoryOption {
-  const _CategoryOption(this.name, this.icon);
+  const _CategoryOption(this.id, this.label, this.icon);
 
-  final String name;
+  final String id;
+  final AppString label;
   final IconData icon;
 }
 
@@ -61,9 +62,12 @@ class _SectionLabel extends StatelessWidget {
 class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
+    this.language = AppLanguage.en,
     required this.openingBalancePaise,
     required this.onSave,
   });
+
+  final AppLanguage language;
 
   final int openingBalancePaise;
   final ValueChanged<EntryFormResult> onSave;
@@ -73,12 +77,14 @@ class AddEntryScreen extends StatefulWidget {
 }
 
 class _AddEntryScreenState extends State<AddEntryScreen> {
+  AppStrings get _strings => AppStrings(widget.language);
+
   static const List<_CategoryOption> _categories = <_CategoryOption>[
-    _CategoryOption('Shopping', Icons.shopping_cart),
-    _CategoryOption('Food', Icons.restaurant),
-    _CategoryOption('Travel', Icons.directions_car),
-    _CategoryOption('Bills', Icons.home),
-    _CategoryOption('Gifts', Icons.card_giftcard),
+    _CategoryOption('Shopping', AppString.shopping, Icons.shopping_cart),
+    _CategoryOption('Food', AppString.food, Icons.restaurant),
+    _CategoryOption('Travel', AppString.travel, Icons.directions_car),
+    _CategoryOption('Bills', AppString.bills, Icons.home),
+    _CategoryOption('Gifts', AppString.gifts, Icons.card_giftcard),
   ];
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -103,7 +109,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     super.dispose();
   }
 
-  int? _parseAmount(String text) {
+  int? _parseAmount(String input) {
+    final String text = _amountDigits(input);
     if (!RegExp(r'^\d{1,9}(?:\.\d{1,2})?$').hasMatch(text)) {
       return null;
     }
@@ -116,9 +123,30 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return amount > 0 ? amount : null;
   }
 
+  String _amountDigits(String text) => widget.language == AppLanguage.bn
+      ? text.replaceAllMapped(
+          RegExp('[০-৯]'),
+          (match) => '০১২৩৪৫৬৭৮৯'.indexOf(match[0]!).toString(),
+        )
+      : text;
+
   Future<void> _pickDate() async {
+    final bool bengali = widget.language == AppLanguage.bn;
     final DateTime? chosen = await showDatePicker(
       context: context,
+      helpText: bengali ? _DatePickerCopy.help.text(widget.language) : null,
+      cancelText: bengali ? _strings.text(AppString.cancel) : null,
+      confirmText: bengali
+          ? _DatePickerCopy.confirm.text(widget.language)
+          : null,
+      fieldLabelText: bengali ? _strings.text(AppString.date) : null,
+      errorFormatText: bengali
+          ? _DatePickerCopy.invalidFormat.text(widget.language)
+          : null,
+      errorInvalidText: bengali
+          ? _DatePickerCopy.outOfRange.text(widget.language)
+          : null,
+      barrierLabel: bengali ? _strings.text(AppString.cancel) : null,
       initialDate: _date,
       firstDate: DateTime(1900),
       lastDate: DateTime(DateTime.now().year + 100, 12, 31),
@@ -172,16 +200,25 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBackground,
       appBar: AppBar(
-        title: const Text(
-          'Add Entry',
+        leading:
+            widget.language == AppLanguage.bn &&
+                (ModalRoute.of(context)?.impliesAppBarDismissal ?? false)
+            ? IconButton(
+                icon: const BackButtonIcon(),
+                tooltip: _strings.text(AppString.back),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+        title: Text(
+          _strings.text(AppString.addEntry),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: <Widget>[
           IconButton(
             onPressed: _save,
-            tooltip: 'Save',
+            tooltip: _strings.text(AppString.save),
             icon: const Icon(Icons.save),
           ),
           const SizedBox(width: 8),
@@ -198,31 +235,32 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               children: <Widget>[
                 _kindSelector(),
                 const SizedBox(height: 20),
-                const _SectionLabel('Amount'),
+                _SectionLabel(_strings.text(AppString.amount)),
                 const SizedBox(height: 6),
                 _amountField(),
                 const SizedBox(height: 16),
-                const _SectionLabel('Date'),
+                _SectionLabel(_strings.text(AppString.date)),
                 const SizedBox(height: 6),
                 _dateField(),
-                if (future) _inlineWarning('This date is in the future.'),
+                if (future) _inlineWarning(_strings.text(AppString.futureDate)),
                 const SizedBox(height: 16),
-                const _SectionLabel('Category'),
+                _SectionLabel(_strings.text(AppString.category)),
                 const SizedBox(height: 10),
                 if (_kind == EntryFormKind.expense) ...<Widget>[
                   _categoryChips(),
-                  if (_showCategoryError) _inlineWarning('Pick a category'),
+                  if (_showCategoryError)
+                    _inlineWarning(_strings.text(AppString.pickCategory)),
                 ] else
                   _incomeCategoryPill(),
                 const SizedBox(height: 16),
-                const _SectionLabel('Description'),
+                _SectionLabel(_strings.text(AppString.description)),
                 const SizedBox(height: 6),
                 _descriptionField(),
                 const SizedBox(height: 20),
                 FilledButton.icon(
                   onPressed: _save,
                   icon: const Icon(Icons.save),
-                  label: const Text('Save Entry'),
+                  label: Text(_strings.text(AppString.saveEntry)),
                 ),
                 const SizedBox(height: 12),
                 _afterSavePreview(afterSave),
@@ -269,7 +307,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       button: true,
       selected: selected,
       inMutuallyExclusiveGroup: true,
-      label: income ? 'Income' : 'Expense',
+      label: _strings.text(income ? AppString.income : AppString.expense),
       excludeSemantics: true,
       onTap: () => _selectKind(kind),
       child: Material(
@@ -291,7 +329,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    income ? 'Income' : 'Expense',
+                    _strings.text(
+                      income ? AppString.income : AppString.expense,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -328,7 +368,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       // The caption above the frame is its own Text, so the field carries its
       // own accessible name rather than being an unlabeled text field.
       child: Semantics(
-        label: 'Amount',
+        label: _strings.text(AppString.amount),
         child: TextFormField(
           key: const Key('amount-field'),
           controller: _amount,
@@ -339,27 +379,32 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             fontWeight: FontWeight.w700,
             color: AppColors.darkText,
           ),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
             contentPadding: EdgeInsets.zero,
             prefixText: '₹ ',
-            prefixStyle: TextStyle(
+            prefixStyle: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
               color: AppColors.primaryGreen,
             ),
-            hintText: '0.00',
-            hintStyle: TextStyle(
+            hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
+            hintStyle: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w500,
               color: AppColors.navigationGrey,
             ),
-            errorStyle: TextStyle(fontSize: 12, color: AppColors.expenseRed),
+            errorMaxLines: 4,
+            errorStyle: const TextStyle(
+              fontSize: 12,
+              color: AppColors.expenseRed,
+            ),
           ),
           onChanged: (_) => setState(() {}),
-          validator: (String? value) =>
-              _parseAmount(value ?? '') == null ? 'Enter a valid amount' : null,
+          validator: (String? value) => _parseAmount(value ?? '') == null
+              ? _strings.text(AppString.validAmount)
+              : null,
         ),
       ),
     );
@@ -383,7 +428,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                localizations.formatMediumDate(_date),
+                widget.language == AppLanguage.bn
+                    ? _strings.day(_date)
+                    : localizations.formatMediumDate(_date),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -409,7 +456,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   Widget _categoryTile(_CategoryOption option) {
-    final bool selected = _category == option.name;
+    final bool selected = _category == option.id;
     final Color tileColor = selected
         ? AppColors.primaryGreen
         : AppColors.lightGreen;
@@ -420,12 +467,12 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       container: true,
       button: true,
       selected: selected,
-      label: option.name,
+      label: _strings.text(option.label),
       excludeSemantics: true,
-      onTap: () => _selectCategory(option.name),
+      onTap: () => _selectCategory(option.id),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _selectCategory(option.name),
+        onTap: () => _selectCategory(option.id),
         child: SizedBox(
           width: 60,
           child: Column(
@@ -456,7 +503,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  option.name,
+                  _strings.text(option.label),
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 11,
@@ -483,9 +530,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           color: AppColors.lightGreen,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Text(
-          'Category: Income',
-          style: TextStyle(
+        child: Text(
+          _strings.text(AppString.categoryIncome),
+          style: const TextStyle(
             fontWeight: FontWeight.w600,
             color: AppColors.primaryGreen,
           ),
@@ -508,35 +555,36 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             // Same reason as the amount field: the caption is a separate Text,
             // so the field itself carries the accessible name.
             child: Semantics(
-              label: 'Description',
+              label: _strings.text(AppString.description),
               child: TextFormField(
                 key: const Key('description-field'),
                 controller: _description,
                 maxLines: 2,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(fontSize: 15, color: AppColors.darkText),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
-                  hintText: 'What was it for?',
-                  hintStyle: TextStyle(
+                  hintText: _strings.text(AppString.descriptionHint),
+                  hintStyle: const TextStyle(
                     fontSize: 15,
                     color: AppColors.navigationGrey,
                   ),
-                  helperText: 'Up to 120 characters',
-                  helperStyle: TextStyle(
+                  helperText: _strings.text(AppString.descriptionLimit),
+                  helperStyle: const TextStyle(
                     fontSize: 11,
                     color: AppColors.softText,
                   ),
-                  errorStyle: TextStyle(
+                  errorMaxLines: 4,
+                  errorStyle: const TextStyle(
                     fontSize: 12,
                     color: AppColors.expenseRed,
                   ),
                 ),
                 validator: (String? value) =>
                     (value ?? '').characters.length > 120
-                    ? 'Description must be 120 characters or fewer'
+                    ? _strings.text(AppString.descriptionTooLong)
                     : null,
               ),
             ),
@@ -575,9 +623,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          afterSave == null
-              ? 'After saving: —'
-              : 'After saving: ${formatPaise(afterSave)}',
+          _strings.afterSave(afterSave),
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 13,
@@ -598,15 +644,15 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           child: Image.asset(
             'assets/illustrations/entry_notebook.png',
             fit: BoxFit.contain,
-            semanticLabel: 'Open ledger notebook and pen',
+            semanticLabel: _strings.text(AppString.notebookIllustration),
             errorBuilder: _illustrationError,
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Every expense counts…',
+        Text(
+          _strings.text(AppString.everyExpenseCounts),
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 13,
             fontStyle: FontStyle.italic,
             color: AppColors.softText,
@@ -640,4 +686,18 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       ),
     );
   }
+}
+
+enum _DatePickerCopy {
+  help('Select date', 'তারিখ বেছে নিন'),
+  confirm('OK', 'ঠিক আছে'),
+  invalidFormat('Invalid format.', 'তারিখের বিন্যাস সঠিক নয়।'),
+  outOfRange('Out of range.', 'তারিখটি অনুমোদিত সীমার বাইরে।');
+
+  const _DatePickerCopy(this.en, this.bn);
+
+  final String en;
+  final String bn;
+
+  String text(AppLanguage language) => language == AppLanguage.bn ? bn : en;
 }

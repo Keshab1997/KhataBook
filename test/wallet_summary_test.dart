@@ -436,8 +436,8 @@ void main() {
     // it does not rely on colour or layout.
     expect(find.bySemanticsLabel(RegExp('₹2,000')), findsWidgets);
     expect(
-      find.bySemanticsLabel(RegExp('already includes its opening balance')),
-      findsOneWidget,
+      find.bySemanticsLabel(RegExp('Income already includes each khata')),
+      findsWidgets,
     );
     handle.dispose();
     await tester.runAsync(() => ledger.close());

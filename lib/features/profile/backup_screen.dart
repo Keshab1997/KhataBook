@@ -1,6 +1,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import '../../core/l10n/app_strings.dart';
+
 enum BackupExportResult { saved, cancelled, failed }
 
 class BackupPreview {
@@ -21,11 +23,13 @@ class BackupPreview {
 class BackupScreen extends StatefulWidget {
   const BackupScreen({
     super.key,
+    this.language = AppLanguage.en,
     required this.onExport,
     required this.onPickBackup,
     required this.onRestore,
   });
 
+  final AppLanguage language;
   final Future<BackupExportResult> Function() onExport;
   final Future<BackupPreview?> Function() onPickBackup;
   final Future<bool> Function(BackupPreview) onRestore;
@@ -36,29 +40,36 @@ class BackupScreen extends StatefulWidget {
 
 class _BackupScreenContentState extends State<BackupScreen> {
   bool _isPending = false;
-  String _message = '';
+  AppString? _message;
+  AppStrings get _strings => AppStrings(widget.language);
+  String _summary({bool loaded = false}) => _strings.backupPreview(
+    khatas: _preview!.khataCount,
+    transactions: _preview!.transactionCount,
+    deleted: _preview!.deletedTransactionCount,
+    loaded: loaded,
+  );
   BackupPreview? _preview;
 
   Future<void> _handleExport() async {
     if (_isPending) return;
     setState(() => _isPending = true);
-    _message = 'Exporting... (Warning: backup may contain sensitive unencrypted financial data; choose a safe location)';
+    _message = AppString.exportingBackup;
     try {
       final result = await widget.onExport();
       if (!mounted) return;
       setState(() {
         _isPending = false;
         _message = result == BackupExportResult.saved
-            ? 'Export saved successfully.'
+            ? AppString.exportSaved
             : (result == BackupExportResult.cancelled
-                  ? 'Export cancelled.'
-                  : 'Export failed.');
+                  ? AppString.exportCancelled
+                  : AppString.exportFailed);
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isPending = false;
-        _message = 'Export failed.';
+        _message = AppString.exportFailed;
       });
     }
   }
@@ -66,22 +77,20 @@ class _BackupScreenContentState extends State<BackupScreen> {
   Future<void> _handlePick() async {
     if (_isPending) return;
     setState(() => _isPending = true);
-    _message = 'Picking backup...';
+    _message = AppString.pickingBackup;
     try {
       final preview = await widget.onPickBackup();
       if (!mounted) return;
       setState(() {
         _isPending = false;
         _preview = preview;
-        _message = preview != null
-            ? 'Preview loaded: ${preview.khataCount} khatas, ${preview.transactionCount} transactions, ${preview.deletedTransactionCount} deleted.'
-            : 'Pick cancelled.';
+        _message = preview != null ? null : AppString.pickCancelled;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isPending = false;
-        _message = 'Could not read or validate the backup.';
+        _message = AppString.backupValidationFailed;
         _preview = null;
       });
     }
@@ -90,24 +99,25 @@ class _BackupScreenContentState extends State<BackupScreen> {
   Future<void> _handleRestore() async {
     if (_isPending || _preview == null) return;
     setState(() => _isPending = true);
-    _message = 'Review the confirmation before restoring.';
+    _message = AppString.reviewRestore;
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Restore Backup?'),
+        scrollable: true,
+        title: Text(_strings.text(AppString.restoreQuestion)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Preview: ${_preview!.khataCount} khatas, ${_preview!.transactionCount} transactions, ${_preview!.deletedTransactionCount} deleted.',
-              ),
+              Text(_summary()),
               const SizedBox(height: 10),
-              const Text(
-                'WARNING: ALL current khatas and transactions on device will be replaced. This action is irreversible.',
-                style: TextStyle(
+              Text(
+                widget.language == AppLanguage.en
+                    ? 'WARNING: ALL current khatas and transactions on device will be replaced. This action is irreversible.'
+                    : _strings.text(AppString.restoreWarning),
+                style: const TextStyle(
                   color: Colors.red,
                   fontWeight: FontWeight.bold,
                 ),
@@ -118,11 +128,11 @@ class _BackupScreenContentState extends State<BackupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(_strings.text(AppString.cancel)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm Restore'),
+            child: Text(_strings.text(AppString.confirmRestore)),
           ),
         ],
       ),
@@ -139,21 +149,21 @@ class _BackupScreenContentState extends State<BackupScreen> {
         } else {
           setState(() {
             _isPending = false;
-            _message = 'Restore failed. Your current data was not replaced.';
+            _message = AppString.restoreFailed;
           });
         }
       } catch (_) {
         if (!mounted) return;
         setState(() {
           _isPending = false;
-          _message = 'Restore failed. Your current data was not replaced.';
+          _message = AppString.restoreFailed;
         });
       }
     } else {
       if (!mounted) return;
       setState(() {
         _isPending = false;
-        _message = 'Restore cancelled.';
+        _message = AppString.restoreCancelled;
       });
     }
   }
@@ -164,21 +174,24 @@ class _BackupScreenContentState extends State<BackupScreen> {
     return PopScope(
       canPop: !_isPending,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Backup / Restore')),
+        appBar: AppBar(title: Text(_strings.text(AppString.backupRestore))),
         body: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Offline Backup / Restore',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  _strings.text(AppString.offlineBackupRestore),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'WARNING: Backup may contain sensitive unencrypted financial data; ensure you choose a safe location.',
-                  style: TextStyle(color: Colors.orange, fontSize: 14),
+                Text(
+                  _strings.text(AppString.backupPrivacy),
+                  style: const TextStyle(color: Colors.orange, fontSize: 14),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
@@ -186,7 +199,7 @@ class _BackupScreenContentState extends State<BackupScreen> {
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 44),
                   ),
-                  child: const Text('Export Backup'),
+                  child: Text(_strings.text(AppString.exportBackup)),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
@@ -194,14 +207,12 @@ class _BackupScreenContentState extends State<BackupScreen> {
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 44),
                   ),
-                  child: const Text('Pick Backup to Restore'),
+                  child: Text(_strings.text(AppString.pickBackup)),
                 ),
                 const SizedBox(height: 12),
                 if (_preview != null) ...[
                   const Divider(),
-                  Text(
-                    'Preview: ${_preview!.khataCount} khatas, ${_preview!.transactionCount} transactions, ${_preview!.deletedTransactionCount} deleted.',
-                  ),
+                  Text(_summary()),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _isPending ? null : _handleRestore,
@@ -210,18 +221,22 @@ class _BackupScreenContentState extends State<BackupScreen> {
                       backgroundColor: Colors.redAccent,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Confirm Restore (Replace ALL Data)'),
+                    child: Text(_strings.text(AppString.confirmReplaceAll)),
                   ),
                 ],
                 const SizedBox(height: 20),
-                if (_message.isNotEmpty) ...[
+                if (_message != null || _preview != null) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.grey[200],
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(_message),
+                    child: Text(
+                      _message == null
+                          ? _summary(loaded: true)
+                          : _strings.text(_message!),
+                    ),
                   ),
                 ],
                 if (_isPending)

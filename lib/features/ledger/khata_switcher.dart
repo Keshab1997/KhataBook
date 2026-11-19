@@ -2,16 +2,23 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import '../../core/l10n/app_strings.dart';
 import 'data/local_ledger.dart';
 
 /// Choosing a khata is session-only; ledger contents always remain on device.
+///
+/// [language] localizes the switcher, its rows and the create dialog. Khata
+/// names are the user's own text and are always shown verbatim; English stays
+/// the default so an unwired call site reads exactly as before.
 Future<LocalKhata?> showKhataSwitcher(
   BuildContext context,
   LocalLedger ledger,
   List<LocalKhata> khatas,
   String activeId, {
+  AppLanguage language = AppLanguage.en,
   Future<void> Function()? onManage,
 }) async {
+  final AppStrings strings = AppStrings(language);
   final String? choice = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
@@ -19,7 +26,7 @@ Future<LocalKhata?> showKhataSwitcher(
       child: ListView(
         shrinkWrap: true,
         children: <Widget>[
-          const ListTile(title: Text('Choose Khata')),
+          ListTile(title: Text(strings.text(AppString.chooseKhata))),
           for (final khata in khatas)
             ListTile(
               key: Key('khata-${khata.id}'),
@@ -30,14 +37,14 @@ Future<LocalKhata?> showKhataSwitcher(
           ListTile(
             key: const Key('new-khata'),
             leading: const Icon(Icons.add),
-            title: const Text('New Khata'),
+            title: Text(strings.text(AppString.newKhata)),
             onTap: () => Navigator.pop(context, '__new__'),
           ),
           if (onManage != null)
             ListTile(
               key: const Key('manage-khatas'),
               leading: const Icon(Icons.manage_accounts_outlined),
-              title: const Text('Manage Khatas'),
+              title: Text(strings.text(AppString.manageKhatas)),
               onTap: () => Navigator.pop(context, '__manage__'),
             ),
         ],
@@ -52,13 +59,16 @@ Future<LocalKhata?> showKhataSwitcher(
   if (choice != '__new__') return khatas.firstWhere((k) => k.id == choice);
   return showDialog<LocalKhata>(
     context: context,
-    builder: (_) => _CreateKhata(ledger: ledger),
+    builder: (_) => _CreateKhata(ledger: ledger, language: language),
   );
 }
 
 class _CreateKhata extends StatefulWidget {
-  const _CreateKhata({required this.ledger});
+  const _CreateKhata({required this.ledger, required this.language});
+
   final LocalLedger ledger;
+  final AppLanguage language;
+
   @override
   State<_CreateKhata> createState() => _CreateKhataState();
 }
@@ -70,11 +80,30 @@ class _CreateKhataState extends State<_CreateKhata> {
   bool _saving = false;
   String? _error;
 
+  AppStrings get _strings => AppStrings(widget.language);
+
   @override
   void dispose() {
     _name.dispose();
     _opening.dispose();
     super.dispose();
+  }
+
+  /// 1-40 characters after trimming, with the message in the active language.
+  String? _validateName(String? value) {
+    final String name = value?.trim() ?? '';
+    if (name.isEmpty || name.runes.length > 40) {
+      return _strings.text(AppString.nameUpTo40);
+    }
+    return null;
+  }
+
+  /// 0 to 999999999.99 with at most two decimals, in the active language.
+  String? _validateOpening(String? value) {
+    if (_paise(value ?? '') == null) {
+      return _strings.text(AppString.openingBalanceRange);
+    }
+    return null;
   }
 
   int? _paise(String input) {
@@ -100,62 +129,63 @@ class _CreateKhataState extends State<_CreateKhata> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = 'Could not create khata. Please try again.';
+          _error = _strings.text(AppString.createKhataFailed);
         });
       }
     }
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('New Khata'),
-    content: SingleChildScrollView(
-      child: Form(
-        key: _form,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            TextFormField(
-              key: const Key('khata-name'),
-              controller: _name,
-              maxLength: 40,
-              decoration: const InputDecoration(labelText: 'Khata name'),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty || v.trim().runes.length > 40)
-                  ? 'Enter a name of up to 40 characters'
-                  : null,
-            ),
-            TextFormField(
-              key: const Key('khata-opening'),
-              controller: _opening,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+  Widget build(BuildContext context) {
+    final AppStrings strings = _strings;
+    return AlertDialog(
+      title: Text(strings.text(AppString.newKhata)),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _form,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextFormField(
+                key: const Key('khata-name'),
+                controller: _name,
+                maxLength: 40,
+                decoration: InputDecoration(
+                  labelText: strings.text(AppString.khataName),
+                ),
+                validator: _validateName,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Opening balance (₹)',
+              TextFormField(
+                key: const Key('khata-opening'),
+                controller: _opening,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: strings.text(AppString.openingBalanceInput),
+                ),
+                validator: _validateOpening,
               ),
-              validator: (v) =>
-                  _paise(v ?? '') == null ? 'Enter 0 to 999999999.99' : null,
-            ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
+              if (_error != null)
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-    actions: <Widget>[
-      TextButton(
-        onPressed: _saving ? null : () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        key: const Key('create-khata'),
-        onPressed: _saving ? null : _save,
-        child: const Text('Create'),
-      ),
-    ],
-  );
+      actions: <Widget>[
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: Text(strings.text(AppString.cancel)),
+        ),
+        FilledButton(
+          key: const Key('create-khata'),
+          onPressed: _saving ? null : _save,
+          child: Text(strings.text(AppString.create)),
+        ),
+      ],
+    );
+  }
 }

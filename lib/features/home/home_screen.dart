@@ -2,8 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-import '../../core/format/date_format.dart';
-import '../../core/format/money.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../profile/settings_screen.dart';
 import 'models.dart';
@@ -28,12 +27,17 @@ import 'models.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
+    this.language = AppLanguage.en,
     this.summary,
     this.onAddEntry,
     this.onViewAll,
     this.khataName,
     this.onSwitchKhata,
   });
+
+  final AppLanguage language;
+
+  AppStrings get _strings => AppStrings(language);
 
   /// Live figures to render. `null` selects the seeded preview instead.
   final LedgerSummary? summary;
@@ -69,7 +73,7 @@ class HomeScreen extends StatelessWidget {
         bottom: false,
         child: Column(
           children: <Widget>[
-            const _HomeHeader(),
+            _HomeHeader(_strings),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(_pagePadding),
@@ -82,34 +86,42 @@ class HomeScreen extends StatelessWidget {
                         onPressed: onSwitchKhata,
                         icon: const Icon(Icons.account_balance_wallet_outlined),
                         label: Text(
-                          khataName ?? 'Personal Khata',
+                          khataName ?? _strings.text(AppString.personalKhata),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(height: _cardGap),
                     ],
-                    _BalanceCard(remainingPaise: visibleSummary.remainingPaise),
+                    _BalanceCard(
+                      strings: _strings,
+                      remainingPaise: visibleSummary.remainingPaise,
+                    ),
                     const SizedBox(height: _cardGap),
                     _summaryRow(visibleSummary),
                     const SizedBox(height: 20),
                     _SectionHeader(
-                      title: 'Recent Transactions',
+                      strings: _strings,
+                      title: _strings.text(AppString.recentTransactions),
                       onViewAll: onViewAll,
                     ),
                     const SizedBox(height: 8),
                     if (recent.isEmpty)
-                      const _EmptyTransactions()
+                      _EmptyTransactions(_strings)
                     else
                       for (final LedgerEntry entry in recent)
-                        _RecentTransactionRow(entry: entry),
+                        _RecentTransactionRow(
+                          strings: _strings,
+                          entry: entry,
+                          preview: preview,
+                        ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
                       onPressed: onAddEntry,
                       icon: const Icon(Icons.add, size: 22),
-                      label: const Text(
-                        'Add New Entry',
-                        style: TextStyle(
+                      label: Text(
+                        _strings.text(AppString.addNewEntry),
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -119,11 +131,11 @@ class HomeScreen extends StatelessWidget {
                     // itself disappears once a live summary arrives.
                     const SizedBox(height: 8),
                     if (preview)
-                      const Center(
+                      Center(
                         child: Text(
-                          'Preview data - local ledger arrives in B2',
+                          _strings.text(AppString.homePreview),
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: AppColors.softText,
                             fontSize: 11,
                           ),
@@ -146,21 +158,23 @@ class HomeScreen extends StatelessWidget {
         children: <Widget>[
           Expanded(
             child: _SummaryTile(
-              label: 'Total Income',
+              strings: _strings,
+              label: _strings.text(AppString.totalIncome),
               paise: summary.totalIncomePaise,
               color: AppColors.incomeGreen,
               icon: Icons.arrow_upward,
-              direction: 'income',
+              direction: _strings.text(AppString.income).toLowerCase(),
             ),
           ),
           const SizedBox(width: _cardGap),
           Expanded(
             child: _SummaryTile(
-              label: 'Total Expense',
+              strings: _strings,
+              label: _strings.text(AppString.totalExpense),
               paise: summary.totalExpensePaise,
               color: AppColors.expenseRed,
               icon: Icons.arrow_downward,
-              direction: 'expense',
+              direction: _strings.text(AppString.expense).toLowerCase(),
             ),
           ),
         ],
@@ -171,7 +185,9 @@ class HomeScreen extends StatelessWidget {
 
 /// Green header bar: open-book mark, wordmark, tagline and the settings gear.
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
+  const _HomeHeader(this.strings);
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -189,15 +205,15 @@ class _HomeHeader extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: const Column(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    'KhataBook',
+                    strings.text(AppString.appName),
                     maxLines: 1,
                     softWrap: false,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.onPrimary,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -205,10 +221,10 @@ class _HomeHeader extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Plan · Track · Save',
+                    strings.text(AppString.tagline),
                     maxLines: 1,
                     softWrap: false,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.golden,
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
@@ -221,11 +237,13 @@ class _HomeHeader extends StatelessWidget {
           ),
           IconButton(
             onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(language: strings.language),
+              ),
             ),
             icon: const Icon(Icons.settings),
             color: AppColors.onPrimary,
-            tooltip: 'Settings',
+            tooltip: strings.text(AppString.settings),
           ),
         ],
       ),
@@ -235,7 +253,9 @@ class _HomeHeader extends StatelessWidget {
 
 /// `primaryGreen` balance card with the wallet treatment and a leaf motif.
 class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.remainingPaise});
+  const _BalanceCard({required this.strings, required this.remainingPaise});
+
+  final AppStrings strings;
 
   final int remainingPaise;
 
@@ -306,7 +326,7 @@ class _BalanceCard extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           Text(
-                            'Remaining Balance',
+                            strings.text(AppString.remainingBalance),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -323,7 +343,7 @@ class _BalanceCard extends StatelessWidget {
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              formatPaise(remainingPaise),
+                              strings.money(remainingPaise),
                               maxLines: 1,
                               softWrap: false,
                               style: const TextStyle(
@@ -351,12 +371,15 @@ class _BalanceCard extends StatelessWidget {
 /// One half of the income/expense summary row.
 class _SummaryTile extends StatelessWidget {
   const _SummaryTile({
+    required this.strings,
     required this.label,
     required this.paise,
     required this.color,
     required this.icon,
     required this.direction,
   });
+
+  final AppStrings strings;
 
   final String label;
   final int paise;
@@ -372,7 +395,7 @@ class _SummaryTile extends StatelessWidget {
     // announces the label, direction and amount together.
     return Semantics(
       container: true,
-      label: '$label, $direction, ${formatPaise(paise)}',
+      label: '$label, $direction, ${strings.money(paise)}',
       child: ExcludeSemantics(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
@@ -422,7 +445,7 @@ class _SummaryTile extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  formatPaise(paise),
+                  strings.money(paise),
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
@@ -442,17 +465,19 @@ class _SummaryTile extends StatelessWidget {
 
 /// Friendly stand-in for the recent list when the supplied ledger is empty.
 class _EmptyTransactions extends StatelessWidget {
-  const _EmptyTransactions();
+  const _EmptyTransactions(this.strings);
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 20),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Center(
         child: Text(
-          'No transactions yet. Add an entry to see it here.',
+          strings.text(AppString.homeEmpty),
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.softText, fontSize: 13),
+          style: const TextStyle(color: AppColors.softText, fontSize: 13),
         ),
       ),
     );
@@ -461,7 +486,13 @@ class _EmptyTransactions extends StatelessWidget {
 
 /// *Recent Transactions* with an accessible `View All` button.
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.onViewAll});
+  const _SectionHeader({
+    required this.strings,
+    required this.title,
+    this.onViewAll,
+  });
+
+  final AppStrings strings;
 
   final String title;
   final VoidCallback? onViewAll;
@@ -505,7 +536,7 @@ class _SectionHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
-                    'View All',
+                    strings.text(AppString.viewAll),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -525,7 +556,15 @@ class _SectionHeader extends StatelessWidget {
 
 /// One recent transaction: tinted category icon, title, timestamp, amount.
 class _RecentTransactionRow extends StatelessWidget {
-  const _RecentTransactionRow({required this.entry});
+  const _RecentTransactionRow({
+    required this.strings,
+    required this.entry,
+    required this.preview,
+  });
+
+  final bool preview;
+
+  final AppStrings strings;
 
   final LedgerEntry entry;
 
@@ -546,7 +585,9 @@ class _RecentTransactionRow extends StatelessWidget {
       child: Row(
         children: <Widget>[
           Semantics(
-            label: 'Category ${entry.category}',
+            label: strings.categoryLabel(
+              _categoryLabel(strings, entry.category),
+            ),
             child: Container(
               width: 40,
               height: 40,
@@ -569,7 +610,7 @@ class _RecentTransactionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  entry.title,
+                  preview ? _previewTitle(strings, entry.title) : entry.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -579,7 +620,7 @@ class _RecentTransactionRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  formatEntryDate(entry.at),
+                  strings.dateTime(entry.at),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -600,8 +641,8 @@ class _RecentTransactionRow extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: Text(
                   isIncome
-                      ? '+${formatPaise(entry.amountPaise)}'
-                      : formatPaise(entry.amountPaise),
+                      ? '+${strings.money(entry.amountPaise)}'
+                      : strings.money(entry.amountPaise),
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
@@ -657,4 +698,31 @@ class _RecentTransactionRow extends StatelessWidget {
         return Icons.more_horiz;
     }
   }
+}
+
+String _categoryLabel(AppStrings strings, String category) {
+  final AppString? key = switch (category) {
+    'Shopping' => AppString.shopping,
+    'Food' => AppString.food,
+    'Travel' => AppString.travel,
+    'Bills' => AppString.bills,
+    'Gifts' => AppString.gifts,
+    'Income' => AppString.income,
+    'Expense' => AppString.expense,
+    _ => null,
+  };
+  return key == null ? category : strings.text(key);
+}
+
+String _previewTitle(AppStrings strings, String title) {
+  final AppString? key = switch (title) {
+    'Grocery Shopping' => AppString.groceryShopping,
+    'Lunch with Friends' => AppString.lunchWithFriends,
+    'Mobile Recharge' => AppString.mobileRecharge,
+    'Gift for Mom' => AppString.giftForMom,
+    'Bus Fare' => AppString.busFare,
+    'Tea with Team' => AppString.teaWithTeam,
+    _ => null,
+  };
+  return key == null ? title : strings.text(key);
 }

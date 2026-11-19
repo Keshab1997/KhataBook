@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format/money.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../profile/settings_screen.dart';
 
@@ -69,7 +70,7 @@ String _plainDecimal(double value) {
 class _EvaluationIssue implements Exception {
   const _EvaluationIssue(this.message);
 
-  final String message;
+  final AppString message;
 }
 
 /// S3 - Calculator. See docs/spec/screens.md#s3--calculator.
@@ -79,7 +80,9 @@ class _EvaluationIssue implements Exception {
 /// flows through the network, writes storage or navigates; the parent shell
 /// owns those concerns.
 class CalculatorScreen extends StatefulWidget {
-  const CalculatorScreen({super.key});
+  const CalculatorScreen({super.key, this.language = AppLanguage.en});
+
+  final AppLanguage language;
 
   @override
   State<CalculatorScreen> createState() => _CalculatorScreenState();
@@ -88,33 +91,36 @@ class CalculatorScreen extends StatefulWidget {
 class _CalculatorScreenState extends State<CalculatorScreen> {
   final List<String> _tokens = <String>[];
   String _result = '0';
-  String? _error;
+  AppString? _error;
 
   String get _expression => _tokens.join(' ');
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings(widget.language);
     return Scaffold(
       appBar: AppBar(
         title: FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.calculate_outlined, size: 22),
-              SizedBox(width: 12),
-              Text('Calculator'),
+              const Icon(Icons.calculate_outlined, size: 22),
+              const SizedBox(width: 12),
+              Text(strings.text(AppString.calculator)),
             ],
           ),
         ),
         actions: <Widget>[
           IconButton(
             onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(language: widget.language),
+              ),
             ),
             icon: const Icon(Icons.settings),
-            tooltip: 'Settings',
+            tooltip: strings.text(AppString.settings),
           ),
         ],
       ),
@@ -129,10 +135,11 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               _CalculatorDisplay(
                 expression: _expression,
                 result: _result,
-                error: _error,
+                error: _error == null ? null : strings.text(_error!),
               ),
               const SizedBox(height: 12),
               _Keypad(
+                strings: strings,
                 onDigit: _onDigit,
                 onDecimal: _onDecimal,
                 onOperator: _onOperator,
@@ -193,21 +200,21 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   void _onPercent() {
     setState(() {
       if (_tokens.isEmpty || _calculatorOperators.contains(_tokens.last)) {
-        _error = 'Invalid expression';
+        _error = AppString.invalidExpression;
         return;
       }
       final double? value = _parseNumber(_tokens.last);
       if (value == null) {
-        _error = 'Invalid expression';
+        _error = AppString.invalidExpression;
         return;
       }
       final double percent = value / 100;
       if (!percent.isFinite || percent.abs() > _maxCalculatorValue) {
-        _error = 'Value too large';
+        _error = AppString.valueTooLarge;
         return;
       }
       if (percent == 0 && value != 0) {
-        _error = 'Value too small';
+        _error = AppString.valueTooSmall;
         return;
       }
       // Keep full precision without exponent notation: `0.1 % × 1000` stays
@@ -215,13 +222,13 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       final String operand = _operandText(percent);
       final int index = _tokens.length - 1;
       if (operand.length > _maxOperandLength) {
-        _error = 'Value too small';
+        _error = AppString.valueTooSmall;
         return;
       }
       final List<String> candidate = List<String>.from(_tokens);
       candidate[index] = operand;
       if (candidate.join(' ').length > _maxExpressionLength) {
-        _error = 'Expression too long';
+        _error = AppString.expressionTooLong;
         return;
       }
       _tokens[index] = operand;
@@ -310,7 +317,7 @@ class _ExpressionParser {
     _index = 0;
     final double value = _parseExpression();
     if (_index != _tokens.length) {
-      throw const _EvaluationIssue('Invalid expression');
+      throw const _EvaluationIssue(AppString.invalidExpression);
     }
     return value;
   }
@@ -339,7 +346,7 @@ class _ExpressionParser {
       final double right = _parseFactor();
       if (operator == '÷') {
         if (right == 0) {
-          throw const _EvaluationIssue('Cannot divide by zero');
+          throw const _EvaluationIssue(AppString.divideByZero);
         }
         value /= right;
       } else {
@@ -352,17 +359,19 @@ class _ExpressionParser {
 
   double _parseFactor() {
     if (_index >= _tokens.length) {
-      throw const _EvaluationIssue('Invalid expression');
+      throw const _EvaluationIssue(AppString.invalidExpression);
     }
     final double? value = _parseNumber(_tokens[_index++]);
-    if (value == null) throw const _EvaluationIssue('Invalid expression');
+    if (value == null) {
+      throw const _EvaluationIssue(AppString.invalidExpression);
+    }
     _check(value);
     return value;
   }
 
   void _check(double value) {
     if (!value.isFinite || value.abs() > _maxCalculatorValue) {
-      throw const _EvaluationIssue('Value too large');
+      throw const _EvaluationIssue(AppString.valueTooLarge);
     }
   }
 }
@@ -439,6 +448,7 @@ class _CalculatorDisplay extends StatelessWidget {
 /// The five keypad rows from docs/spec/screens.md#s3--calculator.
 class _Keypad extends StatelessWidget {
   const _Keypad({
+    required this.strings,
     required this.onDigit,
     required this.onDecimal,
     required this.onOperator,
@@ -448,6 +458,7 @@ class _Keypad extends StatelessWidget {
     required this.onEquals,
   });
 
+  final AppStrings strings;
   final ValueChanged<String> onDigit;
   final VoidCallback onDecimal;
   final ValueChanged<String> onOperator;
@@ -532,6 +543,7 @@ class _Keypad extends StatelessWidget {
     return _CalcKey(
       key: Key('calc-key-$label'),
       onPressed: onPressed,
+      tooltip: label == 'C' ? strings.text(AppString.clearCalculation) : null,
       background: AppColors.buttonGreen,
       foreground: AppColors.onPrimary,
       outline: Colors.transparent,
@@ -549,7 +561,7 @@ class _Keypad extends StatelessWidget {
       background: AppColors.buttonGreen,
       foreground: AppColors.onPrimary,
       outline: Colors.transparent,
-      tooltip: 'Backspace',
+      tooltip: strings.text(AppString.backspace),
       child: const Icon(Icons.backspace_outlined, size: 22),
     );
   }
@@ -561,7 +573,7 @@ class _Keypad extends StatelessWidget {
       background: AppColors.orange,
       foreground: AppColors.onPrimary,
       outline: Colors.transparent,
-      tooltip: 'Equals',
+      tooltip: strings.text(AppString.equals),
       child: const Text(
         '=',
         style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),

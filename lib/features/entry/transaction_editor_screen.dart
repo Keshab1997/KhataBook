@@ -2,6 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'add_entry_screen.dart';
 
@@ -28,10 +29,13 @@ enum TransactionEditResult { updated, deleted }
 class TransactionEditorScreen extends StatefulWidget {
   const TransactionEditorScreen({
     super.key,
+    this.language = AppLanguage.en,
     required this.initial,
     required this.onUpdate,
     required this.onDelete,
   });
+
+  final AppLanguage language;
 
   /// The entry being edited, shown prefilled and never mutated.
   final EntryFormResult initial;
@@ -48,6 +52,8 @@ class TransactionEditorScreen extends StatefulWidget {
 }
 
 class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
+  AppStrings get _strings => AppStrings(widget.language);
+
   /// Add Entry's own category set, in the same order, so the two screens agree.
   static const List<String> _standardCategories = <String>[
     'Shopping',
@@ -70,10 +76,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
 
   /// Non-null while a callback is in flight; also names which action is
   /// running, so both buttons can be disabled and the user can see why.
-  String? _pendingLabel;
+  AppString? _pendingLabel;
 
   /// Last honest failure message; cleared on the next attempt.
-  String? _error;
+  AppString? _error;
 
   bool get _busy => _pendingLabel != null;
 
@@ -107,7 +113,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   }
 
   /// Rejects anything that is not rupees with at most two decimals, and zero.
-  int? _parseAmountPaise(String text) {
+  int? _parseAmountPaise(String input) {
+    final String text = _amountDigits(input);
     if (!_amountPattern.hasMatch(text)) {
       return null;
     }
@@ -139,13 +146,34 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     return choices;
   }
 
+  String _amountDigits(String text) => widget.language == AppLanguage.bn
+      ? text.replaceAllMapped(
+          RegExp('[০-৯]'),
+          (match) => '০১২৩৪৫৬৭৮৯'.indexOf(match[0]!).toString(),
+        )
+      : text;
+
   Future<void> _pickDate() async {
     if (_busy) {
       return;
     }
     final DateTime now = DateTime.now();
+    final bool bengali = widget.language == AppLanguage.bn;
     final DateTime? chosen = await showDatePicker(
       context: context,
+      helpText: bengali ? _DatePickerCopy.help.text(widget.language) : null,
+      cancelText: bengali ? _strings.text(AppString.cancel) : null,
+      confirmText: bengali
+          ? _DatePickerCopy.confirm.text(widget.language)
+          : null,
+      fieldLabelText: bengali ? _strings.text(AppString.date) : null,
+      errorFormatText: bengali
+          ? _DatePickerCopy.invalidFormat.text(widget.language)
+          : null,
+      errorInvalidText: bengali
+          ? _DatePickerCopy.outOfRange.text(widget.language)
+          : null,
+      barrierLabel: bengali ? _strings.text(AppString.cancel) : null,
       initialDate: _date,
       firstDate: DateTime(1900),
       lastDate: DateTime(now.year + 100, 12, 31),
@@ -191,7 +219,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
 
     setState(() {
       _error = null;
-      _pendingLabel = 'Updating…';
+      _pendingLabel = AppString.updating;
     });
     final bool updated = await _attempt(() => widget.onUpdate(edited));
     if (!mounted) {
@@ -206,9 +234,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     }
     setState(() {
       _pendingLabel = null;
-      _error =
-          'Could not save your changes. Nothing was closed, so you can '
-          'try again.';
+      _error = AppString.editSaveFailed;
     });
   }
 
@@ -222,7 +248,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     }
     setState(() {
       _error = null;
-      _pendingLabel = 'Deleting…';
+      _pendingLabel = AppString.deleting;
     });
     final bool deleted = await _attempt(widget.onDelete);
     if (!mounted) {
@@ -237,9 +263,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     }
     setState(() {
       _pendingLabel = null;
-      _error =
-          'Could not delete this transaction. It has not been removed, '
-          'so you can try again.';
+      _error = AppString.deleteFailed;
     });
   }
 
@@ -250,10 +274,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           key: const Key('delete-confirm-dialog'),
-          title: const Text('Delete this transaction?'),
-          content: const Text(
-            'It will be removed from this khata on this device.',
-          ),
+          title: Text(_strings.text(AppString.deleteQuestion)),
+          content: Text(_strings.text(AppString.deleteExplanation)),
           actions: <Widget>[
             TextButton(
               key: const Key('cancel-delete-button'),
@@ -262,7 +284,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(_strings.text(AppString.cancel)),
             ),
             FilledButton(
               key: const Key('confirm-delete-button'),
@@ -274,9 +296,12 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text(
-                'Delete',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              child: Text(
+                _strings.text(AppString.delete),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -314,11 +339,20 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
         key: const Key('transaction-editor-screen'),
         backgroundColor: AppColors.creamBackground,
         appBar: AppBar(
-          title: const Text(
-            'Edit Transaction',
+          leading:
+              widget.language == AppLanguage.bn &&
+                  (ModalRoute.of(context)?.impliesAppBarDismissal ?? false)
+              ? IconButton(
+                  icon: const BackButtonIcon(),
+                  tooltip: _strings.text(AppString.back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                )
+              : null,
+          title: Text(
+            _strings.text(AppString.editTransaction),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
         body: SafeArea(
@@ -332,31 +366,33 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 children: <Widget>[
                   _kindSelector(),
                   const SizedBox(height: 20),
-                  const _SectionLabel('Amount'),
+                  _SectionLabel(_strings.text(AppString.amount)),
                   const SizedBox(height: 6),
                   _amountField(),
                   const SizedBox(height: 16),
-                  const _SectionLabel('Date'),
+                  _SectionLabel(_strings.text(AppString.date)),
                   const SizedBox(height: 6),
                   _dateField(),
-                  if (future) _inlineNote('This date is in the future.'),
+                  if (future) _inlineNote(_strings.text(AppString.futureDate)),
                   const SizedBox(height: 16),
-                  const _SectionLabel('Category'),
+                  _SectionLabel(_strings.text(AppString.category)),
                   const SizedBox(height: 10),
                   _categoryChips(),
-                  if (_showCategoryError) _inlineWarning('Pick a category'),
+                  if (_showCategoryError)
+                    _inlineWarning(_strings.text(AppString.pickCategory)),
                   const SizedBox(height: 16),
-                  const _SectionLabel('Description'),
+                  _SectionLabel(_strings.text(AppString.description)),
                   const SizedBox(height: 6),
                   _descriptionField(),
                   const SizedBox(height: 20),
-                  if (_pendingLabel != null) _pendingCard(_pendingLabel!),
-                  if (_error != null) _errorCard(_error!),
+                  if (_pendingLabel != null)
+                    _pendingCard(_strings.text(_pendingLabel!)),
+                  if (_error != null) _errorCard(_strings.text(_error!)),
                   FilledButton.icon(
                     key: const Key('editor-update-button'),
                     onPressed: _busy ? null : _submit,
                     icon: const Icon(Icons.check),
-                    label: const Text('Update transaction'),
+                    label: Text(_strings.text(AppString.updateTransaction)),
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
@@ -377,7 +413,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                       Icons.delete_outline,
                       color: AppColors.expenseRed,
                     ),
-                    label: const Text('Delete transaction'),
+                    label: Text(_strings.text(AppString.deleteTransaction)),
                   ),
                 ],
               ),
@@ -420,7 +456,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   Widget _kindSegment(EntryFormKind kind, Key key) {
     final bool selected = _kind == kind;
     final bool income = kind == EntryFormKind.income;
-    final String name = income ? 'Income' : 'Expense';
+    final String name = _strings.text(
+      income ? AppString.income : AppString.expense,
+    );
     final Color textColor = selected ? AppColors.onPrimary : AppColors.darkText;
     final Color iconColor = selected
         ? AppColors.onPrimary
@@ -490,7 +528,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   Widget _amountField() {
     return _framed(
       child: Semantics(
-        label: 'Amount',
+        label: _strings.text(AppString.amount),
         child: TextFormField(
           key: const Key('editor-amount-field'),
           controller: _amount,
@@ -502,31 +540,35 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
             fontWeight: FontWeight.w700,
             color: AppColors.darkText,
           ),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
             contentPadding: EdgeInsets.zero,
             prefixText: '₹ ',
-            prefixStyle: TextStyle(
+            prefixStyle: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
               color: AppColors.primaryGreen,
             ),
-            hintText: '0.00',
-            hintStyle: TextStyle(
+            hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
+            hintStyle: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w500,
               color: AppColors.softText,
             ),
-            errorStyle: TextStyle(fontSize: 12, color: AppColors.expenseRed),
+            errorMaxLines: 4,
+            errorStyle: const TextStyle(
+              fontSize: 12,
+              color: AppColors.expenseRed,
+            ),
           ),
           validator: (String? value) {
-            final String text = value ?? '';
+            final String text = _amountDigits(value ?? '');
             if (!_amountPattern.hasMatch(text)) {
-              return 'Enter an amount with up to 9 digits and 2 decimals';
+              return _strings.text(AppString.amountPrecision);
             }
             if (_parseAmountPaise(text) == null) {
-              return 'Amount must be more than zero';
+              return _strings.text(AppString.positiveAmount);
             }
             return null;
           },
@@ -539,7 +581,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     final MaterialLocalizations localizations = MaterialLocalizations.of(
       context,
     );
-    final String label = localizations.formatMediumDate(_date);
+    final String label = widget.language == AppLanguage.bn
+        ? _strings.day(_date)
+        : localizations.formatMediumDate(_date);
     return InkWell(
       key: const Key('editor-date-field'),
       borderRadius: BorderRadius.circular(16),
@@ -594,7 +638,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       container: true,
       button: true,
       selected: selected,
-      label: 'Category $category',
+      label: _strings.categoryLabel(_categoryLabel(_strings, category)),
       onTap: () => _selectCategory(category),
       child: ExcludeSemantics(
         child: Material(
@@ -625,7 +669,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                     ],
                     Flexible(
                       child: Text(
-                        category,
+                        _categoryLabel(_strings, category),
                         style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
@@ -655,7 +699,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Semantics(
-              label: 'Description',
+              label: _strings.text(AppString.description),
               child: TextFormField(
                 key: const Key('editor-description-field'),
                 controller: _description,
@@ -663,25 +707,29 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 maxLines: 3,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(fontSize: 15, color: AppColors.darkText),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
-                  hintText: 'What was it for?',
-                  hintStyle: TextStyle(fontSize: 15, color: AppColors.softText),
-                  helperText: 'Up to 120 characters, optional',
-                  helperStyle: TextStyle(
+                  hintText: _strings.text(AppString.descriptionHint),
+                  hintStyle: const TextStyle(
+                    fontSize: 15,
+                    color: AppColors.softText,
+                  ),
+                  helperText: _strings.text(AppString.descriptionOptional),
+                  helperStyle: const TextStyle(
                     fontSize: 11,
                     color: AppColors.softText,
                   ),
-                  errorStyle: TextStyle(
+                  errorMaxLines: 4,
+                  errorStyle: const TextStyle(
                     fontSize: 12,
                     color: AppColors.expenseRed,
                   ),
                 ),
                 validator: (String? value) =>
                     (value ?? '').trim().runes.length > 120
-                    ? 'Description must be 120 characters or fewer'
+                    ? _strings.text(AppString.descriptionTooLong)
                     : null,
               ),
             ),
@@ -815,4 +863,32 @@ class _SectionLabel extends StatelessWidget {
       ),
     );
   }
+}
+
+String _categoryLabel(AppStrings strings, String category) {
+  final AppString? key = switch (category) {
+    'Shopping' => AppString.shopping,
+    'Food' => AppString.food,
+    'Travel' => AppString.travel,
+    'Bills' => AppString.bills,
+    'Gifts' => AppString.gifts,
+    'Income' => AppString.income,
+    'Expense' => AppString.expense,
+    _ => null,
+  };
+  return key == null ? category : strings.text(key);
+}
+
+enum _DatePickerCopy {
+  help('Select date', 'তারিখ বেছে নিন'),
+  confirm('OK', 'ঠিক আছে'),
+  invalidFormat('Invalid format.', 'তারিখের বিন্যাস সঠিক নয়।'),
+  outOfRange('Out of range.', 'তারিখটি অনুমোদিত সীমার বাইরে।');
+
+  const _DatePickerCopy(this.en, this.bn);
+
+  final String en;
+  final String bn;
+
+  String text(AppLanguage language) => language == AppLanguage.bn ? bn : en;
 }

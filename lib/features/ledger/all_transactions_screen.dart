@@ -2,8 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-import '../../core/format/date_format.dart';
-import '../../core/format/money.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
 import '../entry/add_entry_screen.dart';
@@ -75,14 +74,19 @@ bool matchesSearchQuery(LedgerEntry entry, String rawQuery) {
 /// result is reported as "no matches", which is deliberately a different
 /// message from an empty khata.
 ///
-/// Money stays integer paise end to end ([formatPaise] is the only formatter)
-/// and dates come from the shared [formatEntryDate], so nothing here can
+/// Money stays integer paise end to end ([AppStrings.money] wraps the shared
+/// `formatPaise`) and dates come from [AppStrings], so nothing here can
 /// disagree with Home. The opening balance is deliberately **not** part of any
 /// figure on this screen - every total counts transactions only - and the card
 /// says so in words, so no number can be mistaken for the remaining balance.
 ///
 /// With a ledger and khata ID it supports editing and reversible deletion;
 /// without them it remains a read-only view.
+///
+/// [language] localizes the copy only. Stored values - entry titles,
+/// descriptions, categories and transaction ids - stay canonical, so a filter,
+/// a search or an edit always acts on the data rather than on its label.
+/// English remains the default, so an unwired call site reads exactly as before.
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({
     super.key,
@@ -90,6 +94,7 @@ class AllTransactionsScreen extends StatefulWidget {
     this.ledger,
     this.khataId,
     this.onSummaryChanged,
+    this.language = AppLanguage.en,
   });
 
   /// The khata to display. Treated as immutable, including its entry list.
@@ -98,6 +103,9 @@ class AllTransactionsScreen extends StatefulWidget {
   final String? khataId;
   final ValueChanged<LedgerSummary>? onSummaryChanged;
 
+  /// Copy language for this screen and the dialogs it opens. Display only.
+  final AppLanguage language;
+
   @override
   State<AllTransactionsScreen> createState() => _AllTransactionsScreenState();
 }
@@ -105,6 +113,10 @@ class AllTransactionsScreen extends StatefulWidget {
 class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   late LedgerSummary _summary;
   bool _refreshError = false;
+
+  /// Copy for this screen and its subwidgets. Display only: stored values are
+  /// never routed through it.
+  AppStrings get _strings => AppStrings(widget.language);
 
   /// The search box's text. Owned by the screen so the query survives a
   /// rebuild after an edit and the controller is released with the screen.
@@ -164,11 +176,13 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final khataId = widget.khataId;
     final entryId = entry.id;
     if (ledger == null || khataId == null || entryId == null) return;
+    final AppStrings strings = _strings;
     final messenger = ScaffoldMessenger.of(context);
     final onSummaryChanged = widget.onSummaryChanged;
     final result = await Navigator.of(context).push<TransactionEditResult>(
       MaterialPageRoute<TransactionEditResult>(
         builder: (_) => TransactionEditorScreen(
+          language: widget.language,
           initial: EntryFormResult(
             kind: entry.type == EntryType.income
                 ? EntryFormKind.income
@@ -194,15 +208,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     messenger.hideCurrentSnackBar();
     if (result == TransactionEditResult.updated) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Transaction updated')),
+        SnackBar(content: Text(strings.text(AppString.transactionUpdated))),
       );
     } else {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Transaction deleted'),
+          content: Text(strings.text(AppString.transactionDeleted)),
           duration: const Duration(seconds: 8),
           action: SnackBarAction(
-            label: 'Undo',
+            label: strings.text(AppString.undo),
             onPressed: () async {
               try {
                 final restored = await ledger.restoreEntry(
@@ -219,17 +233,21 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text(
-                      restored
-                          ? 'Transaction restored'
-                          : 'Could not restore transaction',
+                      strings.text(
+                        restored
+                            ? AppString.transactionRestored
+                            : AppString.transactionRestoreFailed,
+                      ),
                     ),
                   ),
                 );
               } catch (_) {
                 if (messenger.mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not restore transaction'),
+                    SnackBar(
+                      content: Text(
+                        strings.text(AppString.transactionRestoreFailed),
+                      ),
                     ),
                   );
                 }
@@ -300,7 +318,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       initialDate: initial,
       firstDate: first,
       lastDate: last,
-      helpText: 'Show transactions from this day',
+      helpText: _strings.text(AppString.pickFromDay),
     );
     if (chosen == null || !mounted) {
       return;
@@ -332,7 +350,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       initialDate: initial,
       firstDate: first,
       lastDate: last,
-      helpText: 'Show transactions up to this day',
+      helpText: _strings.text(AppString.pickToDay),
     );
     if (chosen == null || !mounted) {
       return;
@@ -353,17 +371,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   Widget _clearSearchButton() {
     return IconButton(
       key: const Key('search-clear'),
-      tooltip: 'Clear search',
+      tooltip: _strings.text(AppString.clearSearch),
       onPressed: _clearQuery,
       icon: const Icon(Icons.close),
     );
   }
 
-  /// Categories to offer, alphabetical. Built from every entry, not the
-  /// filtered ones, so choosing a category never moves the chips under the
-  /// user's finger. The selected category stays listed even when an edit
-  /// removed its last entry, so such a filter still reads as selected and can
-  /// be changed instead of silently disappearing.
+  /// Categories to offer, alphabetical on the canonical stored token. Built
+  /// from every entry, not the filtered ones, so choosing a category never
+  /// moves the chips under the user's finger. The selected category stays
+  /// listed even when an edit removed its last entry, so such a filter still
+  /// reads as selected and can be changed instead of silently disappearing.
+  /// Ordering stays canonical too, so switching language relabels the chips
+  /// without rearranging them under the user.
   List<String> get _categoryOptions {
     final Set<String> unique = <String>{
       for (final LedgerEntry entry in _summary.entries) entry.category,
@@ -448,15 +468,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppStrings strings = _strings;
     if (_refreshError) {
       return Scaffold(
-        appBar: AppBar(title: const Text('All Transactions')),
+        appBar: AppBar(title: Text(strings.text(AppString.allTransactions))),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Text('Could not refresh transactions.'),
-              FilledButton(onPressed: _refresh, child: const Text('Retry')),
+              Text(strings.text(AppString.refreshTransactionsFailed)),
+              FilledButton(
+                onPressed: _refresh,
+                child: Text(strings.text(AppString.retry)),
+              ),
             ],
           ),
         ),
@@ -467,13 +491,13 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       return Scaffold(
         key: const Key('all-transactions-screen'),
         appBar: AppBar(
-          title: const Text(
-            'All Transactions',
+          title: Text(
+            strings.text(AppString.allTransactions),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        body: const SafeArea(top: false, child: _EmptyLedger()),
+        body: SafeArea(top: false, child: _EmptyLedger(strings: strings)),
       );
     }
 
@@ -485,24 +509,24 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final DateTime? fromDay = _fromDay;
     final DateTime? toDay = _toDay;
     final bool hasDates = fromDay != null || toDay != null;
-    final String fromLabel = fromDay == null
-        ? 'From: any date'
-        : 'From: ${_dateLabel(fromDay)}';
-    final String toLabel = toDay == null
-        ? 'To: any date'
-        : 'To: ${_dateLabel(toDay)}';
-    final String fromSemantics = fromDay == null
-        ? 'Date filter: from any date'
-        : 'Date filter: from ${_dateLabel(fromDay)}';
-    final String toSemantics = toDay == null
-        ? 'Date filter: to any date'
-        : 'Date filter: to ${_dateLabel(toDay)}';
+    final String fromLabel = strings.dateFilter(from: true, date: fromDay);
+    final String toLabel = strings.dateFilter(from: false, date: toDay);
+    final String fromSemantics = strings.dateFilter(
+      from: true,
+      date: fromDay,
+      semantic: true,
+    );
+    final String toSemantics = strings.dateFilter(
+      from: false,
+      date: toDay,
+      semantic: true,
+    );
 
     return Scaffold(
       key: const Key('all-transactions-screen'),
       appBar: AppBar(
-        title: const Text(
-          'All Transactions',
+        title: Text(
+          strings.text(AppString.allTransactions),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -512,7 +536,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
-            _SummaryCard(totalCount: allEntries.length, entries: visible),
+            _SummaryCard(
+              totalCount: allEntries.length,
+              entries: visible,
+              strings: strings,
+            ),
             const SizedBox(height: 12),
             TextField(
               key: const Key('search-field'),
@@ -521,8 +549,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               textInputAction: TextInputAction.search,
               style: const TextStyle(fontSize: 15, color: AppColors.darkText),
               decoration: InputDecoration(
-                labelText: 'Search transactions',
-                hintText: 'Description or category',
+                labelText: strings.text(AppString.searchTransactions),
+                hintText: strings.text(AppString.searchHint),
                 prefixIcon: const Icon(Icons.search, color: AppColors.softText),
                 suffixIcon: _query.isEmpty ? null : _clearSearchButton(),
                 contentPadding: const EdgeInsets.symmetric(
@@ -546,7 +574,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            const _SectionTitle('Date'),
+            _SectionTitle(strings.text(AppString.date)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -569,15 +597,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 if (hasDates)
                   _FilterChip(
                     key: const Key('date-filter-clear'),
-                    label: 'Clear dates',
-                    semanticLabel: 'Date filter: clear both days',
+                    label: strings.text(AppString.clearDates),
+                    semanticLabel: strings.text(AppString.clearDatesFilter),
                     selected: false,
                     onTap: _clearDates,
                   ),
               ],
             ),
             const SizedBox(height: 16),
-            const _SectionTitle('Type'),
+            _SectionTitle(strings.text(AppString.type)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -585,29 +613,29 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               children: <Widget>[
                 _FilterChip(
                   key: const Key('type-filter-all'),
-                  label: 'All',
-                  semanticLabel: 'Type filter: all entries',
+                  label: strings.text(AppString.all),
+                  semanticLabel: strings.text(AppString.allTypesFilter),
                   selected: _typeFilter == null,
                   onTap: () => _selectType(null),
                 ),
                 _FilterChip(
                   key: const Key('type-filter-income'),
-                  label: 'Income',
-                  semanticLabel: 'Type filter: income',
+                  label: strings.text(AppString.income),
+                  semanticLabel: strings.text(AppString.incomeFilter),
                   selected: _typeFilter == EntryType.income,
                   onTap: () => _selectType(EntryType.income),
                 ),
                 _FilterChip(
                   key: const Key('type-filter-expense'),
-                  label: 'Expense',
-                  semanticLabel: 'Type filter: expense',
+                  label: strings.text(AppString.expense),
+                  semanticLabel: strings.text(AppString.expenseFilter),
                   selected: _typeFilter == EntryType.expense,
                   onTap: () => _selectType(EntryType.expense),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const _SectionTitle('Category'),
+            _SectionTitle(strings.text(AppString.category)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -615,16 +643,22 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               children: <Widget>[
                 _FilterChip(
                   key: const Key('category-filter-all'),
-                  label: 'All',
-                  semanticLabel: 'Category filter: all categories',
+                  label: strings.text(AppString.all),
+                  semanticLabel: strings.text(AppString.allCategoriesFilter),
                   selected: _categoryFilter == null,
                   onTap: () => _selectCategory(null),
                 ),
+                // The key and the filter value stay the canonical stored
+                // category; only the visible label is translated, so a tapped
+                // chip still matches the same rows in either language.
                 for (final String category in _categoryOptions)
                   _FilterChip(
                     key: Key('category-filter-$category'),
-                    label: category,
-                    semanticLabel: 'Category filter: $category',
+                    label: _categoryLabel(strings, category),
+                    semanticLabel: strings.categoryLabel(
+                      _categoryLabel(strings, category),
+                      filter: true,
+                    ),
                     selected: _categoryFilter == category,
                     onTap: () => _selectCategory(category),
                   ),
@@ -632,15 +666,16 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             ),
             const SizedBox(height: 12),
             if (groups.isEmpty)
-              _NoMatches(onClear: _clearFilters)
+              _NoMatches(strings: strings, onClear: _clearFilters)
             else
               for (final _MonthGroup group in groups) ...<Widget>[
-                _MonthHeader(group: group),
+                _MonthHeader(group: group, strings: strings),
                 for (final _DayGroup day in group.days) ...<Widget>[
-                  _DayHeader(day: day.day),
+                  _DayHeader(day: day.day, strings: strings),
                   for (final LedgerEntry entry in day.entries)
                     _EntryRow(
                       entry: entry,
+                      strings: strings,
                       onTap: widget.ledger != null && entry.id != null
                           ? () => _edit(entry)
                           : null,
@@ -657,10 +692,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 /// Top card: how many rows are shown and their income/expense totals, with the
 /// definition of those totals spelled out underneath.
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.totalCount, required this.entries});
+  const _SummaryCard({
+    required this.totalCount,
+    required this.entries,
+    required this.strings,
+  });
 
   final int totalCount;
   final List<LedgerEntry> entries;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -674,17 +714,20 @@ class _SummaryCard extends StatelessWidget {
       }
     }
 
-    final String totalWord = totalCount == 1 ? 'transaction' : 'transactions';
-    final String countText = entries.length == totalCount
-        ? 'Showing $totalCount $totalWord'
-        : 'Showing ${entries.length} of $totalCount $totalWord';
+    final String countText = strings.transactionCount(
+      shown: entries.length,
+      total: totalCount,
+    );
+    final String totalsText = strings.flowTotals(
+      incomePaise: incomePaise,
+      expensePaise: expensePaise,
+    );
 
     return Semantics(
       container: true,
       label:
-          '$countText. Income ${formatPaise(incomePaise)}. Expense '
-          '${formatPaise(expensePaise)}. Totals count only the transactions '
-          'shown and exclude the opening balance.',
+          '$countText. $totalsText '
+          '${strings.text(AppString.filteredTotalsExplanation)}',
       child: ExcludeSemantics(
         child: Container(
           key: const Key('transactions-summary'),
@@ -711,26 +754,25 @@ class _SummaryCard extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: _TotalTile(
-                      label: 'Income',
-                      paise: incomePaise,
+                      label: strings.text(AppString.income),
+                      value: strings.money(incomePaise),
                       color: AppColors.incomeGreen,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _TotalTile(
-                      label: 'Expense',
-                      paise: expensePaise,
+                      label: strings.text(AppString.expense),
+                      value: strings.money(expensePaise),
                       color: AppColors.expenseRed,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Totals count only the transactions shown, so the opening '
-                'balance is excluded and this is not the remaining balance.',
-                style: TextStyle(
+              Text(
+                strings.text(AppString.filteredTotalsExplanation),
+                style: const TextStyle(
                   fontSize: 12,
                   height: 1.35,
                   color: AppColors.softText,
@@ -749,12 +791,14 @@ class _SummaryCard extends StatelessWidget {
 class _TotalTile extends StatelessWidget {
   const _TotalTile({
     required this.label,
-    required this.paise,
+    required this.value,
     required this.color,
   });
 
   final String label;
-  final int paise;
+
+  /// Already formatted for the active language; this tile does no arithmetic.
+  final String value;
   final Color color;
 
   @override
@@ -772,7 +816,7 @@ class _TotalTile extends StatelessWidget {
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
           child: Text(
-            formatPaise(paise),
+            value,
             maxLines: 1,
             softWrap: false,
             style: TextStyle(
@@ -887,20 +931,23 @@ class _FilterChip extends StatelessWidget {
 
 /// Month heading with that month's income and expense for the visible rows.
 class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({required this.group});
+  const _MonthHeader({required this.group, required this.strings});
 
   final _MonthGroup group;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
-    final String label = _monthLabel(group.month);
+    final String label = strings.monthYear(group.month);
+    final String totals = strings.flowTotals(
+      incomePaise: group.incomePaise,
+      expensePaise: group.expensePaise,
+    );
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Semantics(
         container: true,
-        label:
-            '$label. Income ${formatPaise(group.incomePaise)}, expense '
-            '${formatPaise(group.expensePaise)}.',
+        label: '$label. $totals',
         child: ExcludeSemantics(
           child: Container(
             key: Key(_monthKey(group.month)),
@@ -927,16 +974,16 @@ class _MonthHeader extends StatelessWidget {
                   children: <Widget>[
                     Expanded(
                       child: _TotalTile(
-                        label: 'Income',
-                        paise: group.incomePaise,
+                        label: strings.text(AppString.income),
+                        value: strings.money(group.incomePaise),
                         color: AppColors.incomeGreen,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _TotalTile(
-                        label: 'Expense',
-                        paise: group.expensePaise,
+                        label: strings.text(AppString.expense),
+                        value: strings.money(group.expensePaise),
                         color: AppColors.expenseRed,
                       ),
                     ),
@@ -953,16 +1000,17 @@ class _MonthHeader extends StatelessWidget {
 
 /// Day heading inside a month.
 class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.day});
+  const _DayHeader({required this.day, required this.strings});
 
   final DateTime day;
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Text(
-        _dateLabel(day),
+        strings.day(day),
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,
@@ -975,9 +1023,10 @@ class _DayHeader extends StatelessWidget {
 
 /// One transaction: type icon, title, category and timestamp, signed amount.
 class _EntryRow extends StatelessWidget {
-  const _EntryRow({required this.entry, this.onTap});
+  const _EntryRow({required this.entry, required this.strings, this.onTap});
 
   final LedgerEntry entry;
+  final AppStrings strings;
   final VoidCallback? onTap;
 
   @override
@@ -986,18 +1035,27 @@ class _EntryRow extends StatelessWidget {
     final Color amountColor = isIncome
         ? AppColors.incomeGreen
         : AppColors.expenseRed;
-    final String signedAmount = isIncome
-        ? '+${formatPaise(entry.amountPaise)}'
-        : '-${formatPaise(entry.amountPaise)}';
+    final String signedAmount = strings.signedMoney(
+      entry.amountPaise,
+      income: isIncome,
+    );
+
+    // The stored category is translated for display only; the title is the
+    // user's own text and is never touched.
+    final String category = _categoryLabel(strings, entry.category);
 
     return Semantics(
       container: true,
       button: onTap != null,
       onTap: onTap,
-      label:
-          '${entry.title}, ${entry.category}, '
-          '${isIncome ? 'income' : 'expense'} $signedAmount, '
-          '${formatEntryDate(entry.at.toLocal())}${onTap == null ? '' : ', tap to edit'}',
+      label: strings.transactionLabel(
+        title: entry.title,
+        category: category,
+        amountPaise: entry.amountPaise,
+        income: isIncome,
+        at: entry.at.toLocal(),
+        editable: onTap != null,
+      ),
       child: ExcludeSemantics(
         child: InkWell(
           key: entry.id == null ? null : Key('transaction-${entry.id}'),
@@ -1041,7 +1099,7 @@ class _EntryRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${entry.category} · ${formatEntryDate(entry.at.toLocal())}',
+                        '$category · ${strings.dateTime(entry.at.toLocal())}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           height: 1.3,
@@ -1091,20 +1149,20 @@ class _EntryRow extends StatelessWidget {
 /// Shown when the khata itself has no entries: no filters, because there is
 /// nothing to filter.
 class _EmptyLedger extends StatelessWidget {
-  const _EmptyLedger();
+  const _EmptyLedger({required this.strings});
+
+  final AppStrings strings;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: const <Widget>[
+      children: <Widget>[
         _MessageCard(
-          key: Key('transactions-empty'),
+          key: const Key('transactions-empty'),
           icon: Icons.menu_book,
-          title: 'No transactions yet',
-          message:
-              'Add your first entry from Home and it will appear here, '
-              'newest first.',
+          title: strings.text(AppString.noTransactions),
+          message: strings.text(AppString.transactionsEmptyHelp),
         ),
       ],
     );
@@ -1113,8 +1171,9 @@ class _EmptyLedger extends StatelessWidget {
 
 /// Shown when filters hide every entry: a different truth from an empty khata.
 class _NoMatches extends StatelessWidget {
-  const _NoMatches({required this.onClear});
+  const _NoMatches({required this.strings, required this.onClear});
 
+  final AppStrings strings;
   final VoidCallback onClear;
 
   @override
@@ -1122,14 +1181,12 @@ class _NoMatches extends StatelessWidget {
     return _MessageCard(
       key: const Key('transactions-no-match'),
       icon: Icons.filter_list,
-      title: 'No transactions match these filters',
-      message:
-          'Try another search, type, category or date, or clear the filters '
-          'to see every transaction again.',
+      title: strings.text(AppString.noMatchingTransactions),
+      message: strings.text(AppString.noMatchesHelp),
       action: FilledButton(
         key: const Key('clear-filters'),
         onPressed: onClear,
-        child: const Text('Clear filters'),
+        child: Text(strings.text(AppString.clearFilters)),
       ),
     );
   }
@@ -1209,13 +1266,26 @@ class _DayGroup {
   final List<LedgerEntry> entries = <LedgerEntry>[];
 }
 
-/// `19 Nov 2026` - the date half of the shared `dd MMM yyyy, h:mm a` format.
-String _dateLabel(DateTime value) => formatEntryDate(value).split(',').first;
-
-/// `Nov 2026` - the month and year of the same shared format.
-String _monthLabel(DateTime value) =>
-    _dateLabel(value).split(' ').skip(1).join(' ');
-
 /// Stable widget key for a month heading, e.g. `month-2026-11`.
 String _monthKey(DateTime value) =>
     'month-${value.year}-${value.month.toString().padLeft(2, '0')}';
+
+/// The editor's fixed category tokens, mapped to their dictionary keys.
+///
+/// A category is stored as the canonical token (`Shopping`, `Food`, ...), so
+/// only this display mapping is translated; the stored value, the chip key and
+/// the filter comparison keep using the token itself.
+const Map<String, AppString> _categoryStrings = <String, AppString>{
+  'Shopping': AppString.shopping,
+  'Food': AppString.food,
+  'Travel': AppString.travel,
+  'Bills': AppString.bills,
+  'Gifts': AppString.gifts,
+};
+
+/// [category] rendered for display. Anything the editor does not offer - an
+/// imported or hand-written category - is shown verbatim, never translated.
+String _categoryLabel(AppStrings strings, String category) {
+  final AppString? key = _categoryStrings[category];
+  return key == null ? category : strings.text(key);
+}
