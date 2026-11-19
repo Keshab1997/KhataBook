@@ -211,8 +211,9 @@ class LedgerTransaction {
     final String descriptionText = description == null
         ? ''
         : ', description: $description';
-    final String deletedText =
-        deletedAt == null ? '' : ', deletedAt: $deletedAt';
+    final String deletedText = deletedAt == null
+        ? ''
+        : ', deletedAt: $deletedAt';
     return 'LedgerTransaction(id: $id, khataId: $khataId, '
         'kind: ${kind.name}, amountPaise: $amountPaise, '
         'category: $category, occurredAt: $occurredAt'
@@ -311,9 +312,7 @@ class LedgerTotals {
     if (limit == 0) {
       return const <LedgerTransaction>[];
     }
-    return List<LedgerTransaction>.unmodifiable(
-      transactions.take(limit),
-    );
+    return List<LedgerTransaction>.unmodifiable(transactions.take(limit));
   }
 
   /// Number of live rows in this khata.

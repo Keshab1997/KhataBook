@@ -246,12 +246,8 @@ void main() {
 
     test('rejects a blank description instead of storing whitespace', () {
       expect(
-        () => expenseAt(
-          id: 'txn-1',
-          amountPaise: 100,
-          hour: 12,
-          description: '',
-        ),
+        () =>
+            expenseAt(id: 'txn-1', amountPaise: 100, hour: 12, description: ''),
         throwsA(isA<ArgumentError>()),
       );
       expect(
@@ -352,14 +348,11 @@ void main() {
 
   group('LedgerTotals arithmetic follows the spec formula', () {
     test('adds income and opening balance, subtracts expenses', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[
-          incomeAt(id: 'in-1', amountPaise: 500000, hour: 9),
-          expenseAt(id: 'out-1', amountPaise: 120000, hour: 20),
-          expenseAt(id: 'out-2', amountPaise: 58000, hour: 13),
-        ],
-        openingBalancePaise: 1000000,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        incomeAt(id: 'in-1', amountPaise: 500000, hour: 9),
+        expenseAt(id: 'out-1', amountPaise: 120000, hour: 20),
+        expenseAt(id: 'out-2', amountPaise: 58000, hour: 13),
+      ], openingBalancePaise: 1000000);
 
       expect(result.totalIncomePaise, 1500000);
       expect(result.totalExpensePaise, 178000);
@@ -383,43 +376,38 @@ void main() {
     });
 
     test('zero opening balance with income stays positive', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[incomeAt(id: 'in-1', amountPaise: 5000, hour: 9)],
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        incomeAt(id: 'in-1', amountPaise: 5000, hour: 9),
+      ]);
       expect(result.totalIncomePaise, 5000);
       expect(result.totalExpensePaise, 0);
       expect(result.remainingPaise, 5000);
     });
 
     test('overspending produces a negative remaining balance, not a clamp', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[expenseAt(id: 'out-1', amountPaise: 500, hour: 9)],
-        openingBalancePaise: 200,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        expenseAt(id: 'out-1', amountPaise: 500, hour: 9),
+      ], openingBalancePaise: 200);
       expect(result.remainingPaise, -300);
     });
 
     test('a negative opening balance is still pure arithmetic', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[incomeAt(id: 'in-1', amountPaise: 100, hour: 9)],
-        openingBalancePaise: -400,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        incomeAt(id: 'in-1', amountPaise: 100, hour: 9),
+      ], openingBalancePaise: -400);
       expect(result.totalIncomePaise, -300);
       expect(result.remainingPaise, -300);
     });
 
     test('reproduces the preview numbers: 10,000 - 3,580 = 6,420', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[
-          expenseAt(id: 'grocery', amountPaise: 120000, hour: 20, minute: 30),
-          expenseAt(id: 'lunch', amountPaise: 58000, hour: 13, minute: 15),
-          expenseAt(id: 'recharge', amountPaise: 19900, hour: 10, minute: 20),
-          expenseAt(id: 'gift', amountPaise: 100000, hour: 19, day: 18),
-          expenseAt(id: 'bus', amountPaise: 30100, hour: 9, day: 17),
-          expenseAt(id: 'tea', amountPaise: 30000, hour: 17, day: 16),
-        ],
-        openingBalancePaise: 1000000,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        expenseAt(id: 'grocery', amountPaise: 120000, hour: 20, minute: 30),
+        expenseAt(id: 'lunch', amountPaise: 58000, hour: 13, minute: 15),
+        expenseAt(id: 'recharge', amountPaise: 19900, hour: 10, minute: 20),
+        expenseAt(id: 'gift', amountPaise: 100000, hour: 19, day: 18),
+        expenseAt(id: 'bus', amountPaise: 30100, hour: 9, day: 17),
+        expenseAt(id: 'tea', amountPaise: 30000, hour: 17, day: 16),
+      ], openingBalancePaise: 1000000);
 
       expect(result.totalIncomePaise, 1000000);
       expect(result.totalExpensePaise, 358000);
@@ -440,10 +428,10 @@ void main() {
       expect(result.totalIncomePaise, 2500);
       expect(result.totalExpensePaise, 1000);
       expect(result.remainingPaise, 1500);
-      expect(
-        result.transactions.map((LedgerTransaction t) => t.id),
-        <String>['mine-2', 'mine-1'],
-      );
+      expect(result.transactions.map((LedgerTransaction t) => t.id), <String>[
+        'mine-2',
+        'mine-1',
+      ]);
     });
 
     test('a khata with no rows reports only its opening balance', () {
@@ -495,10 +483,10 @@ void main() {
         expenseAt(id: 'out-2', amountPaise: 6000, hour: 11),
       );
 
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[live, removed],
-        openingBalancePaise: 10000,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        live,
+        removed,
+      ], openingBalancePaise: 10000);
 
       expect(result.totalExpensePaise, 4000);
       expect(result.remainingPaise, 6000);
@@ -507,13 +495,10 @@ void main() {
     });
 
     test('a tombstoned income row drops out of total income too', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[
-          incomeAt(id: 'in-1', amountPaise: 5000, hour: 9),
-          deleted(incomeAt(id: 'in-2', amountPaise: 7000, hour: 10)),
-        ],
-        openingBalancePaise: 1000,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        incomeAt(id: 'in-1', amountPaise: 5000, hour: 9),
+        deleted(incomeAt(id: 'in-2', amountPaise: 7000, hour: 10)),
+      ], openingBalancePaise: 1000);
       expect(result.totalIncomePaise, 6000);
       expect(result.totalExpensePaise, 0);
       expect(result.remainingPaise, 6000);
@@ -526,20 +511,17 @@ void main() {
         expenseAt(id: 'middle', amountPaise: 300, hour: 12),
       ]);
 
-      expect(
-        result.recent().map((LedgerTransaction t) => t.id),
-        <String>['middle', 'old'],
-      );
+      expect(result.recent().map((LedgerTransaction t) => t.id), <String>[
+        'middle',
+        'old',
+      ]);
     });
 
     test('an all-tombstoned ledger keeps only its opening balance', () {
-      final LedgerTotals result = totals(
-        <LedgerTransaction>[
-          deleted(expenseAt(id: 'out-1', amountPaise: 500, hour: 10)),
-          deleted(incomeAt(id: 'in-1', amountPaise: 900, hour: 11)),
-        ],
-        openingBalancePaise: 1000,
-      );
+      final LedgerTotals result = totals(<LedgerTransaction>[
+        deleted(expenseAt(id: 'out-1', amountPaise: 500, hour: 10)),
+        deleted(incomeAt(id: 'in-1', amountPaise: 900, hour: 11)),
+      ], openingBalancePaise: 1000);
 
       expect(result.transactions, isEmpty);
       expect(result.totalIncomePaise, 1000);
@@ -639,8 +621,7 @@ void main() {
       );
 
       expect(
-        totals(<LedgerTransaction>[earlierCreated, laterCreated])
-            .transactions
+        totals(<LedgerTransaction>[earlierCreated, laterCreated]).transactions
             .map((LedgerTransaction t) => t.id),
         <String>['evening', 'morning'],
       );
@@ -652,10 +633,11 @@ void main() {
         expenseAt(id: 'bus', amountPaise: 30100, hour: 9, day: 17),
         expenseAt(id: 'grocery', amountPaise: 120000, hour: 20, day: 19),
       ]);
-      expect(
-        result.recent().map((LedgerTransaction t) => t.id),
-        <String>['grocery', 'bus', 'tea'],
-      );
+      expect(result.recent().map((LedgerTransaction t) => t.id), <String>[
+        'grocery',
+        'bus',
+        'tea',
+      ]);
     });
 
     test('recent() is a copy: mutating it cannot corrupt the totals', () {
@@ -673,10 +655,7 @@ void main() {
       final LedgerTotals result = totals(<LedgerTransaction>[
         expenseAt(id: 'a', amountPaise: 100, hour: 9),
       ]);
-      expect(
-        () => result.transactions.removeAt(0),
-        throwsUnsupportedError,
-      );
+      expect(() => result.transactions.removeAt(0), throwsUnsupportedError);
     });
   });
 
@@ -700,11 +679,7 @@ void main() {
         for (int index = 0; index < 50; index++)
           index.isEven
               ? incomeAt(id: 'in-$index', amountPaise: big, hour: 0, minute: 0)
-              : expenseAt(
-                  id: 'out-$index',
-                  amountPaise: big,
-                  hour: 0,
-                ),
+              : expenseAt(id: 'out-$index', amountPaise: big, hour: 0),
       ];
 
       final LedgerTotals result = totals(rows, openingBalancePaise: big);
