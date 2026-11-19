@@ -345,9 +345,18 @@ down here is never touched).
   `250 × 4 = 1,000` and `₹500 × 10 = ₹5,000` are the calculator/counter
   smoke cases. `test/theme_test.dart` is the single B1 test file. Check a UI
   change with `tool/local_screenshots.py` before asking Keshab to look at it.
-- **Workflows:** `.github/workflows/` contains exactly two manual, read-only
-  builder workflows at `@v1.18.6` — *Flutter CI — Format, Analyze & Test* and
-  *Flutter widget-test diagnostics*. Quote those real names.
-- **Not yet present (needs approval):** publishing workflows (web preview,
-  signed builds, releases, UI screenshots), Supabase project, repository
-  secrets, Pages setup, tags/releases.
+- **Workflows:** `.github/workflows/` has the builder workflows at `@v1.18.6` —
+  *Flutter CI — Format, Analyze & Test* (`ci.yml`), *Flutter widget-test
+  diagnostics* (`widget-tests.yml`), plus *Web preview* (`web-preview.yml`),
+  *Manual build* (`manual-build.yml`) and *Publish release*
+  (`publish-release.yml`), all `workflow_dispatch`-only. Quote those real names.
+- **Android signing:** upload key at `android/app/upload-keystore.jks` (alias
+  `khatabook`, self-signed CN=Keshab Sarkar / O=Keshab Studios, valid to 2054)
+  and `android/key.properties` — both gitignored, never commit. CI receives the
+  same key via secrets `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+  `KEY_PASSWORD`, `KEY_ALIAS`; release signing in `android/app/build.gradle.kts`
+  falls back to debug when no key.properties exists locally.
+- **Not yet present (needs approval):** repository secrets beyond the four
+  signing secrets, Supabase project, Pages setup, tags/releases, and running
+  any publishing workflow. Original `ci.yml` is backed up under
+  `.github/flutter-builder-backups/`.
