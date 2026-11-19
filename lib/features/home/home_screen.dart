@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/format/date_format.dart';
 import '../../core/format/money.dart';
 import '../../core/theme/app_colors.dart';
+import '../profile/settings_screen.dart';
 import 'models.dart';
 
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
@@ -196,7 +197,9 @@ class _HomeHeader extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+            ),
             icon: const Icon(Icons.settings),
             color: AppColors.onPrimary,
             tooltip: 'Settings',

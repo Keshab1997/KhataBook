@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/format/money.dart';
 import '../../core/theme/app_colors.dart';
+import '../profile/settings_screen.dart';
 
 /// S4 - Note Counter. See docs/spec/screens.md#s4--note-counter.
 ///
@@ -240,7 +241,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
         title: const Text('Note Counter'),
         actions: <Widget>[
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+            ),
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
           ),

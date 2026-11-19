@@ -109,9 +109,11 @@ void main() {
       expect(find.byIcon(Icons.settings), findsOneWidget);
       expect(find.byIcon(Icons.add), findsOneWidget);
 
-      // The gear remains a B1 placeholder; the CTA is live when handed a
-      // callback, and neither interaction may throw or break the layout.
+      // Settings opens a real route; return before exercising the Home CTA.
       await tester.tap(find.byIcon(Icons.settings));
+      await tester.pumpAndSettle();
+      expect(find.text('App Settings'), findsOneWidget);
+      await tester.pageBack();
       await tester.pumpAndSettle();
 
       final Finder cta = find.text('Add New Entry');

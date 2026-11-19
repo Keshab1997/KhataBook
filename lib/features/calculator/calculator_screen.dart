@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/format/money.dart';
 import '../../core/theme/app_colors.dart';
+import '../profile/settings_screen.dart';
 
 /// Operator glyphs are kept distinct from the ASCII '-' used inside a
 /// negative number token, so a leading minus can be edited like a digit.
@@ -109,7 +110,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         ),
         actions: <Widget>[
           IconButton(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+            ),
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
           ),
