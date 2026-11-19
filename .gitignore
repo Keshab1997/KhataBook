@@ -32,3 +32,15 @@ google-services.json
 GoogleService-Info.plist
 secrets/
 service-account*.json
+
+# Flutter create extras (kept from the generated template)
+*.class
+*.log
+.DS_Store
+*.swp
+**/doc/api/
+**/ios/Flutter/.last_build_id
+/android/app/debug
+/android/app/profile
+/android/app/release
+.widget_preview/
