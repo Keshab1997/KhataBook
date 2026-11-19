@@ -9,11 +9,13 @@ import 'models.dart';
 
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
 ///
-/// This is still the static B1 preview of the supplied design
-/// (`docs/design/ui-preview.png` and `docs/design/style-guide.png`, style-guide
-/// header variant per D4): the seeded [LedgerSummary] is rendered, and nothing
-/// here reads storage or talks to a network. B2 wires the local ledger, the
-/// entry form and the khata switcher.
+/// A presentational seam: the parent supplies a live [summary] and the
+/// [onAddEntry] / [onViewAll] callbacks. With no [summary] the B1 preview of
+/// the supplied design (`docs/design/ui-preview.png` and
+/// `docs/design/style-guide.png`, style-guide header variant per D4) is kept
+/// exactly as it was, including the seeded figures and the notice. This
+/// screen reads no storage, navigates nowhere and holds no state; Captain
+/// wires the ledger adapter and the parent in the next step.
 ///
 /// Layout, top to bottom: green header (open-book mark, wordmark,
 /// *Plan · Track · Save*, settings gear) · balance card · income/expense
@@ -23,7 +25,16 @@ import 'models.dart';
 /// Every text block is inside a bounded flex or a scaling box so that 200%
 /// text scale and small phone widths cannot overflow.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.summary, this.onAddEntry, this.onViewAll});
+
+  /// Live figures to render. `null` selects the seeded preview instead.
+  final LedgerSummary? summary;
+
+  /// CTA action; a null callback leaves the button visibly disabled.
+  final VoidCallback? onAddEntry;
+
+  /// *View All* action; a null callback leaves that affordance disabled.
+  final VoidCallback? onViewAll;
 
   /// Page padding from the 8 dp grid in docs/spec/theme.md.
   static const double _pagePadding = 16;
@@ -33,11 +44,14 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final LedgerSummary summary = LedgerSummary(
-      openingBalancePaise: kSeedOpeningBalancePaise,
-      entries: kSeedEntries,
-    );
-    final List<LedgerEntry> recent = summary.recent();
+    final bool preview = summary == null;
+    final LedgerSummary visibleSummary =
+        summary ??
+        LedgerSummary(
+          openingBalancePaise: kSeedOpeningBalancePaise,
+          entries: kSeedEntries,
+        );
+    final List<LedgerEntry> recent = visibleSummary.recent();
 
     return Scaffold(
       body: SafeArea(
@@ -51,17 +65,23 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    _BalanceCard(remainingPaise: summary.remainingPaise),
+                    _BalanceCard(remainingPaise: visibleSummary.remainingPaise),
                     const SizedBox(height: _cardGap),
-                    _summaryRow(summary),
+                    _summaryRow(visibleSummary),
                     const SizedBox(height: 20),
-                    const _SectionHeader(title: 'Recent Transactions'),
+                    _SectionHeader(
+                      title: 'Recent Transactions',
+                      onViewAll: onViewAll,
+                    ),
                     const SizedBox(height: 8),
-                    for (final LedgerEntry entry in recent)
-                      _RecentTransactionRow(entry: entry),
+                    if (recent.isEmpty)
+                      const _EmptyTransactions()
+                    else
+                      for (final LedgerEntry entry in recent)
+                        _RecentTransactionRow(entry: entry),
                     const SizedBox(height: 12),
                     FilledButton.icon(
-                      onPressed: () {},
+                      onPressed: onAddEntry,
                       icon: const Icon(Icons.add, size: 22),
                       label: const Text(
                         'Add New Entry',
@@ -71,17 +91,20 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // The 8 dp gap is kept in both modes so only the notice
+                    // itself disappears once a live summary arrives.
                     const SizedBox(height: 8),
-                    const Center(
-                      child: Text(
-                        'Preview data - local ledger arrives in B2',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.softText,
-                          fontSize: 11,
+                    if (preview)
+                      const Center(
+                        child: Text(
+                          'Preview data - local ledger arrives in B2',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.softText,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -391,14 +414,41 @@ class _SummaryTile extends StatelessWidget {
   }
 }
 
-/// *Recent Transactions* with the (not yet wired) `View All` affordance.
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-
-  final String title;
+/// Friendly stand-in for the recent list when the supplied ledger is empty.
+class _EmptyTransactions extends StatelessWidget {
+  const _EmptyTransactions();
 
   @override
   Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Text(
+          'No transactions yet. Add an entry to see it here.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.softText, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
+
+/// *Recent Transactions* with an accessible `View All` button.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.onViewAll});
+
+  final String title;
+  final VoidCallback? onViewAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enabled = onViewAll != null;
+    // A missing callback must not look like a working affordance: grey it out
+    // and let TextButton's button semantics advertise the disabled state.
+    final Color tint = enabled
+        ? AppColors.primaryGreen
+        : AppColors.navigationGrey;
+
     return Row(
       children: <Widget>[
         Expanded(
@@ -414,27 +464,31 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        const Flexible(
+        Flexible(
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerRight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryGreen,
+            child: TextButton(
+              onPressed: onViewAll,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(44, 44),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    'View All',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: tint,
+                    ),
                   ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: AppColors.primaryGreen,
-                ),
-              ],
+                  Icon(Icons.chevron_right, size: 18, color: tint),
+                ],
+              ),
             ),
           ),
         ),

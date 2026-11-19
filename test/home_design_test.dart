@@ -17,6 +17,8 @@ Future<void> pumpHome(
   WidgetTester tester, {
   Size size = midPhone,
   double scale = 1.0,
+  VoidCallback? onAddEntry,
+  VoidCallback? onViewAll,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -34,7 +36,7 @@ Future<void> pumpHome(
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const HomeScreen(),
+      home: HomeScreen(onAddEntry: onAddEntry, onViewAll: onViewAll),
     ),
   );
   await tester.pumpAndSettle();
@@ -101,12 +103,14 @@ void main() {
     testWidgets('the settings gear and CTA are present and tappable', (
       WidgetTester tester,
     ) async {
-      await pumpHome(tester);
+      int addTaps = 0;
+      await pumpHome(tester, onAddEntry: () => addTaps++);
 
       expect(find.byIcon(Icons.settings), findsOneWidget);
       expect(find.byIcon(Icons.add), findsOneWidget);
 
-      // Placeholder handlers must not throw (nothing is wired in B1).
+      // The gear remains a B1 placeholder; the CTA is live when handed a
+      // callback, and neither interaction may throw or break the layout.
       await tester.tap(find.byIcon(Icons.settings));
       await tester.pumpAndSettle();
 
@@ -115,6 +119,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(cta);
       await tester.pumpAndSettle();
+      expect(addTaps, 1);
       expectNoLayoutErrors(tester);
     });
   });
