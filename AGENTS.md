@@ -289,6 +289,10 @@ rejects a request that still carries the `Authorization` header
 - **Secrets never enter git:** `google-services.json`, `android/key.properties`,
   `*.jks` / `*.keystore`, `.pem`, tokens. CI receives them from repository
   secrets. Do not add them to the repo to "make CI pass".
+  The one deliberate exception is public by design: the Supabase project URL
+  and **publishable** key in `lib/core/config/cloud_project.dart` (Keshab's
+  decision, 2026-11-20; row-level security protects the data). Never add a
+  secret or service-role key — `test/cloud_project_test.dart` fails on one.
 - **Respect existing structure:** edit existing files over adding new ones, and
   read the file you are about to change (comments explain *why* the code is the
   way it is — keep that voice).
