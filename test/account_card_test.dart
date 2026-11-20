@@ -1,0 +1,334 @@
+// Flutter 3.50 deprecates this import; migrate with the app's dependency update.
+// ignore: deprecated_member_use
+import 'package:flutter/material.dart';
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/l10n/app_strings.dart' show AppLanguage;
+import 'package:khatabook/core/theme/app_colors.dart';
+import 'package:khatabook/core/theme/app_theme.dart';
+import 'package:khatabook/features/entry/add_entry_screen.dart';
+import 'package:khatabook/features/ledger/data/local_ledger.dart';
+import 'package:khatabook/features/sync/account_card.dart';
+import 'package:khatabook/features/sync/cloud_backend.dart';
+import 'package:khatabook/features/sync/sync_engine.dart';
+import 'package:khatabook/features/sync/sync_status.dart';
+
+import 'support/fake_cloud_backend.dart';
+
+Future<void> _pumpCard(
+  WidgetTester tester,
+  Widget card, {
+  Size size = const Size(400, 900),
+  double textScale = 1.0,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light(),
+      builder: (BuildContext context, Widget? child) {
+        final MediaQueryData media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+      home: Scaffold(
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: <Widget>[card],
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
+void main() {
+  group('AccountCard states (S5)', () {
+    testWidgets('local-only state shows hint and Sign in button', (
+      WidgetTester tester,
+    ) async {
+      int signInTaps = 0;
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: const SyncStatus.signedOut(pendingCount: 2),
+          onSignIn: () => signInTaps++,
+        ),
+      );
+
+      expect(find.text('Sign in to enable cloud backup'), findsOneWidget);
+      expect(
+        find.byKey(const Key('account-card-signin-button')),
+        findsOneWidget,
+      );
+      expect(find.text('Back up now'), findsNothing);
+      expect(find.text('Log out'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('account-card-signin-button')));
+      await tester.pump();
+      expect(signInTaps, 1);
+    });
+
+    testWidgets(
+      'signed-in idle state shows email, Last synced, N pending, Back up now, and Log out in expenseRed',
+      (WidgetTester tester) async {
+        int backupCalls = 0;
+        await _pumpCard(
+          tester,
+          AccountCard(
+            status: SyncStatus.idle(
+              userEmail: 'keshab@example.com',
+              lastSyncedAt: DateTime.utc(2026, 11, 19, 15, 0),
+              pendingCount: 3,
+            ),
+            onBackupNow: () async {
+              backupCalls++;
+              return SyncOutcome.synced;
+            },
+            onSignOut: () async {},
+          ),
+        );
+
+        expect(find.text('keshab@example.com'), findsOneWidget);
+        expect(find.textContaining('Last synced'), findsOneWidget);
+        expect(find.text('3 pending'), findsOneWidget);
+        expect(find.text('Back up now'), findsOneWidget);
+        expect(find.text('Log out'), findsOneWidget);
+
+        // Verify Log out label uses AppColors.expenseRed.
+        final Text logoutText = tester.widget<Text>(find.text('Log out'));
+        expect(logoutText.style?.color, AppColors.expenseRed);
+
+        await tester.tap(find.byKey(const Key('account-card-backup-button')));
+        await tester.pumpAndSettle();
+        expect(backupCalls, 1);
+      },
+    );
+
+    testWidgets(
+      'syncing state shows inline progress text only, never a blocking modal dialog',
+      (WidgetTester tester) async {
+        await _pumpCard(
+          tester,
+          AccountCard(
+            status: SyncStatus.syncing(
+              userEmail: 'keshab@example.com',
+              pendingCount: 4,
+            ),
+          ),
+        );
+
+        expect(find.text('Syncing with cloud backup…'), findsOneWidget);
+        expect(find.text('4 pending'), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.byType(Dialog), findsNothing);
+        expect(
+          find.byKey(const Key('account-card-backup-button')),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('error state shows failure reason and Retry button', (
+      WidgetTester tester,
+    ) async {
+      int retries = 0;
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: SyncStatus.error(
+            reason: 'Server temporarily unavailable',
+            userEmail: 'keshab@example.com',
+            pendingCount: 2,
+          ),
+          onRetry: () async {
+            retries++;
+            return SyncOutcome.synced;
+          },
+          onSignOut: () async {},
+        ),
+      );
+
+      expect(find.text('Server temporarily unavailable'), findsOneWidget);
+      expect(find.text('2 pending'), findsOneWidget);
+      expect(
+        find.byKey(const Key('account-card-retry-button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('account-card-retry-button')));
+      await tester.pumpAndSettle();
+      expect(retries, 1);
+    });
+
+    testWidgets(
+      'backing up while offline shows clear message and does nothing',
+      (WidgetTester tester) async {
+        int backupCalls = 0;
+        await _pumpCard(
+          tester,
+          AccountCard(
+            status: SyncStatus.idle(
+              userEmail: 'keshab@example.com',
+              pendingCount: 1,
+            ),
+            isOnline: () async => false,
+            onBackupNow: () async {
+              backupCalls++;
+              return SyncOutcome.synced;
+            },
+            onSignOut: () async {},
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('account-card-backup-button')));
+        await tester.pumpAndSettle();
+
+        expect(backupCalls, 0);
+        expect(
+          find.byKey(const Key('account-card-offline-message')),
+          findsOneWidget,
+        );
+        expect(find.textContaining('offline'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'log-out confirm dialog cancels safely and never deletes local data on confirm',
+      (WidgetTester tester) async {
+        final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+        await ledger.initialize();
+        await ledger.addEntry(
+          EntryFormResult(
+            kind: EntryFormKind.expense,
+            amountPaise: 58000,
+            category: 'Food',
+            description: 'Lunch',
+            occurredAt: DateTime.utc(2026, 11, 19, 13, 15),
+          ),
+        );
+        final FakeCloudBackend backend = FakeCloudBackend(
+          initialUser: CloudUser(id: 'u1', email: 'keshab@example.com'),
+        );
+        final SyncEngine engine = SyncEngine(ledger: ledger, backend: backend);
+        await engine.refreshStatus();
+
+        await _pumpCard(
+          tester,
+          AccountCard(
+            statusStream: engine.statusStream,
+            onBackupNow: () => engine.syncNow(),
+            onSignOut: () => engine.signOut(),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text('keshab@example.com'), findsOneWidget);
+
+        // Cancel confirmation -> stays signed in.
+        await tester.tap(find.byKey(const Key('account-card-logout-button')));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await tester.tap(find.byKey(const Key('account-logout-cancel')));
+        await tester.pumpAndSettle();
+        expect(backend.signOutCalls, 0);
+        expect(find.text('keshab@example.com'), findsOneWidget);
+
+        // Confirm log out -> signs out, transitions card to local-only, and
+        // local ledger entry remains intact.
+        await tester.tap(find.byKey(const Key('account-card-logout-button')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('account-logout-confirm')));
+        await tester.pumpAndSettle();
+
+        expect(backend.signOutCalls, 1);
+        expect(find.text('Sign in to enable cloud backup'), findsOneWidget);
+        expect(
+          (await ledger.readSummary()).entries.single.description,
+          'Lunch',
+        );
+
+        await engine.dispose();
+        await backend.dispose();
+        await ledger.close();
+      },
+    );
+
+    testWidgets(
+      'Bengali labels render across all states and 320dp/200% scale',
+      (WidgetTester tester) async {
+      // 1. Local-only in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: const SyncStatus.signedOut(),
+          onSignIn: () {},
+        ),
+        size: const Size(320, 640),
+        textScale: 2.0,
+      );
+      expect(
+        find.text('ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'),
+        findsOneWidget,
+      );
+      expect(find.text('সাইন ইন করুন'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // 2. Signed-in idle in Bengali (including Bengali digits for pending count)
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.idle(
+            userEmail: 'bn@example.com',
+            lastSyncedAt: DateTime.utc(2026, 11, 20, 10, 30),
+            pendingCount: 5,
+          ),
+          onBackupNow: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+        size: const Size(320, 640),
+        textScale: 2.0,
+      );
+      expect(find.text('৫টি অপেক্ষমাণ'), findsOneWidget);
+      expect(find.text('এখন ব্যাকআপ নিন'), findsOneWidget);
+      expect(find.text('লগ আউট'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // 3. Syncing in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.syncing(
+            userEmail: 'bn@example.com',
+            pendingCount: 1,
+          ),
+        ),
+      );
+      expect(find.text('ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…'), findsOneWidget);
+
+      // 4. Error in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.error(
+            reason: 'নেটওয়ার্ক ত্রুটি',
+            userEmail: 'bn@example.com',
+            pendingCount: 2,
+          ),
+          onRetry: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+      );
+      expect(find.text('নেটওয়ার্ক ত্রুটি'), findsOneWidget);
+      expect(find.text('আবার চেষ্টা করুন'), findsOneWidget);
+    });
+  });
+}
