@@ -1191,11 +1191,7 @@ void main() {
 
       expect(find.text('সর্বমোট'), findsOneWidget);
       expect(find.text('কয়েন'), findsOneWidget);
-      expect(find.text('নতুন গণনা'), findsOneWidget);
-      expect(
-        find.text('মাত্র সংখ্যাগুলো লিখুন — হিসাব নিজেই হয়ে যায়'),
-        findsOneWidget,
-      );
+      expect(find.byTooltip('নতুন গণনা'), findsOneWidget);
       expect(
         find.text(
           'শুধু এই সেশনের জন্য — কিছুই সংরক্ষণ করা হয় না বা খাতায় যোগ হয় না',
@@ -1212,6 +1208,38 @@ void main() {
       expect(grandTotalText('₹৫,০০০'), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
+  });
+
+  testWidgets('normal phone fits the persisted counted screen actions', (
+    tester,
+  ) async {
+    final ledger = await openInMemoryLedger(tester);
+    final store = NoteCounterStore(ledger);
+    await pumpPersistedCounter(
+      tester,
+      store: store,
+      khataId: 'personal',
+      size: const Size(390, 770),
+      onAddToKhata: (_, _) {},
+    );
+    await typeFiveHundreds(tester, '2');
+    for (final key in <String>[
+      'note-counter-add-to-khata',
+      'note-counter-save',
+      'note-counter-saved-sessions',
+      'note-counter-copy-summary',
+    ]) {
+      expect(find.byKey(Key(key)).hitTestable(), findsOneWidget, reason: key);
+    }
+    expect(
+      find.byKey(const Key('note-counter-new-count')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('travels in the backup file').hitTestable(),
+      findsOneWidget,
+    );
+    expectNoLayoutErrors(tester);
   });
 
   group('layout matrix', () {

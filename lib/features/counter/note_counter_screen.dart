@@ -49,6 +49,7 @@ class NoteCounterScreen extends StatefulWidget {
     this.store,
     this.khataId,
     this.onAddToKhata,
+    this.onSettings,
   });
 
   /// Display language for every visible string on this screen.
@@ -64,6 +65,7 @@ class NoteCounterScreen extends StatefulWidget {
   /// Total is above zero. Called with integer paise and a short note; this
   /// screen never writes a transaction itself.
   final void Function(int amountPaise, String note)? onAddToKhata;
+  final VoidCallback? onSettings;
 
   @override
   State<NoteCounterScreen> createState() => _NoteCounterScreenState();
@@ -91,10 +93,6 @@ class _Copy {
       : 'Coins totalling ${strings.money(paise)}';
 
   String get grandTotalLabel => _bn ? 'সর্বমোট' : 'Grand Total';
-
-  String get grandTotalHint => _bn
-      ? 'মাত্র সংখ্যাগুলো লিখুন — হিসাব নিজেই হয়ে যায়'
-      : 'Just type the numbers - the maths is done for you';
 
   String get savedHint => _bn
       ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়; ব্যাকআপ ফাইলের সাথে যায়'
@@ -582,7 +580,32 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   Widget build(BuildContext context) {
     final AppStrings strings = AppStrings(widget.language);
     final _Copy copy = _copy();
-    return Scaffold(body: SafeArea(child: _buildBody(strings, copy)));
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: AppColors.headerGreen,
+      ),
+      child: Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: <Widget>[
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Image.asset(
+                    'assets/illustrations/counter_footer.png',
+                    fit: BoxFit.fitWidth,
+                    excludeFromSemantics: true,
+                  ),
+                ),
+              ),
+              _buildBody(strings, copy),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildBody(AppStrings strings, _Copy copy) {
@@ -621,20 +644,88 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     // below the rows (total card, buttons, hint) no longer fits on small
     // phones — a pinned column overflows instead of scrolling.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                copy.grandTotalHint,
-                key: const Key('note-counter-hint'),
-                style: const TextStyle(fontSize: 11, color: AppColors.softText),
+            Container(
+              height: 56,
+              margin: const EdgeInsets.only(bottom: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: <Color>[
+                    AppColors.primaryGreen,
+                    AppColors.headerGreen,
+                  ],
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(22),
+                ),
+                border: const Border(
+                  bottom: BorderSide(color: AppColors.golden, width: 3),
+                ),
+              ),
+              child: Row(
+                children: <Widget>[
+                  ClipOval(
+                    child: Image.asset(
+                      'assets/illustrations/counter_header_coins.png',
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      excludeFromSemantics: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FittedBox(
+                      alignment: Alignment.centerLeft,
+                      fit: BoxFit.scaleDown,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            strings.text(AppString.counter),
+                            style: const TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
+                          Text(
+                            widget.language == AppLanguage.bn
+                                ? 'গুনুন সহজে • সঞ্চয় করুন'
+                                : 'Count Smart • Save More',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('note-counter-new-count'),
+                    onPressed: _confirmNewCount,
+                    tooltip: strings.text(AppString.newCount),
+                    color: AppColors.onPrimary,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  if (widget.onSettings != null)
+                    IconButton(
+                      onPressed: widget.onSettings,
+                      tooltip: 'Settings',
+                      color: AppColors.onPrimary,
+                      icon: const Icon(Icons.settings),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
             for (final int denomination in _rowOrderPaise) ...<Widget>[
               _DenominationRow(
                 strings: strings,
@@ -655,9 +746,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 5),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
             const SizedBox(height: 8),
             if (addToKhataVisible) ...<Widget>[
@@ -665,11 +755,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 key: const Key('note-counter-add-to-khata'),
                 onPressed: _addToKhata,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.incomeGreen,
-                  minimumSize: const Size.fromHeight(52),
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                  ),
+                  backgroundColor: AppColors.primaryGreen,
+                  minimumSize: const Size.fromHeight(44),
+                  shape: const StadiumBorder(),
                 ),
                 icon: const Icon(
                   Icons.account_balance_wallet_outlined,
@@ -681,7 +769,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 5),
             ],
             if (_persistent) ...<Widget>[
               _ActionButton.filled(
@@ -690,7 +778,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 icon: Icons.save_outlined,
                 label: strings.text(AppString.save),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 5),
               Row(
                 children: <Widget>[
                   Expanded(
@@ -722,28 +810,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: const Key('note-counter-new-count'),
-                    onPressed: _confirmNewCount,
-                    icon: const Icon(Icons.refresh, size: 20),
-                    label: Text(strings.text(AppString.newCount)),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      foregroundColor: AppColors.primaryGreen,
-                      side: const BorderSide(color: AppColors.primaryGreen),
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
             if (_persistent) ...<Widget>[
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
               _SaveStatus(
                 strings: strings,
                 phase: _savePhase,
@@ -763,7 +831,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 ),
               ],
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 2),
             Center(
               child: Text(
                 _persistent
@@ -822,9 +890,7 @@ class _ActionButton extends StatelessWidget {
         ),
       ],
     );
-    const RoundedRectangleBorder shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(16)),
-    );
+    const StadiumBorder shape = StadiumBorder();
     // Every action on this screen is the same height and radius, so the stack
     // below the total reads as one control group.
     if (_filled) {
@@ -832,7 +898,11 @@ class _ActionButton extends StatelessWidget {
         key: buttonKey,
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
+          minimumSize: const Size.fromHeight(44),
+          backgroundColor: AppColors.warmIvory,
+          foregroundColor: AppColors.primaryGreen,
+          side: const BorderSide(color: AppColors.primaryGreen),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           shape: shape,
         ),
         child: child,
@@ -842,7 +912,8 @@ class _ActionButton extends StatelessWidget {
       key: buttonKey,
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
+        minimumSize: const Size.fromHeight(44),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         foregroundColor: AppColors.primaryGreen,
         side: const BorderSide(color: AppColors.primaryGreen),
         shape: shape,
@@ -898,12 +969,14 @@ class _DenominationRow extends StatelessWidget {
       key: Key('note-counter-row-$denominationPaise'),
       duration: const Duration(milliseconds: 140),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: counted ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: counted || isCoinRow ? AppColors.accentGreen : AppColors.beige,
+          color: counted || isCoinRow
+              ? AppColors.accentGreen
+              : AppColors.accentGreen.withValues(alpha: 0.45),
           width: counted ? 1.4 : 1,
         ),
       ),
@@ -912,8 +985,8 @@ class _DenominationRow extends StatelessWidget {
         children: <Widget>[
           ExcludeSemantics(
             child: SizedBox(
-              width: 64,
-              height: 44,
+              width: 76,
+              height: 42,
               child: Image.asset(
                 _asset,
                 fit: BoxFit.contain,
@@ -978,7 +1051,7 @@ class _DenominationRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 78,
+            width: 86,
             child: Semantics(
               textField: true,
               label: fieldLabel,
@@ -996,17 +1069,17 @@ class _DenominationRow extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.darkText,
+                  color: AppColors.headerGreen,
                 ),
                 decoration: InputDecoration(
                   errorText: errorText,
                   errorMaxLines: 2,
                   isDense: true,
                   filled: true,
-                  fillColor: AppColors.lightGreen,
+                  fillColor: AppColors.warmIvory,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 4,
-                    vertical: 12,
+                    vertical: 8,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1045,9 +1118,15 @@ class _GrandTotalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('note-counter-grand-total'),
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.lightGreen,
+        gradient: const LinearGradient(
+          colors: <Color>[
+            AppColors.accentGreen,
+            AppColors.primaryGreen,
+            AppColors.headerGreen,
+          ],
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.accentGreen, width: 1.4),
         boxShadow: <BoxShadow>[
@@ -1084,7 +1163,7 @@ class _GrandTotalCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.darkText,
+                    color: AppColors.onPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1098,7 +1177,7 @@ class _GrandTotalCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 27,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.primaryGreen,
+                      color: AppColors.onPrimary,
                     ),
                   ),
                 ),
@@ -1141,7 +1220,7 @@ class _SaveStatus extends StatelessWidget {
     };
     return Container(
       key: const Key('note-counter-save-status'),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: failed ? AppColors.warmIvory : null,
         borderRadius: BorderRadius.circular(12),

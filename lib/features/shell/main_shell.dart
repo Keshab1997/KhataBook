@@ -429,6 +429,14 @@ class _MainShellState extends State<MainShell> {
             store: counterStore,
             khataId: counterStore == null ? null : _activeKhata.id,
             onAddToKhata: ledgerReady ? _addCountedCash : null,
+            onSettings: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(
+                  language: _language,
+                  onLanguageChanged: _changeLanguage,
+                ),
+              ),
+            ),
           ),
           ProfileScreen(
             language: _language,
