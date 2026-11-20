@@ -22,5 +22,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/category_icons/
     - assets/illustrations/
     - lib/features/ledger/data/schema.sql

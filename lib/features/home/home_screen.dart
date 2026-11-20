@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../entry/category_artwork.dart';
 import '../profile/settings_screen.dart';
 import 'models.dart';
 
@@ -743,10 +744,12 @@ class _RecentTransactionRow extends StatelessWidget {
                 color: _categoryTint(entry.category),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                _categoryIcon(entry.category),
-                size: 20,
-                color: _categoryColor(entry.category),
+              child: ClipOval(
+                child: CategoryArtwork(
+                  category: entry.category,
+                  size: 38,
+                  fallbackColor: _categoryColor(entry.category),
+                ),
               ),
             ),
           ),
@@ -826,23 +829,6 @@ class _RecentTransactionRow extends StatelessWidget {
         return AppColors.expenseRed;
       default:
         return AppColors.navigationGrey;
-    }
-  }
-
-  IconData _categoryIcon(String category) {
-    switch (category) {
-      case 'Shopping':
-        return Icons.shopping_cart;
-      case 'Food':
-        return Icons.restaurant;
-      case 'Travel':
-        return Icons.directions_bus;
-      case 'Bills':
-        return Icons.phone_android;
-      case 'Gifts':
-        return Icons.card_giftcard;
-      default:
-        return Icons.more_horiz_rounded;
     }
   }
 }

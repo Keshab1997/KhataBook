@@ -235,9 +235,31 @@ void main() {
     expect(find.text('Date'), findsOneWidget);
     expect(find.text('Category'), findsOneWidget);
     expect(find.text('Description'), findsOneWidget);
-    // The asset is registered by the shared-surface change; until then (and in
-    // a stripped build) the screen falls back to a drawn notebook.
-    expect(find.byType(Image), findsOneWidget);
+    // Category illustrations are separate assets; this key identifies the
+    // notebook artwork below the form specifically.
+    expect(find.byKey(const Key('add-entry-notebook-image')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('renders AI artwork for every canonical expense category', (
+    tester,
+  ) async {
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(tester, saved, size: const Size(390, 844));
+
+    for (final String category in <String>[
+      'Shopping',
+      'Food',
+      'Travel',
+      'Bills',
+      'Gifts',
+    ]) {
+      expect(
+        find.byKey(Key('category-artwork-$category')),
+        findsOneWidget,
+        reason: '$category artwork should be visible',
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 

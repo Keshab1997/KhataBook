@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import 'category_artwork.dart';
 
 enum EntryFormKind { expense, income }
 
@@ -23,13 +24,12 @@ class EntryFormResult {
   final DateTime occurredAt;
 }
 
-/// One choice in the expense category row: the stored ID, display label and icon.
+/// One choice in the expense category row: the stored ID and display label.
 class _CategoryOption {
-  const _CategoryOption(this.id, this.label, this.icon);
+  const _CategoryOption(this.id, this.label);
 
   final String id;
   final AppString label;
-  final IconData icon;
 }
 
 /// The small bold caption the design puts above every framed field
@@ -57,8 +57,8 @@ class _SectionLabel extends StatelessWidget {
 ///
 /// S2 in docs/spec/screens.md, styled after the "Add Expense" phone in
 /// docs/design/ui-preview.png: cream canvas, green header and action, framed
-/// amount/date/description rows, icon category chips and the notebook
-/// illustration under the form.
+/// amount/date/description rows, AI-illustrated category chips and the
+/// notebook illustration under the form.
 class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
@@ -80,11 +80,11 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   AppStrings get _strings => AppStrings(widget.language);
 
   static const List<_CategoryOption> _categories = <_CategoryOption>[
-    _CategoryOption('Shopping', AppString.shopping, Icons.shopping_cart),
-    _CategoryOption('Food', AppString.food, Icons.restaurant),
-    _CategoryOption('Travel', AppString.travel, Icons.directions_car),
-    _CategoryOption('Bills', AppString.bills, Icons.home),
-    _CategoryOption('Gifts', AppString.gifts, Icons.card_giftcard),
+    _CategoryOption('Shopping', AppString.shopping),
+    _CategoryOption('Food', AppString.food),
+    _CategoryOption('Travel', AppString.travel),
+    _CategoryOption('Bills', AppString.bills),
+    _CategoryOption('Gifts', AppString.gifts),
   ];
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -458,11 +458,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   Widget _categoryTile(_CategoryOption option) {
     final bool selected = _category == option.id;
     final Color accent = _categoryAccent(option.id);
-    final bool warmAccent =
-        accent == AppColors.orange || accent == AppColors.golden;
-    final Color selectedIconColor = warmAccent
-        ? AppColors.darkText
-        : AppColors.onPrimary;
     // One semantic control announces both category and selected state.
     return Semantics(
       container: true,
@@ -484,7 +479,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: selected ? accent : accent.withValues(alpha: 0.13),
+                  color: AppColors.warmIvory,
                   borderRadius: BorderRadius.circular(17),
                   border: Border.all(
                     color: selected ? accent : AppColors.outline,
@@ -500,10 +495,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                         ]
                       : null,
                 ),
-                child: Icon(
-                  option.icon,
-                  size: 22,
-                  color: selected ? selectedIconColor : accent,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CategoryArtwork(category: option.id, size: 50),
                 ),
               ),
               const SizedBox(height: 6),
@@ -715,6 +709,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               height: 98,
               child: Image.asset(
                 'assets/illustrations/entry_notebook.png',
+                key: const Key('add-entry-notebook-image'),
                 fit: BoxFit.cover,
                 semanticLabel: _strings.text(AppString.notebookIllustration),
                 errorBuilder: _illustrationError,

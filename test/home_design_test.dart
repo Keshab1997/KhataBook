@@ -189,10 +189,13 @@ void main() {
     ) async {
       await pumpHome(tester);
 
-      expect(find.byIcon(Icons.shopping_cart), findsOneWidget);
-      expect(find.byIcon(Icons.restaurant), findsOneWidget);
-      expect(find.byIcon(Icons.phone_android), findsOneWidget);
-      expect(find.byIcon(Icons.card_giftcard), findsOneWidget);
+      expect(
+        find.byKey(const Key('category-artwork-Shopping')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('category-artwork-Food')), findsOneWidget);
+      expect(find.byKey(const Key('category-artwork-Bills')), findsOneWidget);
+      expect(find.byKey(const Key('category-artwork-Gifts')), findsOneWidget);
       // The open-book mark and the wallet live elsewhere on the screen.
       expect(find.byIcon(Icons.menu_book), findsOneWidget);
       expect(find.byIcon(Icons.account_balance_wallet), findsOneWidget);
