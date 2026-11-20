@@ -28,10 +28,7 @@ void main() {
           publishableKey: 'pub-key-123',
         );
         expect(configured.isConfigured, isTrue);
-        expect(
-          configured.redirectTo,
-          'in.keshab.khatabook://login-callback',
-        );
+        expect(configured.redirectTo, 'in.keshab.khatabook://login-callback');
         expect(
           const CloudConfig(
             url: 'https://project.supabase.co',
