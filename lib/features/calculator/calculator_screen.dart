@@ -13,6 +13,20 @@ import '../../core/theme/app_colors.dart';
 /// negative number token, so a leading minus can be edited like a digit.
 const List<String> _calculatorOperators = <String>['÷', '×', '−', '+'];
 
+/// Local en/bn pairs for calculator copy the shared `AppString` set does not
+/// carry. `app_strings.dart` belongs to the shared core and is not edited
+/// here, so these travel with the screen like everything else it shows.
+class _CalcCopy {
+  const _CalcCopy(this.language);
+
+  final AppLanguage language;
+
+  bool get _bn => language == AppLanguage.bn;
+
+  String get useInEntry =>
+      _bn ? 'এন্ট্রিতে ব্যবহার করুন' : 'Use in entry';
+}
+
 /// Bounds keep a long key run from producing Infinity, NaN or runaway work.
 /// Results beyond one lakh crore are treated as malformed, never as a crash.
 const int _maxExpressionLength = 64;
@@ -81,10 +95,25 @@ class _EvaluationIssue implements Exception {
 /// [_ExpressionParser] with ordinary precedence. Nothing here uses `eval`,
 /// flows through the network, writes storage or navigates; the parent shell
 /// owns those concerns.
+///
+/// The optional [onUseInEntry] control appears only when the caller sets the
+/// callback: it hands the current result to the caller as integer paise,
+/// rounded half away from zero to two decimals. It is disabled for an empty
+/// expression, an evaluation error, or a zero or negative result, and it is
+/// hidden altogether for the in-shell preview.
 class CalculatorScreen extends StatefulWidget {
-  const CalculatorScreen({super.key, this.language = AppLanguage.en});
+  const CalculatorScreen({
+    super.key,
+    this.language = AppLanguage.en,
+    this.onUseInEntry,
+  });
 
   final AppLanguage language;
+
+  /// When set, a "Use in entry" control appears below the display and sends
+  /// the current result as integer paise. This screen never navigates or
+  /// writes anything itself.
+  final ValueChanged<int>? onUseInEntry;
 
   @override
   State<CalculatorScreen> createState() => _CalculatorScreenState();
@@ -94,9 +123,34 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   final List<String> _tokens = <String>[];
   String _result = '0';
   AppString? _error;
+
+  /// The parsed value behind [_result]; `null` when the expression is empty
+  /// or failed to evaluate. The single source of truth for "Use in entry".
+  double? _value;
   final _CalcHistory _history = _CalcHistory();
 
   String get _expression => _tokens.join(' ');
+
+  /// Paise for the current result, rounded half away from zero to two
+  /// decimals - Dart's `double.round()` rounds exactly-halfway values away
+  /// from zero (2.5 → 3, -2.5 → -3), which is the documented behaviour this
+  /// control promises. Everything else lands on the nearest paise, the same
+  /// value the display shows. `null` for empty, error, zero or negative
+  /// results: those disable the control.
+  int? get _useInEntryPaise {
+    if (_tokens.isEmpty || _error != null) return null;
+    final double? value = _value;
+    if (value == null || !value.isFinite) return null;
+    final int paise = (value * 100).round();
+    return paise > 0 ? paise : null;
+  }
+
+  void _useInEntry() {
+    final int? paise = _useInEntryPaise;
+    final ValueChanged<int>? callback = widget.onUseInEntry;
+    if (paise == null || callback == null) return;
+    callback(paise);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +165,10 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             // Tallest compact display: 8 + 8 padding, 26 expression, 6 gap and
             // 56 result = 104. A smaller estimate overflowed the keypad by 4 px.
             final double minDisplayHeight = compact ? 104 : 150;
+            // The "Use in entry" control, when shown, sits between the
+            // display and the keypad.
+            final double useInEntryExtra =
+                widget.onUseInEntry == null ? 0 : (compact ? 54 : 58);
             final double maxKeySize = compact ? 110 : 140;
             final double keySizeByWidth =
                 (constraints.maxWidth - 32 - keyGap * 3) / 4;
@@ -118,6 +176,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 (constraints.maxHeight -
                     verticalPadding * 2 -
                     minDisplayHeight -
+                    useInEntryExtra -
                     keyGap * 5) /
                 5;
             final double availableKeySize = keySizeByWidth < keySizeByHeight
@@ -131,7 +190,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 : maxKeySize;
             final double keypadHeight = keySize * 5 + keyGap * 4;
             final double minContentHeight =
-                minDisplayHeight + keyGap + keypadHeight;
+                minDisplayHeight + keyGap + keypadHeight + useInEntryExtra;
             final double availableHeight =
                 constraints.maxHeight - verticalPadding * 2;
             final double textScale = MediaQuery.of(context).textScaler
@@ -152,6 +211,17 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   result: _result,
                   error: _error == null ? null : strings.text(_error!),
                 ),
+                if (widget.onUseInEntry != null) ...<Widget>[
+                  SizedBox(height: keyGap),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _UseInEntryButton(
+                      copy: _CalcCopy(widget.language),
+                      enabled: _useInEntryPaise != null,
+                      onPressed: _useInEntry,
+                    ),
+                  ),
+                ],
                 SizedBox(height: keyGap),
                 if (fillKeypad)
                   Expanded(
@@ -381,8 +451,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     setState(() {
       _tokens.clear();
       _tokens.addAll(entry['expression']!.split(' '));
-      _result = entry['result'] ?? '0';
-      _error = null;
+      // Re-derive the result and the numeric value instead of trusting the
+      // stored text, so the "Use in entry" control sees a live value.
+      _evaluate();
     });
   }
 
@@ -394,14 +465,18 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     if (_tokens.isEmpty) {
       _result = '0';
       _error = null;
+      _value = null;
       return;
     }
     try {
-      _result = _formatResult(_ExpressionParser().parse(_tokens));
+      final double parsed = _ExpressionParser().parse(_tokens);
+      _value = parsed;
+      _result = _formatResult(parsed);
       _error = null;
     } on _EvaluationIssue catch (issue) {
       _result = '0';
       _error = issue.message;
+      _value = null;
     }
   }
 
@@ -903,5 +978,43 @@ class _CalcKey extends StatelessWidget {
     );
     if (tooltip == null) return button;
     return Tooltip(message: tooltip!, child: button);
+  }
+}
+
+/// Full-width affordance below the display, shown only when the caller set
+/// `onUseInEntry`. Disabled (not hidden) for an empty, error, zero or
+/// negative result, so the reason a tap does nothing is visible.
+class _UseInEntryButton extends StatelessWidget {
+  const _UseInEntryButton({
+    required this.copy,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final _CalcCopy copy;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      key: const Key('calculator-use-in-entry'),
+      onPressed: enabled ? onPressed : null,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(44),
+        foregroundColor: AppColors.primaryGreen,
+        side: const BorderSide(color: AppColors.primaryGreen),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+      ),
+      icon: const Icon(Icons.north_east, size: 18),
+      label: Text(
+        copy.useInEntry,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 }
