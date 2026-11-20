@@ -617,8 +617,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     }
     final bool addToKhataVisible =
         widget.onAddToKhata != null && _grandTotalPaise > 0;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -630,32 +630,43 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               style: const TextStyle(fontSize: 11, color: AppColors.softText),
             ),
           ),
-          const SizedBox(height: 8),
-          for (final int denomination in _rowOrderPaise) ...<Widget>[
-            _DenominationRow(
-              strings: strings,
-              denominationPaise: denomination,
-              isCoinRow: denomination == kCoinDenominationPaise,
-              controller: _controllers[denomination]!,
-              errorText: _inputErrors[denomination],
-              rowTotalPaise: denomination * (_quantities[denomination] ?? 0),
-              counted: (_quantities[denomination] ?? 0) > 0,
-              onChanged: (String raw) => _onRowChanged(raw, denomination),
-              onTapSelectAll: () {
-                final TextEditingController controller =
-                    _controllers[denomination]!;
-                if (controller.text.isEmpty) return;
-                controller.selection = TextSelection(
-                  baseOffset: 0,
-                  extentOffset: controller.text.length,
-                );
-              },
+          const SizedBox(height: 6),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  for (final int denomination in _rowOrderPaise) ...<Widget>[
+                    _DenominationRow(
+                      strings: strings,
+                      denominationPaise: denomination,
+                      isCoinRow: denomination == kCoinDenominationPaise,
+                      controller: _controllers[denomination]!,
+                      errorText: _inputErrors[denomination],
+                      rowTotalPaise:
+                          denomination * (_quantities[denomination] ?? 0),
+                      counted: (_quantities[denomination] ?? 0) > 0,
+                      onChanged: (String raw) =>
+                          _onRowChanged(raw, denomination),
+                      onTapSelectAll: () {
+                        final TextEditingController controller =
+                            _controllers[denomination]!;
+                        if (controller.text.isEmpty) return;
+                        controller.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: controller.text.length,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-          ],
-          const SizedBox(height: 4),
+          ),
+          const SizedBox(height: 6),
           _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (addToKhataVisible) ...<Widget>[
             FilledButton.icon(
               key: const Key('note-counter-add-to-khata'),
