@@ -29,4 +29,5 @@ flutter:
   assets:
     - assets/category_icons/
     - assets/illustrations/
+    - assets/notes/
     - lib/features/ledger/data/schema.sql
