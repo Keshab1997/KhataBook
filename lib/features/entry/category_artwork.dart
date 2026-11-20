@@ -39,7 +39,12 @@ class CategoryArtwork extends StatelessWidget {
     if (asset == null && customCategory != null) {
       return ColoredBox(
         color: customCategory!.color.withValues(alpha: 0.14),
-        child: Icon(customCategory!.icon, key: imageKey, size: size * 0.65, color: customCategory!.color),
+        child: Icon(
+          customCategory!.icon,
+          key: imageKey,
+          size: size * 0.65,
+          color: customCategory!.color,
+        ),
       );
     }
     if (asset == null) {

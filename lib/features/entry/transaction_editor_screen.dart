@@ -626,7 +626,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       runSpacing: 8,
       children: <Widget>[
         for (final String category in _categoryChoices)
-          if (widget.categoryStore == null || _standardCategories.contains(category))
+          if (widget.categoryStore == null ||
+              _standardCategories.contains(category))
             _categoryChip(category),
         if (widget.categoryStore != null)
           CustomCategoryChoices(

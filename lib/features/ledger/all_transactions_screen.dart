@@ -668,10 +668,24 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 for (final String category in _categoryOptions)
                   _FilterChip(
                     key: Key('category-filter-$category'),
-                    label: categories == null ? _categoryLabel(strings, category) : categoryDisplayName(widget.language, category, categories),
-                    customCategory: categories == null ? null : findCustomCategory(category, categories),
+                    label: categories == null
+                        ? _categoryLabel(strings, category)
+                        : categoryDisplayName(
+                            widget.language,
+                            category,
+                            categories,
+                          ),
+                    customCategory: categories == null
+                        ? null
+                        : findCustomCategory(category, categories),
                     semanticLabel: strings.categoryLabel(
-                      categories == null ? _categoryLabel(strings, category) : categoryDisplayName(widget.language, category, categories),
+                      categories == null
+                          ? _categoryLabel(strings, category)
+                          : categoryDisplayName(
+                              widget.language,
+                              category,
+                              categories,
+                            ),
                       filter: true,
                     ),
                     selected: _categoryFilter == category,
@@ -923,7 +937,11 @@ class _FilterChip extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     if (customCategory != null) ...<Widget>[
-                      Icon(customCategory!.icon, color: customCategory!.color, size: 16),
+                      Icon(
+                        customCategory!.icon,
+                        color: customCategory!.color,
+                        size: 16,
+                      ),
                       const SizedBox(width: 4),
                     ],
                     if (selected) ...<Widget>[
@@ -1045,7 +1063,12 @@ class _DayHeader extends StatelessWidget {
 
 /// One transaction: type icon, title, category and timestamp, signed amount.
 class _EntryRow extends StatelessWidget {
-  const _EntryRow({required this.entry, required this.strings, this.categories, this.onTap});
+  const _EntryRow({
+    required this.entry,
+    required this.strings,
+    this.categories,
+    this.onTap,
+  });
 
   final LedgerEntry entry;
   final AppStrings strings;
@@ -1065,10 +1088,16 @@ class _EntryRow extends StatelessWidget {
 
     // The stored category is translated for display only; the title is the
     // user's own text and is never touched.
-    final String category = categories == null ? _categoryLabel(strings, entry.category) : categoryDisplayName(strings.language, entry.category, categories!);
-    final custom = categories == null ? null : findCustomCategory(entry.category, categories!);
+    final String category = categories == null
+        ? _categoryLabel(strings, entry.category)
+        : categoryDisplayName(strings.language, entry.category, categories!);
+    final custom = categories == null
+        ? null
+        : findCustomCategory(entry.category, categories!);
 
-    final title = categories != null && entry.title == entry.category ? category : entry.title;
+    final title = categories != null && entry.title == entry.category
+        ? category
+        : entry.title;
 
     return Semantics(
       container: true,
@@ -1110,12 +1139,14 @@ class _EntryRow extends StatelessWidget {
                           size: 20,
                           color: amountColor,
                         )
-                      : ClipOval(child: CategoryArtwork(
-                          category: entry.category,
-                          size: 36,
-                          fallbackColor: AppColors.navigationGrey,
-                          customCategory: custom,
-                        )),
+                      : ClipOval(
+                          child: CategoryArtwork(
+                            category: entry.category,
+                            size: 36,
+                            fallbackColor: AppColors.navigationGrey,
+                            customCategory: custom,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(

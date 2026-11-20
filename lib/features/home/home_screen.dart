@@ -133,12 +133,13 @@ class HomeScreen extends StatelessWidget {
                         else
                           CategoryCatalog(
                             store: categoryStore!,
-                            builder: (context, categories) => _RecentTransactionRow(
-                              strings: _strings,
-                              entry: entry,
-                              preview: preview,
-                              categories: categories,
-                            ),
+                            builder: (context, categories) =>
+                                _RecentTransactionRow(
+                                  strings: _strings,
+                                  entry: entry,
+                                  preview: preview,
+                                  categories: categories,
+                                ),
                           ),
                     const SizedBox(height: 4),
                     if (preview) ...<Widget>[
@@ -639,7 +640,11 @@ class _RecentTransactionRow extends StatelessWidget {
             label: strings.categoryLabel(
               categories == null
                   ? _categoryLabel(strings, entry.category)
-                  : categoryDisplayName(strings.language, entry.category, categories!),
+                  : categoryDisplayName(
+                      strings.language,
+                      entry.category,
+                      categories!,
+                    ),
             ),
             child: Container(
               width: 38,
@@ -653,7 +658,9 @@ class _RecentTransactionRow extends StatelessWidget {
                   category: entry.category,
                   size: 38,
                   fallbackColor: _categoryColor(entry.category),
-                  customCategory: categories == null ? null : findCustomCategory(entry.category, categories!),
+                  customCategory: categories == null
+                      ? null
+                      : findCustomCategory(entry.category, categories!),
                 ),
               ),
             ),
@@ -666,7 +673,15 @@ class _RecentTransactionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  preview ? _previewTitle(strings, entry.title) : (categories != null && entry.title == entry.category ? categoryDisplayName(strings.language, entry.category, categories!) : entry.title),
+                  preview
+                      ? _previewTitle(strings, entry.title)
+                      : (categories != null && entry.title == entry.category
+                            ? categoryDisplayName(
+                                strings.language,
+                                entry.category,
+                                categories!,
+                              )
+                            : entry.title),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -676,7 +691,13 @@ class _RecentTransactionRow extends StatelessWidget {
                   ),
                 ),
                 if (categories != null)
-                  Text(categoryDisplayName(strings.language, entry.category, categories!)),
+                  Text(
+                    categoryDisplayName(
+                      strings.language,
+                      entry.category,
+                      categories!,
+                    ),
+                  ),
                 const SizedBox(height: 2),
                 Text(
                   strings.dateTime(entry.at),

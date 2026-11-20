@@ -7,9 +7,19 @@ import '../../core/theme/app_colors.dart';
 import 'category_artwork.dart';
 import 'category_store.dart';
 
-const starterCategories = <String>['Shopping', 'Food', 'Travel', 'Bills', 'Gifts'];
+const starterCategories = <String>[
+  'Shopping',
+  'Food',
+  'Travel',
+  'Bills',
+  'Gifts',
+];
 
-String categoryDisplayName(AppLanguage language, String id, List<CustomCategory> categories) {
+String categoryDisplayName(
+  AppLanguage language,
+  String id,
+  List<CustomCategory> categories,
+) {
   for (final category in categories) {
     if (category.id == id) return category.name;
   }
@@ -36,7 +46,11 @@ CustomCategory? findCustomCategory(String id, List<CustomCategory> categories) {
 
 /// Reacts to store changes while retaining archived categories for old rows.
 class CategoryCatalog extends StatefulWidget {
-  const CategoryCatalog({super.key, required this.store, required this.builder});
+  const CategoryCatalog({
+    super.key,
+    required this.store,
+    required this.builder,
+  });
   final CategoryStore store;
   final Widget Function(BuildContext, List<CustomCategory>) builder;
 
@@ -77,13 +91,20 @@ class _CategoryCatalogState extends State<CategoryCatalog> {
   @override
   Widget build(BuildContext context) => FutureBuilder<List<CustomCategory>>(
     future: _future,
-    builder: (context, snapshot) => widget.builder(context, snapshot.data ?? const []),
+    builder: (context, snapshot) =>
+        widget.builder(context, snapshot.data ?? const []),
   );
 }
 
 /// Additional active choices and the full picker, only shown with a store.
 class CustomCategoryChoices extends StatelessWidget {
-  const CustomCategoryChoices({super.key, required this.store, required this.language, required this.selected, required this.onSelected});
+  const CustomCategoryChoices({
+    super.key,
+    required this.store,
+    required this.language,
+    required this.selected,
+    required this.onSelected,
+  });
   final CategoryStore store;
   final AppLanguage language;
   final String? selected;
@@ -102,8 +123,11 @@ class CustomCategoryChoices extends StatelessWidget {
             !categories.any((c) => c.id == selected && !c.archived))
           Chip(
             avatar: Icon(
-              findCustomCategory(selected!, categories)?.icon ?? Icons.more_horiz,
-              color: findCustomCategory(selected!, categories)?.color ?? AppColors.navigationGrey,
+              findCustomCategory(selected!, categories)?.icon ??
+                  Icons.more_horiz,
+              color:
+                  findCustomCategory(selected!, categories)?.color ??
+                  AppColors.navigationGrey,
             ),
             label: Text(categoryDisplayName(language, selected!, categories)),
           ),
@@ -112,7 +136,9 @@ class CustomCategoryChoices extends StatelessWidget {
             key: Key('custom-category-${category.id}'),
             avatar: Icon(category.icon, color: category.color),
             label: Text(category.name),
-            backgroundColor: category.id == selected ? AppColors.lightGreen : AppColors.surface,
+            backgroundColor: category.id == selected
+                ? AppColors.lightGreen
+                : AppColors.surface,
             onPressed: () => onSelected(category.id),
           ),
         ActionChip(
@@ -147,14 +173,24 @@ class _CategorySheet extends StatelessWidget {
     if (result == null || !context.mounted) return;
     try {
       if (category == null) {
-        final created = await store.add(result.name, iconIndex: result.icon, colorIndex: result.color);
+        final created = await store.add(
+          result.name,
+          iconIndex: result.icon,
+          colorIndex: result.color,
+        );
         if (context.mounted) Navigator.pop(context, created.id);
       } else {
         await store.rename(category.id, result.name);
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Could not save category.', 'বিভাগ সংরক্ষণ করা যায়নি।'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              t('Could not save category.', 'বিভাগ সংরক্ষণ করা যায়নি।'),
+            ),
+          ),
+        );
       }
     }
   }
@@ -164,10 +200,22 @@ class _CategorySheet extends StatelessWidget {
       context: context,
       builder: (dialog) => AlertDialog(
         title: Text(t('Archive category?', 'বিভাগ আর্কাইভ করবেন?')),
-        content: Text(t('Existing entries will keep this category.', 'আগের এন্ট্রিতে এই বিভাগ থাকবে।')),
+        content: Text(
+          t(
+            'Existing entries will keep this category.',
+            'আগের এন্ট্রিতে এই বিভাগ থাকবে।',
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog, false), child: Text(t('Cancel', 'বাতিল'))),
-          TextButton(key: const Key('confirm-archive-category'), onPressed: () => Navigator.pop(dialog, true), child: Text(t('Archive', 'আর্কাইভ'))),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: Text(t('Cancel', 'বাতিল')),
+          ),
+          TextButton(
+            key: const Key('confirm-archive-category'),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(t('Archive', 'আর্কাইভ')),
+          ),
         ],
       ),
     );
@@ -175,7 +223,15 @@ class _CategorySheet extends StatelessWidget {
     try {
       await store.archive(category.id);
     } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('Could not archive category.', 'বিভাগ আর্কাইভ করা যায়নি।'))));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              t('Could not archive category.', 'বিভাগ আর্কাইভ করা যায়নি।'),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -185,7 +241,9 @@ class _CategorySheet extends StatelessWidget {
       store: store,
       builder: (context, categories) => ListView(
         shrinkWrap: true,
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
         children: [
           ListTile(title: Text(t('Categories', 'বিভাগসমূহ'))),
           for (final id in starterCategories)
@@ -200,10 +258,20 @@ class _CategorySheet extends StatelessWidget {
               leading: Icon(category.icon, color: category.color),
               title: Text(category.name),
               onTap: () => Navigator.pop(context, category.id),
-              trailing: Wrap(children: [
-                IconButton(tooltip: t('Rename', 'নাম বদলান'), icon: const Icon(Icons.edit), onPressed: () => _edit(context, category)),
-                IconButton(tooltip: t('Archive', 'আর্কাইভ'), icon: const Icon(Icons.archive_outlined), onPressed: () => _archive(context, category)),
-              ]),
+              trailing: Wrap(
+                children: [
+                  IconButton(
+                    tooltip: t('Rename', 'নাম বদলান'),
+                    icon: const Icon(Icons.edit),
+                    onPressed: () => _edit(context, category),
+                  ),
+                  IconButton(
+                    tooltip: t('Archive', 'আর্কাইভ'),
+                    icon: const Icon(Icons.archive_outlined),
+                    onPressed: () => _archive(context, category),
+                  ),
+                ],
+              ),
             ),
           ListTile(
             key: const Key('new-category'),
@@ -253,26 +321,72 @@ class _CategoryDialogState extends State<_CategoryDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.category == null ? t('New category', 'নতুন বিভাগ') : t('Rename category', 'বিভাগের নাম বদলান')),
-    content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      TextField(key: const Key('category-name'), controller: _name, maxLength: 30, decoration: InputDecoration(labelText: t('Name', 'নাম'), errorText: _invalid ? t('Enter a name.', 'নাম লিখুন।') : null)),
-      if (widget.category == null) ...[
-        Text(t('Icon', 'আইকন')),
-        Wrap(children: [for (var i = 0; i < categoryIcons.length; i++) IconButton(key: Key('category-icon-$i'), tooltip: '${t('Icon', 'আইকন')} ${i + 1}', isSelected: _icon == i, icon: Icon(categoryIcons[i]), onPressed: () => setState(() => _icon = i))]),
-        Text(t('Colour', 'রং')),
-        Wrap(children: [for (var i = 0; i < categoryColors.length; i++) IconButton(key: Key('category-color-$i'), tooltip: '${t('Colour', 'রং')} ${i + 1}', isSelected: _color == i, icon: Icon(Icons.circle, color: categoryColors[i]), onPressed: () => setState(() => _color = i))]),
-      ],
-    ])),
+    title: Text(
+      widget.category == null
+          ? t('New category', 'নতুন বিভাগ')
+          : t('Rename category', 'বিভাগের নাম বদলান'),
+    ),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            key: const Key('category-name'),
+            controller: _name,
+            maxLength: 30,
+            decoration: InputDecoration(
+              labelText: t('Name', 'নাম'),
+              errorText: _invalid ? t('Enter a name.', 'নাম লিখুন।') : null,
+            ),
+          ),
+          if (widget.category == null) ...[
+            Text(t('Icon', 'আইকন')),
+            Wrap(
+              children: [
+                for (var i = 0; i < categoryIcons.length; i++)
+                  IconButton(
+                    key: Key('category-icon-$i'),
+                    tooltip: '${t('Icon', 'আইকন')} ${i + 1}',
+                    isSelected: _icon == i,
+                    icon: Icon(categoryIcons[i]),
+                    onPressed: () => setState(() => _icon = i),
+                  ),
+              ],
+            ),
+            Text(t('Colour', 'রং')),
+            Wrap(
+              children: [
+                for (var i = 0; i < categoryColors.length; i++)
+                  IconButton(
+                    key: Key('category-color-$i'),
+                    tooltip: '${t('Colour', 'রং')} ${i + 1}',
+                    isSelected: _color == i,
+                    icon: Icon(Icons.circle, color: categoryColors[i]),
+                    onPressed: () => setState(() => _color = i),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: Text(t('Cancel', 'বাতিল'))),
-      TextButton(key: const Key('save-category'), onPressed: () {
-        final name = _name.text.trim();
-        if (name.isEmpty || name.runes.length > 30) {
-          setState(() => _invalid = true);
-          return;
-        }
-        Navigator.pop(context, _CategoryDraft(name, _icon, _color));
-      }, child: Text(t('Save', 'সংরক্ষণ'))),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(t('Cancel', 'বাতিল')),
+      ),
+      TextButton(
+        key: const Key('save-category'),
+        onPressed: () {
+          final name = _name.text.trim();
+          if (name.isEmpty || name.runes.length > 30) {
+            setState(() => _invalid = true);
+            return;
+          }
+          Navigator.pop(context, _CategoryDraft(name, _icon, _color));
+        },
+        child: Text(t('Save', 'সংরক্ষণ')),
+      ),
     ],
   );
 }

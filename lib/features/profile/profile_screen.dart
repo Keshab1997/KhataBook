@@ -73,7 +73,11 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       applicationName: 'KhataBook',
       applicationVersion: versionLabel,
-      applicationLegalese: _profileText(language, 'Offline-first personal khata. Data stays on this device.', 'অফলাইন ব্যক্তিগত খাতা। তথ্য এই ডিভাইসেই থাকে।'),
+      applicationLegalese: _profileText(
+        language,
+        'Offline-first personal khata. Data stays on this device.',
+        'অফলাইন ব্যক্তিগত খাতা। তথ্য এই ডিভাইসেই থাকে।',
+      ),
     );
   }
 
@@ -81,18 +85,28 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     if (kIsWeb) {
       return Scaffold(
-        appBar: AppBar(title: Text(_profileText(language, 'Profile', 'প্রোফাইল'))),
+        appBar: AppBar(
+          title: Text(_profileText(language, 'Profile', 'প্রোফাইল')),
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(_profileText(language, 'Web design preview only. Local ledger storage and backup are not available on the web.', 'শুধু ওয়েব ডিজাইন প্রিভিউ। ওয়েবে স্থানীয় খাতা ও ব্যাকআপ নেই।')),
+                Text(
+                  _profileText(
+                    language,
+                    'Web design preview only. Local ledger storage and backup are not available on the web.',
+                    'শুধু ওয়েব ডিজাইন প্রিভিউ। ওয়েবে স্থানীয় খাতা ও ব্যাকআপ নেই।',
+                  ),
+                ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => _openSettings(context),
-                  child: Text(_profileText(language, 'App Settings', 'অ্যাপ সেটিংস')),
+                  child: Text(
+                    _profileText(language, 'App Settings', 'অ্যাপ সেটিংস'),
+                  ),
                 ),
               ],
             ),
@@ -141,7 +155,13 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 12),
             _OfflineNotice(language: language),
             const SizedBox(height: 20),
-            _SectionTitle(_profileText(language, 'Account & backup', 'অ্যাকাউন্ট ও ব্যাকআপ')),
+            _SectionTitle(
+              _profileText(
+                language,
+                'Account & backup',
+                'অ্যাকাউন্ট ও ব্যাকআপ',
+              ),
+            ),
             const SizedBox(height: 8),
             _MenuCard(
               children: <Widget>[
@@ -149,25 +169,57 @@ class ProfileScreen extends StatelessWidget {
                   key: const Key('profile-app-settings-row'),
                   icon: Icons.settings_outlined,
                   title: _profileText(language, 'App Settings', 'অ্যাপ সেটিংস'),
-                  subtitle: _profileText(language, 'Currency, theme, language and backup.', 'মুদ্রা, থিম, ভাষা ও ব্যাকআপ।'),
+                  subtitle: _profileText(
+                    language,
+                    'Currency, theme, language and backup.',
+                    'মুদ্রা, থিম, ভাষা ও ব্যাকআপ।',
+                  ),
                   onTap: () => _openSettings(context),
                 ),
                 const _MenuDivider(),
                 _MenuRow(
                   key: const Key('profile-wallet-row'),
                   icon: Icons.account_balance_wallet_outlined,
-                  title: _profileText(language, 'My Wallet Summary', 'আমার ওয়ালেটের সারাংশ'),
-                  subtitle: _profileText(language, 'Opening balance, income and expense for each khata.', 'প্রতিটি খাতার প্রারম্ভিক ব্যালেন্স, আয় ও ব্যয়।'),
-                  status: onWalletSummary == null ? _profileText(language, 'Not available yet', 'এখনও উপলব্ধ নয়') : null,
+                  title: _profileText(
+                    language,
+                    'My Wallet Summary',
+                    'আমার ওয়ালেটের সারাংশ',
+                  ),
+                  subtitle: _profileText(
+                    language,
+                    'Opening balance, income and expense for each khata.',
+                    'প্রতিটি খাতার প্রারম্ভিক ব্যালেন্স, আয় ও ব্যয়।',
+                  ),
+                  status: onWalletSummary == null
+                      ? _profileText(
+                          language,
+                          'Not available yet',
+                          'এখনও উপলব্ধ নয়',
+                        )
+                      : null,
                   onTap: onWalletSummary,
                 ),
                 const _MenuDivider(),
                 _MenuRow(
                   key: const Key('profile-backup-row'),
                   icon: Icons.file_upload_outlined,
-                  title: _profileText(language, 'Offline backup / restore', 'অফলাইন ব্যাকআপ / পুনরুদ্ধার'),
-                  subtitle: _profileText(language, 'Save or restore an unencrypted local backup file.', 'এনক্রিপ্ট না করা স্থানীয় ব্যাকআপ সংরক্ষণ বা পুনরুদ্ধার করুন।'),
-                  status: onBackup == null ? _profileText(language, 'Not available yet', 'এখনও উপলব্ধ নয়') : null,
+                  title: _profileText(
+                    language,
+                    'Offline backup / restore',
+                    'অফলাইন ব্যাকআপ / পুনরুদ্ধার',
+                  ),
+                  subtitle: _profileText(
+                    language,
+                    'Save or restore an unencrypted local backup file.',
+                    'এনক্রিপ্ট না করা স্থানীয় ব্যাকআপ সংরক্ষণ বা পুনরুদ্ধার করুন।',
+                  ),
+                  status: onBackup == null
+                      ? _profileText(
+                          language,
+                          'Not available yet',
+                          'এখনও উপলব্ধ নয়',
+                        )
+                      : null,
                   onTap: onBackup,
                 ),
                 const _MenuDivider(),
@@ -177,13 +229,23 @@ class ProfileScreen extends StatelessWidget {
                   title: language == AppLanguage.bn
                       ? 'ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'
                       : 'Sign in to enable cloud backup',
-                  subtitle: _profileText(language, 'Accounts and cloud sync are not available in this build. Your khata stays on this device.', 'এই সংস্করণে অ্যাকাউন্ট ও ক্লাউড সিঙ্ক নেই। আপনার খাতা এই ডিভাইসেই থাকে।'),
-                  status: _profileText(language, 'Not available yet', 'এখনও উপলব্ধ নয়'),
+                  subtitle: _profileText(
+                    language,
+                    'Accounts and cloud sync are not available in this build. Your khata stays on this device.',
+                    'এই সংস্করণে অ্যাকাউন্ট ও ক্লাউড সিঙ্ক নেই। আপনার খাতা এই ডিভাইসেই থাকে।',
+                  ),
+                  status: _profileText(
+                    language,
+                    'Not available yet',
+                    'এখনও উপলব্ধ নয়',
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            _SectionTitle(_profileText(language, 'About KhataBook', 'খাতাবুক সম্পর্কে')),
+            _SectionTitle(
+              _profileText(language, 'About KhataBook', 'খাতাবুক সম্পর্কে'),
+            ),
             const SizedBox(height: 8),
             _MenuCard(
               children: <Widget>[
@@ -194,22 +256,45 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const _MenuDivider(),
                 _InfoRow(
-                  label: _profileText(language, 'Where your data lives', 'তথ্য কোথায় থাকে'),
-                  value: _profileText(language, 'This device only', 'শুধু এই ডিভাইসে'),
+                  label: _profileText(
+                    language,
+                    'Where your data lives',
+                    'তথ্য কোথায় থাকে',
+                  ),
+                  value: _profileText(
+                    language,
+                    'This device only',
+                    'শুধু এই ডিভাইসে',
+                  ),
                 ),
                 const _MenuDivider(),
                 _InfoRow(
                   label: _profileText(language, 'Money', 'মুদ্রা'),
-                  value: _profileText(language, 'Indian rupees (INR), Indian digit grouping', 'ভারতীয় রুপি (INR), ভারতীয় সংখ্যা বিন্যাস'),
+                  value: _profileText(
+                    language,
+                    'Indian rupees (INR), Indian digit grouping',
+                    'ভারতীয় রুপি (INR), ভারতীয় সংখ্যা বিন্যাস',
+                  ),
                 ),
                 const _MenuDivider(),
-                _InfoRow(label: _profileText(language, 'Theme', 'থিম'), value: _profileText(language, 'Light only', 'শুধু হালকা')),
+                _InfoRow(
+                  label: _profileText(language, 'Theme', 'থিম'),
+                  value: _profileText(language, 'Light only', 'শুধু হালকা'),
+                ),
                 const _MenuDivider(),
                 _MenuRow(
                   key: const Key('profile-licences-row'),
                   icon: Icons.description_outlined,
-                  title: _profileText(language, 'Open-source licences', 'ওপেন সোর্স লাইসেন্স'),
-                  subtitle: _profileText(language, 'Software KhataBook is built with.', 'খাতাবুকে ব্যবহৃত সফটওয়্যার।'),
+                  title: _profileText(
+                    language,
+                    'Open-source licences',
+                    'ওপেন সোর্স লাইসেন্স',
+                  ),
+                  subtitle: _profileText(
+                    language,
+                    'Software KhataBook is built with.',
+                    'খাতাবুকে ব্যবহৃত সফটওয়্যার।',
+                  ),
                   onTap: () => _openLicences(context),
                 ),
               ],
@@ -456,7 +541,11 @@ class _IdentityCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    _profileText(language, 'Local profile', 'স্থানীয় প্রোফাইল'),
+                    _profileText(
+                      language,
+                      'Local profile',
+                      'স্থানীয় প্রোফাইল',
+                    ),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
@@ -464,10 +553,20 @@ class _IdentityCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  _StatusChip(label: _profileText(language, 'Not signed in', 'সাইন ইন করা হয়নি')),
+                  _StatusChip(
+                    label: _profileText(
+                      language,
+                      'Not signed in',
+                      'সাইন ইন করা হয়নি',
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    _profileText(language, 'No account is linked to KhataBook. Everything you enter stays in the local database on this device.', 'খাতাবুকে কোনো অ্যাকাউন্ট যুক্ত নেই। আপনার সব তথ্য এই ডিভাইসের ডেটাবেসে থাকে।'),
+                    _profileText(
+                      language,
+                      'No account is linked to KhataBook. Everything you enter stays in the local database on this device.',
+                      'খাতাবুকে কোনো অ্যাকাউন্ট যুক্ত নেই। আপনার সব তথ্য এই ডিভাইসের ডেটাবেসে থাকে।',
+                    ),
                     style: const TextStyle(
                       fontSize: 13,
                       height: 1.35,
@@ -493,7 +592,11 @@ class _OfflineNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      label: _profileText(language, 'Offline and local-only. KhataBook works without internet. Entries are saved on this device only, and nothing is uploaded.', 'অফলাইন এবং স্থানীয়। খাতাবুক ইন্টারনেট ছাড়াই চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না।'),
+      label: _profileText(
+        language,
+        'Offline and local-only. KhataBook works without internet. Entries are saved on this device only, and nothing is uploaded.',
+        'অফলাইন এবং স্থানীয়। খাতাবুক ইন্টারনেট ছাড়াই চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না।',
+      ),
       // Semantics has no const constructor; everything below it is const.
       child: ExcludeSemantics(
         child: _Card(
@@ -515,7 +618,11 @@ class _OfflineNotice extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        _profileText(language, 'Offline & local-only', 'অফলাইন ও শুধু স্থানীয়'),
+                        _profileText(
+                          language,
+                          'Offline & local-only',
+                          'অফলাইন ও শুধু স্থানীয়',
+                        ),
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -524,7 +631,11 @@ class _OfflineNotice extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _profileText(language, 'KhataBook works without internet. Entries are written to this device only - nothing is uploaded, and there is no cloud copy to restore.', 'খাতাবুক ইন্টারনেট ছাড়া চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না এবং পুনরুদ্ধারের জন্য ক্লাউড কপি নেই।'),
+                        _profileText(
+                          language,
+                          'KhataBook works without internet. Entries are written to this device only - nothing is uploaded, and there is no cloud copy to restore.',
+                          'খাতাবুক ইন্টারনেট ছাড়া চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না এবং পুনরুদ্ধারের জন্য ক্লাউড কপি নেই।',
+                        ),
                         style: const TextStyle(
                           fontSize: 13,
                           height: 1.35,
