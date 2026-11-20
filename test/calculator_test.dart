@@ -14,6 +14,7 @@ Future<void> pumpCalculator(
   double scale = 1.0,
   Size size = const Size(320, 568),
   ValueChanged<int>? onUseInEntry,
+  VoidCallback? onSettings,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -30,7 +31,10 @@ Future<void> pumpCalculator(
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: CalculatorScreen(onUseInEntry: onUseInEntry),
+      home: CalculatorScreen(
+        onUseInEntry: onUseInEntry,
+        onSettings: onSettings,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -61,6 +65,14 @@ void expectNoLayoutErrors(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('settings button invokes its callback', (tester) async {
+    int taps = 0;
+    await pumpCalculator(tester, onSettings: () => taps++);
+    await tester.tap(find.byTooltip('Settings'));
+    expect(taps, 1);
+    expectNoLayoutErrors(tester);
+  });
+
   group('expression evaluation', () {
     testWidgets('renders the preview expression with Indian grouping', (
       WidgetTester tester,

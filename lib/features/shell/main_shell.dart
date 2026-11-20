@@ -415,6 +415,14 @@ class _MainShellState extends State<MainShell> {
           CalculatorScreen(
             language: _language,
             onUseInEntry: ledgerReady ? _useCalculatorResult : null,
+            onSettings: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) => SettingsScreen(
+                  language: _language,
+                  onLanguageChanged: _webPreview ? null : _changeLanguage,
+                ),
+              ),
+            ),
           ),
           NoteCounterScreen(
             language: _language,
