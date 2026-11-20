@@ -8,6 +8,8 @@ import 'app.dart';
 import 'core/l10n/app_strings.dart';
 import 'core/l10n/language_preference.dart';
 import 'features/ledger/data/local_ledger.dart';
+import 'features/ledger/data/web_ledger_stub.dart'
+    if (dart.library.html) 'features/ledger/data/web_ledger.dart';
 import 'features/sync/cloud_sync.dart';
 
 Future<void> main() async {
@@ -16,14 +18,11 @@ Future<void> main() async {
   // sees an English flash.
   final AppLanguage language = await loadLanguagePreference();
 
-  // Web runs as an in-memory preview; the native app opens the on-device
-  // ledger here and hands it (and cloud sync, when configured) to the shell.
-  if (kIsWeb) {
-    runApp(KhataBookApp(initialLanguage: language));
-    return;
-  }
-
-  final LocalLedger ledger = LocalLedger.device();
+  // Web opens the real WASM/IndexedDB ledger; native uses the on-device DB.
+  // Passing a live ledger makes MainShell leave its read-only preview mode.
+  final LocalLedger ledger = kIsWeb
+      ? await openWebLedger()
+      : LocalLedger.device();
   await ledger.initialize();
 
   CloudSync? cloudSync;
