@@ -1,6 +1,7 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 
@@ -210,6 +211,7 @@ class _MainShellState extends State<MainShell> {
   Future<void> _switchKhata() async {
     if (_switching || _ledger == null) return;
     _switching = true;
+    HapticFeedback.selectionClick();
     try {
       final List<LocalKhata> khatas = await _ledger!.listKhatas();
       if (!mounted) return;
@@ -252,6 +254,7 @@ class _MainShellState extends State<MainShell> {
     final LedgerSummary? current = _summary;
     if (current == null) return;
     final String khataId = _activeKhata.id;
+    HapticFeedback.lightImpact();
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext routeContext) => AddEntryScreen(
@@ -304,6 +307,7 @@ class _MainShellState extends State<MainShell> {
     final LedgerSummary? current = _summary;
     if (current == null) return;
     final String khataId = _activeKhata.id;
+    HapticFeedback.lightImpact();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => AllTransactionsScreen(
@@ -454,7 +458,10 @@ class _MainShellState extends State<MainShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (int value) => setState(() => _index = value),
+        onDestinationSelected: (int value) {
+          HapticFeedback.selectionClick();
+          setState(() => _index = value);
+        },
         destinations: <NavigationDestination>[
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),

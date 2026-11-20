@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core/l10n/app_strings.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_colors.dart';
 import 'features/shell/main_shell.dart';
 import 'features/ledger/data/local_ledger.dart';
 import 'features/sync/cloud_sync.dart';
@@ -31,6 +32,15 @@ class KhataBookApp extends StatelessWidget {
       title: 'KhataBook',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      builder: (context, child) => Container(
+        color: AppColors.navigationGrey.withAlpha(51),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: child!,
+          ),
+        ),
+      ),
       home: MainShell(
         ledger: ledger,
         cloudSync: cloudSync,

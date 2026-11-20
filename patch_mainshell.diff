@@ -1,0 +1,49 @@
+--- lib/features/shell/main_shell.dart
++++ lib/features/shell/main_shell.dart
+@@ -5,6 +5,7 @@
+ import 'package:flutter/foundation.dart'
+     show defaultTargetPlatform, TargetPlatform;
++import 'package:flutter/services.dart';
+ 
+ import '../../core/l10n/app_strings.dart';
+@@ -213,6 +214,7 @@
+ 
+   Future<void> _manageKhatas() async {
+     final ledger = _ledger;
+     if (ledger == null) return;
++    HapticFeedback.lightImpact();
+     final changed = await Navigator.of(context).push<bool>(
+       MaterialPageRoute<bool>(
+@@ -237,6 +239,7 @@
+   Future<void> _switchKhata() async {
+     if (_switching || _ledger == null) return;
+     _switching = true;
++    HapticFeedback.selectionClick();
+     try {
+       final List<LocalKhata> khatas = await _ledger!.listKhatas();
+@@ -279,6 +282,7 @@
+   void _addEntry({int? amountPaise, EntryFormKind? kind, String? description}) {
+     final LedgerSummary? current = _summary;
+     if (current == null) return;
++    HapticFeedback.lightImpact();
+     final String khataId = _activeKhata.id;
+     Navigator.of(context).push<void>(
+@@ -328,6 +332,7 @@
+   Future<void> _viewAll() async {
+     final LedgerSummary? current = _summary;
+     if (current == null) return;
++    HapticFeedback.lightImpact();
+     final String khataId = _activeKhata.id;
+     await Navigator.of(context).push<void>(
+@@ -446,7 +451,10 @@
+       ),
+       bottomNavigationBar: NavigationBar(
+         selectedIndex: _index,
+-        onDestinationSelected: (int value) => setState(() => _index = value),
++        onDestinationSelected: (int value) {
++          HapticFeedback.selectionClick();
++          setState(() => _index = value);
++        },
+         destinations: <NavigationDestination>[
+           NavigationDestination(
+             icon: const Icon(Icons.home_outlined),
