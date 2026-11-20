@@ -16,11 +16,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cloud_backend.dart';
 
-typedef OAuthLauncher =
-    Future<bool> Function({
-      required String? redirectTo,
-      required LaunchMode launchMode,
-    });
+typedef OAuthLauncher = Future<bool> Function({
+  required String? redirectTo,
+  required LaunchMode launchMode,
+});
 
 /// Sanitized remote backend failure containing no tokens, API keys, or query
 /// credentials.
@@ -455,18 +454,12 @@ class SupabaseCloudBackend implements CloudBackend {
     }
     if (error is PostgrestException) {
       return CloudBackendException(
-        _sanitizeMessage(
-          error.message,
-          fallback: 'Cloud sync request failed.',
-        ),
+        _sanitizeMessage(error.message, fallback: 'Cloud sync request failed.'),
       );
     }
     if (error is AuthException) {
       return CloudBackendException(
-        _sanitizeMessage(
-          error.message,
-          fallback: 'Authentication failed.',
-        ),
+        _sanitizeMessage(error.message, fallback: 'Authentication failed.'),
       );
     }
     if (error is CloudBackendException) {
@@ -483,9 +476,7 @@ class SupabaseCloudBackend implements CloudBackend {
   static String _sanitizeMessage(String raw, {required String fallback}) {
     String cleaned = raw
         .replaceFirst(
-          RegExp(
-            r'^(Exception|CloudBackendException|FormatException):\s*',
-          ),
+          RegExp(r'^(Exception|CloudBackendException|FormatException):\s*'),
           '',
         )
         .trim();

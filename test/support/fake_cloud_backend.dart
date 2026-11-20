@@ -54,6 +54,9 @@ class FakeCloudBackend implements CloudBackend {
   final List<List<CloudTransactionRow>> pushedTransactionBatches =
       <List<CloudTransactionRow>>[];
   final List<DateTime?> fetchSinceArgs = <DateTime?>[];
+
+  /// How many times [fetchChanges] has run.
+  int get fetchCalls => fetchSinceArgs.length;
   int signOutCalls = 0;
 
   @override

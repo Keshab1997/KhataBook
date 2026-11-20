@@ -86,11 +86,7 @@ class CloudSync {
       client: Supabase.instance.client,
       redirectTo: config.redirectTo,
     );
-    return CloudSync(
-      ledger: ledger,
-      backend: backend,
-      isOnline: isOnline,
-    );
+    return CloudSync(ledger: ledger, backend: backend, isOnline: isOnline);
   }
 
   /// Broadcast stream of [SyncStatus] updates.

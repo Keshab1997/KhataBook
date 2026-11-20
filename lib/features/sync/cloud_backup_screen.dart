@@ -39,10 +39,8 @@ class CloudBackupScreen extends StatelessWidget {
   Future<void> _openSignIn(BuildContext context, CloudSync service) async {
     final CloudUser? signedInUser = await Navigator.of(context).push<CloudUser>(
       MaterialPageRoute<CloudUser>(
-        builder: (BuildContext routeContext) => SignInScreen(
-          backend: service.backend,
-          language: language,
-        ),
+        builder: (BuildContext routeContext) =>
+            SignInScreen(backend: service.backend, language: language),
       ),
     );
     if (signedInUser != null) {
@@ -181,10 +179,7 @@ class _UnconfiguredCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    _pair(
-                      'Saved on this phone',
-                      'এই ফোনে সংরক্ষিত',
-                    ),
+                    _pair('Saved on this phone', 'এই ফোনে সংরক্ষিত'),
                     style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
