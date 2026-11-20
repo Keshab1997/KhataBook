@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
 import 'package:khatabook/features/profile/settings_screen.dart';
-import 'package:khatabook/shared/widgets/coming_soon_panel.dart';
 
 /// The smallest supported phone (320 x 568 logical px) and a common one.
 const Size smallPhone = Size(320, 568);
@@ -127,9 +126,8 @@ void main() {
     ) async {
       await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
 
-      // The placeholder that used to fill this tab is gone, including its
-      // stale "implementation in B4" caption.
-      expect(find.byType(ComingSoonPanel), findsNothing);
+      // The placeholder that used to fill this tab is gone (its widget was
+      // deleted), including its stale "implementation in B4" caption.
       expect(find.textContaining('implementation in B4'), findsNothing);
       expect(find.byType(Scaffold), findsOneWidget);
     });
