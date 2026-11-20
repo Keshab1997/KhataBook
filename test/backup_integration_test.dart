@@ -9,6 +9,7 @@ import 'package:khatabook/app.dart';
 import 'package:khatabook/features/counter/note_counter_store.dart';
 import 'package:khatabook/features/ledger/data/ledger_backup.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
+import 'package:khatabook/features/profile/backup_screen.dart';
 
 void main() {
   testWidgets(
@@ -96,9 +97,26 @@ CREATE TABLE IF NOT EXISTS custom_categories (
       await t.pumpAndSettle();
       expect(saves, 1);
       expect(find.text('Export saved successfully.'), findsOneWidget);
+      // The backup list is lazy and grew past the default viewport; scroll
+      // until the targets are built/visible instead of tapping blind.
+      await t.scrollUntilVisible(
+        find.text('Pick Backup to Restore'),
+        120,
+        scrollable: find.descendant(
+          of: find.byType(BackupScreen),
+          matching: find.byType(Scrollable),
+        ),
+      );
       await t.tap(find.text('Pick Backup to Restore'));
       await t.pumpAndSettle();
-      await t.ensureVisible(find.text('Confirm Restore (Replace ALL Data)'));
+      await t.scrollUntilVisible(
+        find.text('Confirm Restore (Replace ALL Data)'),
+        120,
+        scrollable: find.descendant(
+          of: find.byType(BackupScreen),
+          matching: find.byType(Scrollable),
+        ),
+      );
       await t.tap(find.text('Confirm Restore (Replace ALL Data)'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 400));

@@ -17,6 +17,12 @@ Future<void> revealTap(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
   }
   await tester.pumpAndSettle();
+  if (finder.hitTestable().evaluate().isEmpty) {
+    // A snackbar from the previous action may cover the control; let it
+    // animate out (fake time) and settle before tapping.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  }
   expect(finder.hitTestable(), findsOneWidget);
   await tester.tap(finder.hitTestable());
   await tester.pumpAndSettle();

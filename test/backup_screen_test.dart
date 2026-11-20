@@ -223,7 +223,9 @@ void main() {
     await t.tap(find.text('Export Backup'));
     await t.pump();
     await t.ensureVisible(find.text('Export Backup'));
-    await t.pumpAndSettle();
+    // The pending state shows a spinning indicator — an infinite animation —
+    // so pumpAndSettle() would never return.
+    await t.pump();
     expect(
       t
           .widget<FilledButton>(

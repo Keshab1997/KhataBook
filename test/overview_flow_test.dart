@@ -7,6 +7,7 @@ import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/ledger/wallet_summary_screen.dart';
 import 'package:khatabook/features/ledger/all_transactions_screen.dart';
+import 'package:khatabook/features/profile/profile_screen.dart';
 
 void main() {
   testWidgets('Home and Profile open real transaction and wallet data', (
@@ -58,7 +59,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Profile').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('profile-wallet-row')));
+    // The profile list is lazy; the wallet row is below what the default
+    // surface builds, so scroll the profile list to it (ensureVisible needs
+    // the finder to match, which lazy children don't until built).
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('profile-wallet-row')),
+      120,
+      scrollable: find.descendant(
+        of: find.byType(ProfileScreen),
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('profile-wallet-row')).hitTestable(),

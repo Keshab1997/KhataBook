@@ -37,6 +37,20 @@ Future<void> _pumpSignIn(
   await tester.pumpAndSettle();
 }
 
+/// Scrolls the Continue button into view, then taps it — the card grew past
+/// a 720 dp viewport after the design-polish pass, so a bare tap misses.
+Future<void> _tapContinue(WidgetTester tester) async {
+  await tester.scrollUntilVisible(
+    find.byKey(const Key('continue-with-google-button')),
+    120,
+  );
+  await tester.ensureVisible(
+    find.byKey(const Key('continue-with-google-button')),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('continue-with-google-button')));
+}
+
 void main() {
   group('SignInScreen (S11)', () {
     testWidgets(
@@ -61,7 +75,7 @@ void main() {
         expect(find.text('Continue with Google'), findsOneWidget);
 
         // Start sign-in -> shows inline progress and disables duplicate tap.
-        await tester.tap(find.byKey(const Key('continue-with-google-button')));
+        await _tapContinue(tester);
         await tester.pump();
         expect(find.byKey(const Key('sign-in-progress')), findsOneWidget);
         expect(find.text('Signing in…'), findsOneWidget);
@@ -78,7 +92,7 @@ void main() {
         // 2. Backend throws an error -> error banner shown.
         backend.onSignInWithGoogle = () async =>
             throw Exception('OAuth provider unavailable');
-        await tester.tap(find.byKey(const Key('continue-with-google-button')));
+        await _tapContinue(tester);
         await tester.pumpAndSettle();
         expect(
           find.text('Could not sign in with Google. Please try again.'),
@@ -92,7 +106,7 @@ void main() {
           email: 'alice@example.com',
         );
         backend.onSignInWithGoogle = () async => alice;
-        await tester.tap(find.byKey(const Key('continue-with-google-button')));
+        await _tapContinue(tester);
         await tester.pumpAndSettle();
         expect(signedInUser, alice);
         expect(backend.currentUser, alice);
@@ -127,7 +141,7 @@ void main() {
         find.byKey(const Key('continue-with-google-button')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('continue-with-google-button')));
+      await _tapContinue(tester);
       await tester.pumpAndSettle();
 
       expect(
@@ -173,7 +187,7 @@ void main() {
         find.byKey(const Key('continue-with-google-button')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('continue-with-google-button')));
+      await _tapContinue(tester);
       await tester.pump();
 
       expect(find.byKey(const Key('sign-in-progress')), findsOneWidget);

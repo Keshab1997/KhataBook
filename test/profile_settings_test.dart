@@ -412,7 +412,12 @@ void main() {
       expect(decoration.color, AppColors.lightGreen);
       expect(decoration.borderRadius, BorderRadius.circular(20));
 
-      // The build label is a quiet pill under the last card, not a bare line.
+      // The build label is a quiet pill under the last card; scroll to it.
+      await reveal(
+        tester,
+        find.text('KhataBook 1.0.0 (build 1)'),
+        screen: SettingsScreen,
+      );
       expect(find.text('KhataBook 1.0.0 (build 1)'), findsOneWidget);
     });
 
