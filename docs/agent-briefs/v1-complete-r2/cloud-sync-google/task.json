@@ -1,0 +1,28 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "cloud-sync-google",
+  "allowed": [
+    "lib/features/sync/cloud_backend.dart",
+    "lib/features/sync/sync_engine.dart",
+    "lib/features/sync/sync_scheduler.dart",
+    "lib/features/sync/sync_status.dart",
+    "lib/features/sync/sign_in_screen.dart",
+    "lib/features/sync/account_card.dart",
+    "lib/features/ledger/data/local_ledger.dart",
+    "test/support/fake_cloud_backend.dart",
+    "test/sync_test.dart",
+    "test/sync_engine_test.dart",
+    "test/account_card_test.dart",
+    "test/sign_in_screen_test.dart",
+    "test/local_ledger_test.dart"
+  ],
+  "commit": "feat(sync): offline-first cloud sync engine with Google sign-in UI",
+  "check": {
+    "kind": "preflight"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": null
+  }
+}
