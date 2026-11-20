@@ -1,9 +1,15 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import 'profile_photo_picker.dart';
+import 'profile_store.dart';
 import 'settings_screen.dart';
 
 /// S5 - Profile, docs/spec/screens.md#s5--profile.
@@ -25,8 +31,20 @@ import 'settings_screen.dart';
 /// Layout is one scrolling list with no fixed heights, so a 320 dp screen at
 /// 200% text scale wraps instead of overflowing.
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, this.onWalletSummary, this.onBackup});
+  const ProfileScreen({
+    super.key,
+    this.onWalletSummary,
+    this.onBackup,
+    this.language = AppLanguage.en,
+    this.onLanguageChanged,
+    this.profileStore,
+    this.onPickAvatar,
+  });
 
+  final AppLanguage language;
+  final Future<bool> Function(AppLanguage)? onLanguageChanged;
+  final ProfileStore? profileStore;
+  final Future<Uint8List?> Function()? onPickAvatar;
   final VoidCallback? onWalletSummary;
   final VoidCallback? onBackup;
 
@@ -38,7 +56,10 @@ class ProfileScreen extends StatelessWidget {
   void _openSettings(BuildContext context) {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (BuildContext routeContext) => const SettingsScreen(),
+        builder: (BuildContext routeContext) => SettingsScreen(
+          language: language,
+          onLanguageChanged: onLanguageChanged,
+        ),
       ),
     );
   }
@@ -109,7 +130,14 @@ class ProfileScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: <Widget>[
-            const _IdentityCard(),
+            if (profileStore == null)
+              const _IdentityCard()
+            else
+              _EditableIdentityCard(
+                store: profileStore!,
+                language: language,
+                pickPhoto: onPickAvatar ?? pickProfilePhoto,
+              ),
             const SizedBox(height: 12),
             const _OfflineNotice(),
             const SizedBox(height: 20),
@@ -144,10 +172,12 @@ class ProfileScreen extends StatelessWidget {
                   onTap: onBackup,
                 ),
                 const _MenuDivider(),
-                const _MenuRow(
-                  key: Key('profile-sign-in-row'),
+                _MenuRow(
+                  key: const Key('profile-sign-in-row'),
                   icon: Icons.lock_outline,
-                  title: 'Sign in',
+                  title: language == AppLanguage.bn
+                      ? 'ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'
+                      : 'Sign in to enable cloud backup',
                   subtitle:
                       'Accounts and cloud sync are not available in this '
                       'build. Your khata stays on this device.',
@@ -192,6 +222,164 @@ class ProfileScreen extends StatelessWidget {
               'KhataBook · Plan · Track · Save',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.softText, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditableIdentityCard extends StatefulWidget {
+  const _EditableIdentityCard({
+    required this.store,
+    required this.language,
+    required this.pickPhoto,
+  });
+
+  final ProfileStore store;
+  final AppLanguage language;
+  final Future<Uint8List?> Function() pickPhoto;
+
+  @override
+  State<_EditableIdentityCard> createState() => _EditableIdentityCardState();
+}
+
+class _EditableIdentityCardState extends State<_EditableIdentityCard> {
+  LocalProfile? _profile;
+  bool _busy = false;
+
+  String _text(String en, String bn) =>
+      widget.language == AppLanguage.bn ? bn : en;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final profile = await widget.store.load();
+      if (mounted) setState(() => _profile = profile);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _profile = LocalProfile());
+        _message(_text('Could not load profile.', 'প্রোফাইল লোড করা যায়নি।'));
+      }
+    }
+  }
+
+  void _message(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _save(LocalProfile profile) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.store.save(profile);
+      final saved = await widget.store.load();
+      if (mounted) setState(() => _profile = saved);
+    } catch (_) {
+      if (mounted) _message(_text('Could not save profile.', 'প্রোফাইল সংরক্ষণ করা যায়নি।'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editName() async {
+    final controller = TextEditingController(text: _profile!.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_text('Edit name', 'নাম পরিবর্তন')),
+        content: TextField(controller: controller, maxLength: 60),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_text('Cancel', 'বাতিল')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: Text(_text('Save', 'সংরক্ষণ')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name != null && mounted) {
+      await _save(LocalProfile(name: name, avatarBytes: _profile!.avatarBytes));
+    }
+  }
+
+  Future<void> _choosePhoto() async {
+    try {
+      final bytes = await widget.pickPhoto();
+      if (!mounted) return;
+      if (bytes == null) {
+        _message(_text('Photo selection cancelled.', 'ছবি নির্বাচন বাতিল হয়েছে।'));
+        return;
+      }
+      if (!ProfileStore.isSupportedAvatar(bytes)) {
+        throw const FormatException('Unsupported image');
+      }
+      final codec = await ui.instantiateImageCodec(bytes);
+      codec.dispose();
+      if (!mounted) return;
+      await _save(LocalProfile(name: _profile!.name, avatarBytes: bytes));
+    } catch (_) {
+      if (mounted) _message(_text('Could not set the photo.', 'ছবি সেট করা যায়নি।'));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = _profile;
+    if (profile == null) return const Center(child: CircularProgressIndicator());
+    return _Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 36,
+                  backgroundColor: AppColors.lightGreen,
+                  child: profile.avatarBytes == null
+                      ? const Icon(Icons.person, color: AppColors.primaryGreen)
+                      : ClipOval(
+                          child: Image.memory(
+                            profile.avatarBytes!,
+                            width: 72,
+                            height: 72,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.person, color: AppColors.primaryGreen),
+                          ),
+                        ),
+                ),
+                const CircleAvatar(
+                  radius: 13,
+                  backgroundColor: AppColors.primaryGreen,
+                  child: Icon(Icons.camera_alt, size: 16, color: AppColors.onPrimary),
+                ),
+              ],
+            ),
+            Text(profile.name.isEmpty ? _text('Local profile', 'স্থানীয় প্রোফাইল') : profile.name),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                TextButton(onPressed: _busy ? null : _editName, child: Text(_text('Edit name', 'নাম পরিবর্তন'))),
+                TextButton(onPressed: _busy ? null : _choosePhoto, child: Text(_text('Choose photo', 'ছবি বাছুন'))),
+                if (profile.avatarBytes != null)
+                  TextButton(
+                    onPressed: _busy ? null : () => _save(LocalProfile(name: profile.name)),
+                    child: Text(_text('Remove photo', 'ছবি সরান')),
+                  ),
+              ],
             ),
           ],
         ),

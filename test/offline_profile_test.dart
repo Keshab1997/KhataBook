@@ -1,0 +1,35 @@
+import 'package:drift/native.dart';
+// Flutter 3.50 deprecates this import; migrate with the app's dependency update.
+// ignore: deprecated_member_use
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/l10n/app_strings.dart';
+import 'package:khatabook/features/ledger/data/local_ledger.dart';
+import 'package:khatabook/features/profile/profile_screen.dart';
+import 'package:khatabook/features/profile/profile_store.dart';
+import 'package:khatabook/features/profile/settings_screen.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('profile forwards language and callback to settings', (tester) async {
+    Future<bool> change(AppLanguage language) async => true;
+    await tester.pumpWidget(MaterialApp(
+      home: ProfileScreen(language: AppLanguage.bn, onLanguageChanged: change),
+    ));
+    await tester.tap(find.byKey(const Key('profile-app-settings-gear')));
+    await tester.pumpAndSettle();
+    final settings = tester.widget<SettingsScreen>(find.byType(SettingsScreen));
+    expect(settings.language, AppLanguage.bn);
+    expect(settings.onLanguageChanged, same(change));
+  });
+
+  test('name persists in the same local database', () async {
+    final ledger = LocalLedger(NativeDatabase.memory());
+    addTearDown(ledger.close);
+    final first = ProfileStore(ledger);
+    await first.save(LocalProfile(name: '  বাংলা  '));
+    final second = ProfileStore(ledger);
+    expect((await second.load()).name, 'বাংলা');
+  });
+}

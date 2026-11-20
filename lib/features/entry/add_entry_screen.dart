@@ -63,12 +63,18 @@ class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
     this.language = AppLanguage.en,
+    this.initialAmountPaise,
+    this.initialKind,
+    this.initialDescription,
     required this.openingBalancePaise,
     required this.onSave,
   });
 
   final AppLanguage language;
 
+  final int? initialAmountPaise;
+  final EntryFormKind? initialKind;
+  final String? initialDescription;
   final int openingBalancePaise;
   final ValueChanged<EntryFormResult> onSave;
 
@@ -98,6 +104,12 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   @override
   void initState() {
     super.initState();
+    final amount = widget.initialAmountPaise;
+    if (amount != null && amount > 0) {
+      _amount.text = '${amount ~/ 100}.${(amount % 100).toString().padLeft(2, '0')}';
+    }
+    _kind = widget.initialKind ?? EntryFormKind.expense;
+    _description.text = widget.initialDescription ?? '';
     final DateTime now = DateTime.now();
     _date = DateTime(now.year, now.month, now.day);
   }
