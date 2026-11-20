@@ -349,7 +349,7 @@ down here is never touched).
   `250 × 4 = 1,000` and `₹500 × 10 = ₹5,000` are the calculator/counter
   smoke cases. `test/theme_test.dart` is the single B1 test file. Check a UI
   change with `tool/local_screenshots.py` before asking Keshab to look at it.
-- **Workflows:** `.github/workflows/` has the builder workflows at `@v1.18.6` —
+- **Workflows:** `.github/workflows/` has the builder workflows at `@v1.18.7` —
   *Flutter CI — Format, Analyze & Test* (`ci.yml`), *Flutter widget-test
   diagnostics* (`widget-tests.yml`), plus *Web preview* (`web-preview.yml`),
   *Manual build* (`manual-build.yml`) and *Publish release*

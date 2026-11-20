@@ -18,14 +18,10 @@ permissions:
 
 jobs:
   build:
-    uses: Keshab1997/flutter-builder/.github/workflows/flutter-build.yml@v1.18.6
+    uses: Keshab1997/flutter-builder/.github/workflows/flutter-build.yml@v1.18.7
     with:
       flutter-channel: stable
       working-directory: "."
-      # AGP >= 9.2 lints plugin sources; the Gradle JVM must be JDK 21.
-      # Lint crashed with NoSuchMethodError (JavaDocParser.parseDataItem)
-      # on JDK 17 — see: Actions → Build Android APK or AAB (Manual)
-      java-version: "21"
       build-apk: ${{ inputs.format == 'apk' }}
       build-aab: ${{ inputs.format == 'aab' }}
       artifact-retention-days: 14
