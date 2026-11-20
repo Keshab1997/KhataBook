@@ -191,24 +191,44 @@ class _HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.headerGreen,
-      padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
+      margin: const EdgeInsets.fromLTRB(
+        HomeScreen._pagePadding,
+        8,
+        HomeScreen._pagePadding,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: <Color>[AppColors.headerGreen, AppColors.primaryGreen],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryGreen.withValues(alpha: 0.16),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: <Widget>[
           Container(
-            width: 46,
-            height: 46,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: AppColors.lightGreen,
-              borderRadius: BorderRadius.circular(16),
+              color: AppColors.warmIvory,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
               Icons.menu_book,
               color: AppColors.primaryGreen,
-              size: 28,
+              size: 25,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -221,25 +241,26 @@ class _HomeHeader extends StatelessWidget {
                     strings.text(AppString.appName),
                     maxLines: 1,
                     softWrap: false,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.onPrimary,
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      height: 1.1,
-                      letterSpacing: -0.4,
+                      height: 1.05,
+                      letterSpacing: -0.35,
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   strings.text(AppString.tagline),
                   maxLines: 1,
                   softWrap: false,
-                  style: TextStyle(
-                    color: AppColors.golden,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w700,
+                  style: const TextStyle(
+                    color: AppColors.lightGreen,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.35,
+                    height: 1,
                   ),
                 ),
               ],
@@ -252,14 +273,19 @@ class _HomeHeader extends StatelessWidget {
                 builder: (_) => SettingsScreen(language: strings.language),
               ),
             ),
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings, size: 21),
             color: AppColors.onPrimary,
             tooltip: strings.text(AppString.settings),
             style: IconButton.styleFrom(
-              backgroundColor: AppColors.onPrimary.withValues(alpha: 0.12),
-              minimumSize: const Size(46, 46),
+              backgroundColor: AppColors.onPrimary.withValues(alpha: 0.10),
+              minimumSize: const Size(42, 42),
+              maximumSize: const Size(42, 42),
+              padding: EdgeInsets.zero,
+              side: BorderSide(
+                color: AppColors.onPrimary.withValues(alpha: 0.18),
+              ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
           ),
