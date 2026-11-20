@@ -551,6 +551,10 @@ class _CalcHistory {
 }
 
 /// A spacious, unobstructed display, with the expression above the result.
+///
+/// Uses fixed font sizes with `TextOverflow.fade` so the layout never jumps
+/// when digits are added or removed - only the text fades at the left edge
+/// when it exceeds the available width.
 class _CalculatorDisplay extends StatelessWidget {
   const _CalculatorDisplay({
     required this.strings,
@@ -569,60 +573,106 @@ class _CalculatorDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          if (expression.isEmpty)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                strings.text(AppString.calculatorExpressionHint),
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: AppColors.softText.withValues(alpha: 0.8),
-                  fontSize: compact ? 12 : 14,
-                ),
-              ),
-            ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              key: const Key('calculator-expression'),
-              expression,
-              maxLines: 1,
-              softWrap: false,
-              style: TextStyle(
-                color: AppColors.softText,
-                fontSize: compact ? 20 : 24,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+          // Expression line - fixed height, never resizes.
+          _ExpressionLine(
+            strings: strings,
+            compact: compact,
+            expression: expression,
+            isEmpty: expression.isEmpty,
           ),
-          if (expression.isNotEmpty) SizedBox(height: compact ? 4 : 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                key: const Key('calculator-result'),
-                error ?? result,
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                  color: error == null
-                      ? AppColors.darkText
-                      : AppColors.expenseRed,
-                  fontSize: compact ? 40 : 54,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
+          if (expression.isNotEmpty) SizedBox(height: compact ? 6 : 10),
+          // Result line - fixed height, larger font.
+          _ResultLine(
+            compact: compact,
+            result: error ?? result,
+            isError: error != null,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Expression preview line: fixed font size, fades at the left edge when
+/// too long instead of resizing or wrapping.
+class _ExpressionLine extends StatelessWidget {
+  const _ExpressionLine({
+    required this.strings,
+    required this.compact,
+    required this.expression,
+    required this.isEmpty,
+  });
+
+  final AppStrings strings;
+  final bool compact;
+  final String expression;
+  final bool isEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: SizedBox(
+        height: compact ? 26 : 32,
+        child: Text(
+          isEmpty
+              ? strings.text(AppString.calculatorExpressionHint)
+              : expression,
+          key: const Key('calculator-expression'),
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          style: TextStyle(
+            color: isEmpty
+                ? AppColors.softText.withValues(alpha: 0.6)
+                : AppColors.softText,
+            fontSize: compact ? 16 : 20,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Result line: fixed font size, fades at the left edge when too long.
+/// Shows error text in red when there's an evaluation issue.
+class _ResultLine extends StatelessWidget {
+  const _ResultLine({
+    required this.compact,
+    required this.result,
+    required this.isError,
+  });
+
+  final bool compact;
+  final String result;
+  final bool isError;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: SizedBox(
+        height: compact ? 56 : 72,
+        child: Text(
+          result,
+          key: const Key('calculator-result'),
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          style: TextStyle(
+            color: isError ? AppColors.expenseRed : AppColors.darkText,
+            fontSize: compact ? 44 : 60,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -0.5,
+          ),
+        ),
       ),
     );
   }
