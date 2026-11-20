@@ -9,6 +9,7 @@ import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/counter/note_counter_screen.dart';
 import 'package:khatabook/features/counter/note_counter_store.dart';
+import 'package:khatabook/features/home/models.dart' show LedgerSummary;
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 /// A small phone (320 x 568 logical px) and a mid-range one (360 x 640).
@@ -45,11 +46,13 @@ Future<void> pumpCounter(
   await tester.pumpAndSettle();
 }
 
-/// Opens an in-memory ledger and closes it with the test.
-Future<LocalLedger> openInMemoryLedger() async {
+/// Opens an in-memory ledger and closes it with the test. Opening and closing
+/// run outside the fake-async zone (as in the other database widget tests);
+/// otherwise the next test in this file can stall while opening its database.
+Future<LocalLedger> openInMemoryLedger(WidgetTester tester) async {
   final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
-  await ledger.initialize();
-  addTearDown(ledger.close);
+  await tester.runAsync(ledger.initialize);
+  addTearDown(() => tester.runAsync(ledger.close));
   return ledger;
 }
 
@@ -848,7 +851,7 @@ void main() {
     testWidgets('a count survives closing and reopening the screen', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -871,11 +874,10 @@ void main() {
     testWidgets('switching khata never carries quantities over', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
-      final LocalKhata business = await ledger.createKhata(
-        name: 'Business',
-        openingBalancePaise: 0,
-      );
+      final LocalLedger ledger = await openInMemoryLedger(tester);
+      final LocalKhata business = (await tester.runAsync(
+        () => ledger.createKhata(name: 'Business', openingBalancePaise: 0),
+      ))!;
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -931,7 +933,7 @@ void main() {
     testWidgets('selection and ₹2,000 visibility survive a reopen', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -947,7 +949,9 @@ void main() {
 
       expect(find.byKey(const Key('denomination-200000')), findsOneWidget);
       expect(
-        tester.widget<Switch>(find.byKey(const Key('note-counter-show-2000'))).value,
+        tester
+            .widget<Switch>(find.byKey(const Key('note-counter-show-2000')))
+            .value,
         isTrue,
       );
       expect(totalAmountText('₹4,000'), findsOneWidget);
@@ -959,7 +963,7 @@ void main() {
     testWidgets('Save is disabled at zero and enabled once counted', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -976,59 +980,60 @@ void main() {
       expect(save.onPressed, isNotNull);
     });
 
-    testWidgets('Save keeps a snapshot; restoring from the sheet replaces the count', (
-      WidgetTester tester,
-    ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
-      final NoteCounterStore store = NoteCounterStore(ledger);
+    testWidgets(
+      'Save keeps a snapshot; restoring from the sheet replaces the count',
+      (WidgetTester tester) async {
+        final LocalLedger ledger = await openInMemoryLedger(tester);
+        final NoteCounterStore store = NoteCounterStore(ledger);
 
-      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 3); // ₹500 x 3 = ₹1,500
-      await tapHittable(tester, find.byKey(const Key('note-counter-save')));
-      expect(find.text('Count saved'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+        await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+        await tapIncrement(tester, times: 3); // ₹500 x 3 = ₹1,500
+        await tapHittable(tester, find.byKey(const Key('note-counter-save')));
+        expect(find.text('Count saved'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
 
-      // Clear the screen (the count is not empty, so New count confirms
-      // first), then restore the saved session. The current count is empty
-      // at that point, so no restore confirmation is asked either.
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-new-count')),
-      );
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-new-count-confirm')),
-      );
-      expect(grandTotalText('₹0'), findsOneWidget);
+        // Clear the screen (the count is not empty, so New count confirms
+        // first), then restore the saved session. The current count is empty
+        // at that point, so no restore confirmation is asked either.
+        await tapHittable(
+          tester,
+          find.byKey(const Key('note-counter-new-count')),
+        );
+        await tapHittable(
+          tester,
+          find.byKey(const Key('note-counter-new-count-confirm')),
+        );
+        expect(grandTotalText('₹0'), findsOneWidget);
 
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-saved-sessions')),
-      );
-      expect(find.byKey(const Key('saved-sessions-list')), findsOneWidget);
-      expect(find.textContaining('₹1,500'), findsWidgets);
-      await tapHittable(
-        tester,
-        find
-            .descendant(
-              of: find.byKey(const Key('saved-sessions-list')),
-              matching: find.byType(ListTile),
-            )
-            .first,
-      );
-      expect(
-        find.byKey(const Key('saved-sessions-restore-confirm')),
-        findsNothing,
-      );
-      expect(grandTotalText('₹1,500'), findsOneWidget);
-      expectNoLayoutErrors(tester);
-    });
+        await tapHittable(
+          tester,
+          find.byKey(const Key('note-counter-saved-sessions')),
+        );
+        expect(find.byKey(const Key('saved-sessions-list')), findsOneWidget);
+        expect(find.textContaining('₹1,500'), findsWidgets);
+        await tapHittable(
+          tester,
+          find
+              .descendant(
+                of: find.byKey(const Key('saved-sessions-list')),
+                matching: find.byType(ListTile),
+              )
+              .first,
+        );
+        expect(
+          find.byKey(const Key('saved-sessions-restore-confirm')),
+          findsNothing,
+        );
+        expect(grandTotalText('₹1,500'), findsOneWidget);
+        expectNoLayoutErrors(tester);
+      },
+    );
 
     testWidgets('restoring over a non-empty count asks for confirmation', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -1083,7 +1088,7 @@ void main() {
     testWidgets('a saved session can be deleted from the sheet', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -1091,7 +1096,10 @@ void main() {
       await tapHittable(tester, find.byKey(const Key('note-counter-save')));
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
-      expect(await store.listSessions('personal'), hasLength(1));
+      expect(
+        await tester.runAsync(() => store.listSessions('personal')),
+        hasLength(1),
+      );
 
       await tapHittable(
         tester,
@@ -1109,17 +1117,19 @@ void main() {
         find.byKey(const Key('saved-sessions-delete-confirm')),
       );
       expect(find.byKey(const Key('saved-sessions-empty')), findsOneWidget);
-      expect(await store.listSessions('personal'), isEmpty);
+      expect(
+        await tester.runAsync(() => store.listSessions('personal')),
+        isEmpty,
+      );
     });
 
     testWidgets('each khata lists its own saved sessions', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
-      final LocalKhata business = await ledger.createKhata(
-        name: 'Business',
-        openingBalancePaise: 0,
-      );
+      final LocalLedger ledger = await openInMemoryLedger(tester);
+      final LocalKhata business = (await tester.runAsync(
+        () => ledger.createKhata(name: 'Business', openingBalancePaise: 0),
+      ))!;
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -1147,18 +1157,16 @@ void main() {
       expect(find.byKey(const Key('saved-sessions-empty')), findsOneWidget);
     });
 
-    testWidgets('the screen never claims counter data is in a backup', (
+    testWidgets('the screen says counter data travels in the backup', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      expect(find.textContaining('not in a backup yet'), findsOneWidget);
+      expect(find.textContaining('travels in the backup file'), findsOneWidget);
       expect(
-        find.text(
-          'In-memory session - nothing is saved or added to a khata',
-        ),
+        find.text('In-memory session - nothing is saved or added to a khata'),
         findsNothing,
       );
     });
@@ -1166,7 +1174,7 @@ void main() {
     testWidgets('Copy summary puts readable text on the clipboard', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
       final ClipboardCapture clipboard = ClipboardCapture();
       mockClipboard(clipboard);
@@ -1192,7 +1200,7 @@ void main() {
     testWidgets('hidden at zero, shown above zero, hands paise and a note', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
       int? capturedPaise;
       String? capturedNote;
@@ -1209,7 +1217,10 @@ void main() {
       expect(find.byKey(const Key('note-counter-add-to-khata')), findsNothing);
 
       await tapIncrement(tester, times: 10); // ₹500 x 10 = ₹5,000
-      expect(find.byKey(const Key('note-counter-add-to-khata')), findsOneWidget);
+      expect(
+        find.byKey(const Key('note-counter-add-to-khata')),
+        findsOneWidget,
+      );
       await tapHittable(
         tester,
         find.byKey(const Key('note-counter-add-to-khata')),
@@ -1218,7 +1229,9 @@ void main() {
       expect(capturedNote, isNotNull);
       expect(capturedNote!.trim(), isNotEmpty);
       // The screen never writes a ledger entry itself.
-      final LedgerSummary summary = await ledger.readSummary();
+      final LedgerSummary summary = (await tester.runAsync(
+        ledger.readSummary,
+      ))!;
       expect(summary.entries, isEmpty);
       expect(summary.remainingPaise, 0);
     });
@@ -1226,7 +1239,7 @@ void main() {
     testWidgets('the button stays hidden without the callback', (
       WidgetTester tester,
     ) async {
-      final LocalLedger ledger = await openInMemoryLedger();
+      final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
@@ -1276,7 +1289,7 @@ void main() {
         testWidgets(
           'persisted counter at ${size.width}x${size.height} text scale $scale',
           (WidgetTester tester) async {
-            final LocalLedger ledger = await openInMemoryLedger();
+            final LocalLedger ledger = await openInMemoryLedger(tester);
             final NoteCounterStore store = NoteCounterStore(ledger);
             await pumpPersistedCounter(
               tester,
@@ -1284,7 +1297,7 @@ void main() {
               khataId: 'personal',
               size: size,
               scale: scale,
-              onAddToKhata: (_, __) {},
+              onAddToKhata: (_, _) {},
             );
             await tapIncrement(tester, times: 2);
             await tapHittable(

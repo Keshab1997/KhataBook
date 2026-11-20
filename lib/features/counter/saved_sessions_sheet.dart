@@ -17,31 +17,27 @@ class _Copy {
 
   String get title => _bn ? 'সংরক্ষিত গণনা' : 'Saved sessions';
 
-  String get empty => _bn
-      ? 'এখনো কোনো সংরক্ষিত গণনা নেই'
-      : 'No saved counts yet';
+  String get empty =>
+      _bn ? 'এখনো কোনো সংরক্ষিত গণনা নেই' : 'No saved counts yet';
 
   String get emptyHelp => _bn
       ? 'শূন্য নয় এমন গণনা "সংরক্ষণ করুন" দিয়ে রাখলে এখানে দেখা যাবে'
       : 'Save a non-zero count and it will show up here';
 
-  String get loadFailed => _bn
-      ? 'সংরক্ষিত গণনা লোড করা যায়নি'
-      : 'Could not load the saved counts';
+  String get loadFailed =>
+      _bn ? 'সংরক্ষিত গণনা লোড করা যায়নি' : 'Could not load the saved counts';
 
   String get restore => _bn ? 'ফিরিয়ে আনুন' : 'Restore';
 
-  String get restoreConfirmTitle => _bn
-      ? 'এই সংরক্ষিত গণনা ফিরিয়ে আনবেন?'
-      : 'Restore this saved count?';
+  String get restoreConfirmTitle =>
+      _bn ? 'এই সংরক্ষিত গণনা ফিরিয়ে আনবেন?' : 'Restore this saved count?';
 
   String get restoreConfirmBody => _bn
       ? 'স্ক্রিনের বর্তমান গণনা বদলে যাবে। সংরক্ষিত গণনাটি তালিকায় থেকে যাবে।'
       : 'The count on this screen will be replaced. The saved session stays in the list.';
 
-  String get deleteConfirmTitle => _bn
-      ? 'এই সংরক্ষিত গণনাটি মুছে ফেলবেন?'
-      : 'Delete this saved count?';
+  String get deleteConfirmTitle =>
+      _bn ? 'এই সংরক্ষিত গণনাটি মুছে ফেলবেন?' : 'Delete this saved count?';
 
   String get deleteConfirmBody => _bn
       ? 'এটি এই ডিভাইসের এই খাতা থেকে সরানো হবে। বর্তমান গণনা অক্ষত থাকবে।'
@@ -52,8 +48,8 @@ class _Copy {
       : 'Could not delete the saved count. Try again.';
 
   String get backupNote => _bn
-      ? 'সংরক্ষিত গণনা এই ডিভাইসেই থাকে — এখনো ব্যাকআপে আসে না'
-      : 'Saved counts stay on this device - not in a backup yet';
+      ? 'সংরক্ষিত গণনা ব্যাকআপ ফাইলের সাথে যায়'
+      : 'Saved counts travel in the backup file';
 }
 
 /// The saved sessions of one khata, newest first.
@@ -190,9 +186,8 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _deleting.remove(session.id));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(copy.deleteFailed)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(copy.deleteFailed)));
     }
   }
 
@@ -232,12 +227,16 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                   color: AppColors.primaryGreen,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  copy.title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.darkText,
+                // Expanded so a long or scaled-up title wraps instead of
+                // overflowing a narrow phone.
+                Expanded(
+                  child: Text(
+                    copy.title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkText,
+                    ),
                   ),
                 ),
               ],
@@ -347,10 +346,7 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
               subtitle: Text(
                 '${strings.text(AppString.grandTotal)}: '
                 '${strings.money(session.totalPaise)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.softText,
-                ),
+                style: const TextStyle(fontSize: 12, color: AppColors.softText),
               ),
               trailing: IconButton(
                 key: Key('saved-session-delete-${session.id}'),

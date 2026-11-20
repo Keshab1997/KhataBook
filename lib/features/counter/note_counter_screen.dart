@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../ledger/data/local_ledger.dart' show KhataNotFoundException;
 import '../profile/settings_screen.dart';
 import 'note_counter_store.dart';
 import 'saved_sessions_sheet.dart';
@@ -39,8 +40,8 @@ import 'saved_sessions_sheet.dart';
 /// opening balance. `Save` keeps a timestamped snapshot of a non-empty count
 /// as a per-khata saved session; saved sessions are listed, restored and
 /// deleted from the sessions sheet. Counter data lives only in the counter
-/// tables - it is **not** part of the JSON backup yet, and the screen says
-/// so rather than implying it travels with one.
+/// tables, and a format version 2 backup carries all of them - the screen
+/// says so rather than disclaiming the backup.
 class NoteCounterScreen extends StatefulWidget {
   const NoteCounterScreen({
     super.key,
@@ -84,24 +85,31 @@ class _Copy {
       _bn ? 'নিচ থেকে নোট বেছে নিন' : 'Choose a note below';
 
   String get savedHint => _bn
-      ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়, এখনো ব্যাকআপে আসে না'
-      : 'Saved on this device for this khata - not a ledger entry and not in a backup yet';
+      ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়; ব্যাকআপ ফাইলের সাথে যায়'
+      : 'Saved on this device for this khata - not a ledger entry; it travels in the backup file';
 
   String get loading => _bn
       ? 'এই খাতার সংরক্ষিত গণনা লোড হচ্ছে…'
       : 'Loading the saved count for this khata…';
 
   String loadFailedReason(Object? error) => error is KhataNotFoundException
-      ? (_bn ? 'খাতাটি নেই বা সংরক্ষিত (আর্কাইভ) হয়েছে' : 'this khata is missing or archived')
-      : (_bn ? 'সংরক্ষিত গণনা পড়া যায়নি' : 'the saved count could not be read');
+      ? (_bn
+            ? 'খাতাটি নেই বা সংরক্ষিত (আর্কাইভ) হয়েছে'
+            : 'this khata is missing or archived')
+      : (_bn
+            ? 'সংরক্ষিত গণনা পড়া যায়নি'
+            : 'the saved count could not be read');
 
-  String get loadFailedTitle => _bn
-      ? 'সংরক্ষিত গণনা লোড করা যায়নি'
-      : 'Could not load the saved count';
+  String get loadFailedTitle =>
+      _bn ? 'সংরক্ষিত গণনা লোড করা যায়নি' : 'Could not load the saved count';
 
   String saveFailedReason(Object? error) => error is KhataNotFoundException
-      ? (_bn ? 'খাতাটি নেই বা সংরক্ষিত (আর্কাইভ) হয়েছে' : 'this khata is missing or archived')
-      : (_bn ? 'গণনা সংরক্ষণ করা যায়নি' : 'the saved count could not be stored');
+      ? (_bn
+            ? 'খাতাটি নেই বা সংরক্ষিত (আর্কাইভ) হয়েছে'
+            : 'this khata is missing or archived')
+      : (_bn
+            ? 'গণনা সংরক্ষণ করা যায়নি'
+            : 'the saved count could not be stored');
 
   String get noChangesYet =>
       _bn ? 'এখনো সংরক্ষণের কিছু নেই' : 'No changes to save yet';
@@ -119,9 +127,8 @@ class _Copy {
 
   String get savedSessions => _bn ? 'সংরক্ষিত গণনা' : 'Saved sessions';
 
-  String get newCountConfirmTitle => _bn
-      ? 'নতুন গণনা শুরু করবেন?'
-      : 'Start a new count?';
+  String get newCountConfirmTitle =>
+      _bn ? 'নতুন গণনা শুরু করবেন?' : 'Start a new count?';
 
   String get newCountConfirmBody => _bn
       ? 'স্ক্রিনের বর্তমান গণনা মুছে যাবে। সংরক্ষিত গণনা তালিকায় থেকে যাবে।'
@@ -129,9 +136,8 @@ class _Copy {
 
   String get copySummary => _bn ? 'সারসংক্ষেপ কপি করুন' : 'Copy summary';
 
-  String get summaryCopied => _bn
-      ? 'সারসংক্ষেপ ক্লিপবোর্ডে কপি হয়েছে'
-      : 'Summary copied to clipboard';
+  String get summaryCopied =>
+      _bn ? 'সারসংক্ষেপ ক্লিপবোর্ডে কপি হয়েছে' : 'Summary copied to clipboard';
 
   String get addToKhata =>
       _bn ? 'খাতায় আয় হিসেবে যোগ করুন' : 'Add to khata as income';
@@ -606,14 +612,12 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     try {
       await store.saveSession(khataId, _snapshot());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(copy.sessionSaved)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(copy.sessionSaved)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(copy.sessionSaveFailed)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(copy.sessionSaveFailed)));
     }
   }
 
@@ -636,8 +640,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
       for (final int denomination in kAllDenominationsPaise)
         if (_quantities[denomination]! > 0)
           '${strings.money(denomination)} × '
-          '${strings.number(_quantities[denomination]!)} = '
-          '${strings.money(denomination * _quantities[denomination]!)}',
+              '${strings.number(_quantities[denomination]!)} = '
+              '${strings.money(denomination * _quantities[denomination]!)}',
       '${strings.text(AppString.grandTotal)}: '
           '${strings.money(_grandTotalPaise)}',
     ];
@@ -692,9 +696,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     });
     _syncFieldToSelection();
     _schedulePersist();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(copy.sessionRestored)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(copy.sessionRestored)));
   }
 
   /// The "Add to khata as income" action: hand the Grand Total to the caller
@@ -724,7 +727,11 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(Icons.payments_outlined, color: AppColors.golden, size: 22),
+              const Icon(
+                Icons.payments_outlined,
+                color: AppColors.golden,
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Text(strings.text(AppString.noteCounter)),
             ],
@@ -782,7 +789,10 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _NoteBundle(strings: strings, denominationPaise: _selectedDenominationPaise),
+          _NoteBundle(
+            strings: strings,
+            denominationPaise: _selectedDenominationPaise,
+          ),
           const SizedBox(height: 12),
           _DenominationPicker(
             strings: strings,
@@ -846,10 +856,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 backgroundColor: AppColors.incomeGreen,
                 minimumSize: const Size.fromHeight(48),
               ),
-              icon: const Icon(
-                Icons.account_balance_wallet_outlined,
-                size: 20,
-              ),
+              icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
               label: Text(
                 copy.addToKhata,
                 maxLines: 2,
