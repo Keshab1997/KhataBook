@@ -206,7 +206,8 @@ void main() {
 
       await tester.tap(find.byKey(const Key('calc-key-C')));
       await tester.pumpAndSettle();
-      expect(expressionText(tester), isEmpty);
+      // The redesigned display shows a hint while the expression is empty.
+      expect(expressionText(tester), 'Enter an amount or expression');
       expect(resultText(tester), '0');
 
       await tapKeys(tester, <String>['7']);

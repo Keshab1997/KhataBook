@@ -1,7 +1,7 @@
-// Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
-// ignore: deprecated_member_use
 import 'dart:convert';
 
+// Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -108,7 +108,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             final bool compact = constraints.maxHeight < 640;
             final double keyGap = compact ? 10 : 14;
             final double verticalPadding = compact ? 12 : 16;
-            final double minDisplayHeight = compact ? 100 : 150;
+            // Tallest compact display: 8 + 8 padding, 26 expression, 6 gap and
+            // 56 result = 104. A smaller estimate overflowed the keypad by 4 px.
+            final double minDisplayHeight = compact ? 104 : 150;
             final double maxKeySize = compact ? 110 : 140;
             final double keySizeByWidth =
                 (constraints.maxWidth - 32 - keyGap * 3) / 4;

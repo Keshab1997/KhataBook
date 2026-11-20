@@ -14,7 +14,8 @@ void main() {
     await t.pumpWidget(
       const MaterialApp(home: CalculatorScreen(language: AppLanguage.bn)),
     );
-    expect(find.text('ক্যালকুলেটর'), findsOneWidget);
+    // The full-screen calculator has no title; its empty display hint is Bengali.
+    expect(find.text(AppString.calculatorExpressionHint.bn), findsOneWidget);
     for (final key in ['8', '÷', '0', '=']) {
       await t.tap(find.byKey(Key('calc-key-$key')));
       await t.pump();
