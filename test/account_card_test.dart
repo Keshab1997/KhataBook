@@ -263,79 +263,78 @@ void main() {
       },
     );
 
-    testWidgets(
-      'Bengali labels render across all states and 320dp/200% scale',
-      (WidgetTester tester) async {
-        // 1. Local-only in Bengali
-        await _pumpCard(
-          tester,
-          AccountCard(
-            language: AppLanguage.bn,
-            status: const SyncStatus.signedOut(),
-            onSignIn: () {},
-          ),
-          size: const Size(320, 640),
-          textScale: 2.0,
-        );
-        expect(
-          find.text('ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'),
-          findsOneWidget,
-        );
-        expect(find.text('সাইন ইন করুন'), findsOneWidget);
-        expect(tester.takeException(), isNull);
+    testWidgets('Bengali labels render across all states and 320dp/200% scale', (
+      WidgetTester tester,
+    ) async {
+      // 1. Local-only in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: const SyncStatus.signedOut(),
+          onSignIn: () {},
+        ),
+        size: const Size(320, 640),
+        textScale: 2.0,
+      );
+      expect(
+        find.text('ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'),
+        findsOneWidget,
+      );
+      expect(find.text('সাইন ইন করুন'), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
-        // 2. Signed-in idle in Bengali (including Bengali digits for pending count)
-        await _pumpCard(
-          tester,
-          AccountCard(
-            language: AppLanguage.bn,
-            status: SyncStatus.idle(
-              userEmail: 'bn@example.com',
-              lastSyncedAt: DateTime.utc(2026, 11, 20, 10, 30),
-              pendingCount: 5,
-            ),
-            onBackupNow: () async => SyncOutcome.synced,
-            onSignOut: () async {},
+      // 2. Signed-in idle in Bengali (including Bengali digits for pending count)
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.idle(
+            userEmail: 'bn@example.com',
+            lastSyncedAt: DateTime.utc(2026, 11, 20, 10, 30),
+            pendingCount: 5,
           ),
-          size: const Size(320, 640),
-          textScale: 2.0,
-        );
-        expect(find.text('৫টি অপেক্ষমাণ'), findsOneWidget);
-        expect(find.text('এখন ব্যাকআপ নিন'), findsOneWidget);
-        expect(find.text('লগ আউট'), findsOneWidget);
-        expect(tester.takeException(), isNull);
+          onBackupNow: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+        size: const Size(320, 640),
+        textScale: 2.0,
+      );
+      expect(find.text('৫টি অপেক্ষমাণ'), findsOneWidget);
+      expect(find.text('এখন ব্যাকআপ নিন'), findsOneWidget);
+      expect(find.text('লগ আউট'), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
-        // 3. Syncing in Bengali
-        await _pumpCard(
-          tester,
-          AccountCard(
-            language: AppLanguage.bn,
-            status: SyncStatus.syncing(
-              userEmail: 'bn@example.com',
-              pendingCount: 1,
-            ),
+      // 3. Syncing in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.syncing(
+            userEmail: 'bn@example.com',
+            pendingCount: 1,
           ),
-        );
-        expect(find.text('ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…'), findsOneWidget);
+        ),
+      );
+      expect(find.text('ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…'), findsOneWidget);
 
-        // 4. Error in Bengali
-        await _pumpCard(
-          tester,
-          AccountCard(
-            language: AppLanguage.bn,
-            status: SyncStatus.error(
-              reason: 'নেটওয়ার্ক ত্রুটি',
-              userEmail: 'bn@example.com',
-              pendingCount: 2,
-            ),
-            onRetry: () async => SyncOutcome.synced,
-            onSignOut: () async {},
+      // 4. Error in Bengali
+      await _pumpCard(
+        tester,
+        AccountCard(
+          language: AppLanguage.bn,
+          status: SyncStatus.error(
+            reason: 'নেটওয়ার্ক ত্রুটি',
+            userEmail: 'bn@example.com',
+            pendingCount: 2,
           ),
-        );
-        expect(find.text('নেটওয়ার্ক ত্রুটি'), findsOneWidget);
-        expect(find.text('আবার চেষ্টা করুন'), findsOneWidget);
-      },
-    );
+          onRetry: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+      );
+      expect(find.text('নেটওয়ার্ক ত্রুটি'), findsOneWidget);
+      expect(find.text('আবার চেষ্টা করুন'), findsOneWidget);
+    });
   });
 
   group('AccountCard design polish', () {
@@ -377,10 +376,7 @@ void main() {
     ) async {
       await _pumpCard(
         tester,
-        AccountCard(
-          status: const SyncStatus.signedOut(),
-          onSignIn: () {},
-        ),
+        AccountCard(status: const SyncStatus.signedOut(), onSignIn: () {}),
       );
 
       expect(find.text('Up to date'), findsNothing);
@@ -416,10 +412,7 @@ void main() {
     ) async {
       await _pumpCard(
         tester,
-        AccountCard(
-          status: const SyncStatus.signedOut(),
-          onSignIn: () {},
-        ),
+        AccountCard(status: const SyncStatus.signedOut(), onSignIn: () {}),
       );
       expect(find.text('Not signed in'), findsOneWidget);
       expect(find.text('Local-only mode'), findsOneWidget);

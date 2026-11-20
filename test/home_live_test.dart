@@ -90,8 +90,9 @@ Future<void> pumpLive(
       theme: AppTheme.light(),
       builder: (BuildContext context, Widget? child) {
         return MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(scale)),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
           child: child ?? const SizedBox.shrink(),
         );
       },

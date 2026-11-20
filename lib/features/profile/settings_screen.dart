@@ -231,9 +231,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: <Widget>[
                                   Icon(
-                                    _busy
-                                        ? Icons.sync
-                                        : Icons.error_outline,
+                                    _busy ? Icons.sync : Icons.error_outline,
                                     size: 16,
                                     color: _busy
                                         ? AppColors.primaryGreen

@@ -194,8 +194,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 minDisplayHeight + keyGap + keypadHeight + useInEntryExtra;
             final double availableHeight =
                 constraints.maxHeight - verticalPadding * 2;
-            final double textScale = MediaQuery.of(context).textScaler
-                .scale(1.0);
+            final double textScale = MediaQuery.of(
+              context,
+            ).textScaler.scale(1.0);
             // Fill the screen when there is room at normal text scale; at
             // larger scales the rendered content can exceed the estimate, so
             // keep scrolling available instead.
@@ -484,8 +485,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   /// Indian grouping with at most two decimals, but no cosmetic trailing
   /// zeros: `0.5` stays `0.5` and `1,000.00` shows as `1,000`.
   String _formatResult(double value) {
-    final String grouped = formatPaise((value * 100).round())
-        .replaceFirst('₹', '');
+    final String grouped = formatPaise(
+      (value * 100).round(),
+    ).replaceFirst('₹', '');
     if (!grouped.contains('.')) return grouped;
     final String trimmed = grouped.replaceFirst(RegExp(r'0+$'), '');
     return trimmed.endsWith('.')

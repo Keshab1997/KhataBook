@@ -31,11 +31,13 @@ Future<void> open(WidgetTester t, BackupScreen screen) async {
         builder: (context) => Scaffold(
           body: TextButton(
             onPressed: () async {
-              final result = await Navigator.of(context)
-                  .push<bool>(MaterialPageRoute(builder: (_) => screen));
+              final result = await Navigator.of(
+                context,
+              ).push<bool>(MaterialPageRoute(builder: (_) => screen));
               if (context.mounted && result == true) {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('RESTORED')));
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('RESTORED')));
               }
             },
             child: const Text('Open'),
@@ -267,8 +269,9 @@ void main() {
     await t.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(2)),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
           child: child!,
         ),
         home: BackupScreen(

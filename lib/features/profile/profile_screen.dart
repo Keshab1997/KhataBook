@@ -469,10 +469,7 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
       if (!mounted) return;
       if (bytes == null) {
         _message(
-          _text(
-            'Photo selection cancelled.',
-            'ছবি নির্বাচন বাতিল হয়েছে।',
-          ),
+          _text('Photo selection cancelled.', 'ছবি নির্বাচন বাতিল হয়েছে।'),
         );
         return;
       }
@@ -517,12 +514,11 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
                     width: 84,
                     height: 84,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(
-                          Icons.person,
-                          size: 46,
-                          color: AppColors.primaryGreen,
-                        ),
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.person,
+                      size: 46,
+                      color: AppColors.primaryGreen,
+                    ),
                   ),
           ),
         ),

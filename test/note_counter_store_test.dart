@@ -132,8 +132,9 @@ void main() {
 
       ledger = open();
       await ledger.initialize();
-      final NoteCounterSnapshot loaded = await NoteCounterStore(ledger)
-          .load('personal');
+      final NoteCounterSnapshot loaded = await NoteCounterStore(
+        ledger,
+      ).load('personal');
 
       expect(loaded.quantityFor(50000), 4);
       expect(loaded.quantityFor(10000), 2);
@@ -221,8 +222,9 @@ void main() {
         await ledger.initialize();
         final int schemaVersion = ledger.schemaVersion;
 
-        await NoteCounterStore(ledger)
-            .save('personal', NoteCounterSnapshot.empty());
+        await NoteCounterStore(
+          ledger,
+        ).save('personal', NoteCounterSnapshot.empty());
 
         final List<QueryRow> version = await ledger
             .customSelect('PRAGMA user_version')
@@ -328,54 +330,57 @@ void main() {
   });
 
   group('unreadable rows', () {
-    test('bad rows are reported, bounded, and repaired by the next save', () async {
-      final LocalLedger ledger = open();
-      await ledger.initialize();
-      final NoteCounterStore store = NoteCounterStore(ledger);
-      // The store creates its tables lazily; let it, then seed the bad rows.
-      await store.load('personal');
-      final String now = DateTime.now().toUtc().toIso8601String();
+    test(
+      'bad rows are reported, bounded, and repaired by the next save',
+      () async {
+        final LocalLedger ledger = open();
+        await ledger.initialize();
+        final NoteCounterStore store = NoteCounterStore(ledger);
+        // The store creates its tables lazily; let it, then seed the bad rows.
+        await store.load('personal');
+        final String now = DateTime.now().toUtc().toIso8601String();
 
-      // A row this version has no chip for, and a quantity outside the
-      // documented range. The CHECK constraints are switched off only for this
-      // setup, to stand in for a hand-edited or foreign database.
-      await ledger.customStatement(
-        'INSERT INTO note_counter_quantities '
-        '(khata_id, denomination_paise, quantity, updated_at) '
-        'VALUES (?, ?, ?, ?)',
-        <Object>['personal', 1500, 7, now],
-      );
-      await ledger.customStatement('PRAGMA ignore_check_constraints = ON');
-      await ledger.customStatement(
-        'INSERT INTO note_counter_quantities '
-        '(khata_id, denomination_paise, quantity, updated_at) '
-        'VALUES (?, ?, ?, ?)',
-        <Object>['personal', 50000, 200000, now],
-      );
-      await ledger.customStatement(
-        'INSERT INTO note_counter_state '
-        '(khata_id, selected_denomination_paise, show_two_thousand, updated_at) '
-        'VALUES (?, ?, ?, ?)',
-        <Object>['personal', 1234, 2, now],
-      );
-      await ledger.customStatement('PRAGMA ignore_check_constraints = OFF');
+        // A row this version has no chip for, and a quantity outside the
+        // documented range. The CHECK constraints are switched off only for this
+        // setup, to stand in for a hand-edited or foreign database.
+        await ledger.customStatement(
+          'INSERT INTO note_counter_quantities '
+          '(khata_id, denomination_paise, quantity, updated_at) '
+          'VALUES (?, ?, ?, ?)',
+          <Object>['personal', 1500, 7, now],
+        );
+        await ledger.customStatement('PRAGMA ignore_check_constraints = ON');
+        await ledger.customStatement(
+          'INSERT INTO note_counter_quantities '
+          '(khata_id, denomination_paise, quantity, updated_at) '
+          'VALUES (?, ?, ?, ?)',
+          <Object>['personal', 50000, 200000, now],
+        );
+        await ledger.customStatement(
+          'INSERT INTO note_counter_state '
+          '(khata_id, selected_denomination_paise, show_two_thousand, updated_at) '
+          'VALUES (?, ?, ?, ?)',
+          <Object>['personal', 1234, 2, now],
+        );
+        await ledger.customStatement('PRAGMA ignore_check_constraints = OFF');
 
-      final NoteCounterSnapshot loaded = await store.load('personal');
-      expect(loaded.hasUnreadableRows, isTrue);
-      expect(loaded.quantityFor(50000), kMaxNoteQuantity);
-      expect(loaded.quantities.containsKey(1500), isFalse);
-      expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
-      expect(loaded.showTwoThousand, isFalse);
+        final NoteCounterSnapshot loaded = await store.load('personal');
+        expect(loaded.hasUnreadableRows, isTrue);
+        expect(loaded.quantityFor(50000), kMaxNoteQuantity);
+        expect(loaded.quantities.containsKey(1500), isFalse);
+        expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
+        expect(loaded.showTwoThousand, isFalse);
 
-      // Saving the sanitized snapshot rewrites every known denomination and
-      // drops the row this version can never display; the warning clears.
-      await store.save('personal', loaded);
-      final NoteCounterSnapshot repaired = await store.load('personal');
-      expect(repaired.hasUnreadableRows, isFalse);
-      expect(repaired.quantityFor(50000), kMaxNoteQuantity);
-      expect(repaired.totalPaise, kMaxNoteQuantity * 50000);
-      await ledger.close();
-    });
+        // Saving the sanitized snapshot rewrites every known denomination and
+        // drops the row this version can never display; the warning clears.
+        await store.save('personal', loaded);
+        final NoteCounterSnapshot repaired = await store.load('personal');
+        expect(repaired.hasUnreadableRows, isFalse);
+        expect(repaired.quantityFor(50000), kMaxNoteQuantity);
+        expect(repaired.totalPaise, kMaxNoteQuantity * 50000);
+        await ledger.close();
+      },
+    );
 
     test(
       'a stored ₹2,000 selection and flag are repaired away on load',
@@ -392,8 +397,9 @@ void main() {
           <Object>['personal', 200000, 1, now],
         );
 
-        final NoteCounterSnapshot loaded = await NoteCounterStore(ledger)
-            .load('personal');
+        final NoteCounterSnapshot loaded = await NoteCounterStore(
+          ledger,
+        ).load('personal');
         expect(loaded.showTwoThousand, isFalse);
         expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
         expect(loaded.hasUnreadableRows, isTrue);
@@ -739,8 +745,9 @@ void main() {
 
         ledger = open();
         await ledger.initialize();
-        final List<SavedNoteCount> sessions = await NoteCounterStore(ledger)
-            .listSessions('personal');
+        final List<SavedNoteCount> sessions = await NoteCounterStore(
+          ledger,
+        ).listSessions('personal');
         expect(sessions.single.id, id);
         expect(sessions.single.snapshot.quantityFor(20000), 3);
         expect(sessions.single.snapshot.selectedDenominationPaise, 20000);

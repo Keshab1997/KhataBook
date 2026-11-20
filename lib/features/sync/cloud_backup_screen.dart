@@ -171,10 +171,7 @@ class _NoteCard extends StatelessWidget {
               color: AppColors.softText,
             ),
           ),
-          if (footer != null) ...<Widget>[
-            const SizedBox(height: 14),
-            footer!,
-          ],
+          if (footer != null) ...<Widget>[const SizedBox(height: 14), footer!],
         ],
       ),
     );

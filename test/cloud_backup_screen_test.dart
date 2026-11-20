@@ -220,9 +220,8 @@ void main() {
     );
 
     testWidgets(
-      'the unconfigured layout stacks the state card above the local note', (
-        WidgetTester tester,
-      ) async {
+      'the unconfigured layout stacks the state card above the local note',
+      (WidgetTester tester) async {
         // Unconfigured: the note sits under the "not set up" card.
         await _pumpScreen(tester, const CloudBackupScreen());
         expect(
