@@ -110,13 +110,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('category-name')), 'Coffee');
     await tester.tap(find.byKey(const Key('save-category')));
-    await waitFor(tester, find.text('Coffee'));
+    // The sheet's CategoryCatalog rebuilds after the rename; the sheet itself
+    // stays open, so the rename shows in place. The selected chip in the
+    // AddEntry row also shows the new name, so "Coffee" appears twice.
+    await tester.pumpAndSettle();
+    expect(find.text('Coffee'), findsNWidgets(2));
     await tester.tap(find.byTooltip('Archive'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm-archive-category')));
-    await tester.runAsync(
-      () async => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
     await tester.pumpAndSettle();
     final all = (await tester.runAsync(
       () => store.load(includeArchived: true),

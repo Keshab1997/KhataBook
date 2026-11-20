@@ -79,7 +79,15 @@ class _CategoryCatalogState extends State<CategoryCatalog> {
   }
 
   void _refresh() {
-    setState(() => _future = widget.store.load(includeArchived: true));
+    // The store notifies from inside an async gap (after its write), so the
+    // reload is scheduled as a plain microtask; setState runs synchronously.
+    Future<void>.microtask(() {
+      if (mounted) {
+        setState(() {
+          _future = widget.store.load(includeArchived: true);
+        });
+      }
+    });
   }
 
   @override
