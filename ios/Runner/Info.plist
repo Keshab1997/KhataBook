@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>KhataBook uses a photo you choose as your profile picture. It stays on this device.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>KhataBook can take a profile picture with the camera. It stays on this device.</string>
 </dict>
 </plist>
