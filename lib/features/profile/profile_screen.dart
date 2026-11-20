@@ -15,6 +15,16 @@ import 'settings_screen.dart';
 String _profileText(AppLanguage language, String en, String bn) =>
     language == AppLanguage.bn ? bn : en;
 
+/// The one soft shadow (blur 14, offset 0/4) every card on this screen uses.
+/// `theme.md` allows exactly one low-opacity shadow, never layered ones.
+List<BoxShadow> _cardShadow() => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: 0.05),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
 /// S5 - Profile, docs/spec/screens.md#s5--profile.
 ///
 /// The honest, offline-first profile for this build. There is no signed-in
@@ -30,6 +40,12 @@ String _profileText(AppLanguage language, String en, String bn) =>
 ///
 /// Unavailable features, including sign-in, are visibly marked
 /// *Not available yet* and is not tappable, rather than pretending to work.
+///
+/// Visual system: one warm-ivory card at radius 20 with the 1 dp beige border
+/// and the single soft shadow from `theme.md`, 40 dp rounded-square icon
+/// containers, a 4 dp green rule above every section title, and 24 dp between
+/// sections / 10 dp between a title and its card. Every colour is an
+/// [AppColors] token.
 ///
 /// Layout is one scrolling list with no fixed heights, so a 320 dp screen at
 /// 200% text scale wraps instead of overflowing.
@@ -92,27 +108,53 @@ class ProfileScreen extends StatelessWidget {
         appBar: AppBar(
           title: Text(_profileText(language, 'Profile', 'প্রোফাইল')),
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  _profileText(
-                    language,
-                    'Web design preview only. Local ledger storage and backup are not available on the web.',
-                    'শুধু ওয়েব ডিজাইন প্রিভিউ। ওয়েবে স্থানীয় খাতা ও ব্যাকআপ নেই।',
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: _Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const _IconBadge(
+                        icon: Icons.info_outline,
+                        size: 56,
+                        radius: 18,
+                        iconSize: 28,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _profileText(
+                          language,
+                          'Web design preview only. Local ledger storage and backup are not available on the web.',
+                          'শুধু ওয়েব ডিজাইন প্রিভিউ। ওয়েবে স্থানীয় খাতা ও ব্যাকআপ নেই।',
+                        ),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: () => _openSettings(context),
+                        icon: const Icon(Icons.settings_outlined),
+                        label: Text(
+                          _profileText(
+                            language,
+                            'App Settings',
+                            'অ্যাপ সেটিংস',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => _openSettings(context),
-                  child: Text(
-                    _profileText(language, 'App Settings', 'অ্যাপ সেটিংস'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -141,12 +183,13 @@ class ProfileScreen extends StatelessWidget {
               tooltip: _profileText(language, 'App settings', 'অ্যাপ সেটিংস'),
             ),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
           children: <Widget>[
             if (profileStore == null)
               _IdentityCard(language: language)
@@ -156,9 +199,9 @@ class ProfileScreen extends StatelessWidget {
                 language: language,
                 pickPhoto: onPickAvatar ?? pickProfilePhoto,
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             _OfflineNotice(language: language),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _SectionTitle(
               _profileText(
                 language,
@@ -166,7 +209,7 @@ class ProfileScreen extends StatelessWidget {
                 'অ্যাকাউন্ট ও ব্যাকআপ',
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             _MenuCard(
               children: <Widget>[
                 _MenuRow(
@@ -251,20 +294,22 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _SectionTitle(
               _profileText(language, 'About KhataBook', 'খাতাবুক সম্পর্কে'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             _MenuCard(
               children: <Widget>[
                 _InfoRow(
                   key: const Key('profile-version'),
+                  icon: Icons.info_outline,
                   label: _profileText(language, 'Version', 'সংস্করণ'),
                   value: versionLabel,
                 ),
                 const _MenuDivider(),
                 _InfoRow(
+                  icon: Icons.smartphone_outlined,
                   label: _profileText(
                     language,
                     'Where your data lives',
@@ -278,6 +323,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const _MenuDivider(),
                 _InfoRow(
+                  icon: Icons.currency_rupee,
                   label: _profileText(language, 'Money', 'মুদ্রা'),
                   value: _profileText(
                     language,
@@ -287,6 +333,7 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const _MenuDivider(),
                 _InfoRow(
+                  icon: Icons.light_mode_outlined,
                   label: _profileText(language, 'Theme', 'থিম'),
                   value: _profileText(language, 'Light only', 'শুধু হালকা'),
                 ),
@@ -308,11 +355,16 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 22),
             const Text(
               'KhataBook · Plan · Track · Save',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.softText, fontSize: 12),
+              style: TextStyle(
+                color: AppColors.softText,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
             ),
           ],
         ),
@@ -362,8 +414,9 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save(LocalProfile profile) async {
@@ -389,6 +442,7 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
         title: Text(_text('Edit name', 'নাম পরিবর্তন')),
         content: TextField(controller: controller, maxLength: 60),
         actions: [
@@ -396,7 +450,7 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(_text('Cancel', 'বাতিল')),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text),
             child: Text(_text('Save', 'সংরক্ষণ')),
           ),
@@ -415,7 +469,10 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
       if (!mounted) return;
       if (bytes == null) {
         _message(
-          _text('Photo selection cancelled.', 'ছবি নির্বাচন বাতিল হয়েছে।'),
+          _text(
+            'Photo selection cancelled.',
+            'ছবি নির্বাচন বাতিল হয়েছে।',
+          ),
         );
         return;
       }
@@ -433,72 +490,136 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
     }
   }
 
+  Widget _avatar(LocalProfile profile) {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: <Widget>[
+        Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            color: AppColors.lightGreen,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.primaryGreen.withValues(alpha: 0.18),
+              width: 2,
+            ),
+          ),
+          child: ClipOval(
+            child: profile.avatarBytes == null
+                ? const Icon(
+                    Icons.person,
+                    size: 46,
+                    color: AppColors.primaryGreen,
+                  )
+                : Image.memory(
+                    profile.avatarBytes!,
+                    width: 84,
+                    height: 84,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(
+                          Icons.person,
+                          size: 46,
+                          color: AppColors.primaryGreen,
+                        ),
+                  ),
+          ),
+        ),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.surface, width: 2),
+          ),
+          child: const Icon(
+            Icons.camera_alt,
+            size: 15,
+            color: AppColors.onPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile;
     if (profile == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
+    final bool hasName = profile.name.isNotEmpty;
     return _Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(18, 22, 18, 12),
         child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.bottomRight,
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: AppColors.lightGreen,
-                  child: profile.avatarBytes == null
-                      ? const Icon(Icons.person, color: AppColors.primaryGreen)
-                      : ClipOval(
-                          child: Image.memory(
-                            profile.avatarBytes!,
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(
-                                  Icons.person,
-                                  color: AppColors.primaryGreen,
-                                ),
-                          ),
-                        ),
-                ),
-                const CircleAvatar(
-                  radius: 13,
-                  backgroundColor: AppColors.primaryGreen,
-                  child: Icon(
-                    Icons.camera_alt,
-                    size: 16,
-                    color: AppColors.onPrimary,
-                  ),
-                ),
-              ],
-            ),
+          children: <Widget>[
+            _avatar(profile),
+            const SizedBox(height: 12),
             Text(
-              profile.name.isEmpty
-                  ? _text('Local profile', 'স্থানীয় প্রোফাইল')
-                  : profile.name,
+              hasName
+                  ? profile.name
+                  : _text('Local profile', 'স্থানীয় প্রোফাইল'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.darkText,
+                height: 1.25,
+              ),
             ),
+            const SizedBox(height: 8),
+            _StatusChip(label: _text('Not signed in', 'সাইন ইন করা হয়নি')),
+            const SizedBox(height: 6),
+            Text(
+              _text(
+                'Saved on this device only. Add a name and a photo if you like - nothing is uploaded.',
+                'শুধু এই ডিভাইসে সংরক্ষিত। চাইলে নাম ও ছবি যোগ করুন - কিছু আপলোড হয় না।',
+              ),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: AppColors.softText,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Divider(height: 1, thickness: 1, color: AppColors.outline),
+            const SizedBox(height: 4),
             Wrap(
               alignment: WrapAlignment.center,
-              children: [
-                TextButton(
+              spacing: 4,
+              runSpacing: 2,
+              children: <Widget>[
+                TextButton.icon(
                   onPressed: _busy ? null : _editName,
-                  child: Text(_text('Edit name', 'নাম পরিবর্তন')),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text(_text('Edit name', 'নাম পরিবর্তন')),
                 ),
-                TextButton(
+                TextButton.icon(
                   onPressed: _busy ? null : _choosePhoto,
-                  child: Text(_text('Choose photo', 'ছবি বাছুন')),
+                  icon: const Icon(Icons.camera_alt, size: 18),
+                  label: Text(_text('Choose photo', 'ছবি বাছুন')),
                 ),
                 if (profile.avatarBytes != null)
-                  TextButton(
+                  TextButton.icon(
                     onPressed: _busy
                         ? null
                         : () => _save(LocalProfile(name: profile.name)),
-                    child: Text(_text('Remove photo', 'ছবি সরান')),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: AppColors.expenseRed,
+                    ),
+                    label: Text(
+                      _text('Remove photo', 'ছবি সরান'),
+                      style: const TextStyle(color: AppColors.darkText),
+                    ),
                   ),
               ],
             ),
@@ -518,7 +639,7 @@ class _IdentityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -549,6 +670,7 @@ class _IdentityCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  const SizedBox(height: 2),
                   Text(
                     _profileText(
                       language,
@@ -559,9 +681,10 @@ class _IdentityCard extends StatelessWidget {
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                       color: AppColors.darkText,
+                      height: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   _StatusChip(
                     label: _profileText(
                       language,
@@ -578,7 +701,7 @@ class _IdentityCard extends StatelessWidget {
                     ),
                     style: const TextStyle(
                       fontSize: 13,
-                      height: 1.35,
+                      height: 1.4,
                       color: AppColors.softText,
                     ),
                   ),
@@ -616,10 +739,18 @@ class _OfflineNotice extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(
-                  Icons.cloud_off_outlined,
-                  size: 28,
-                  color: AppColors.primaryGreen,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.cloud_off_outlined,
+                    size: 21,
+                    color: AppColors.primaryGreen,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -636,6 +767,7 @@ class _OfflineNotice extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
                           color: AppColors.darkText,
+                          height: 1.3,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -646,8 +778,8 @@ class _OfflineNotice extends StatelessWidget {
                           'খাতাবুক ইন্টারনেট ছাড়া চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না এবং পুনরুদ্ধারের জন্য ক্লাউড কপি নেই।',
                         ),
                         style: const TextStyle(
-                          fontSize: 13,
-                          height: 1.35,
+                          fontSize: 12.5,
+                          height: 1.4,
                           color: AppColors.softText,
                         ),
                       ),
@@ -663,7 +795,7 @@ class _OfflineNotice extends StatelessWidget {
   }
 }
 
-/// Section heading above a card.
+/// Section heading above a card: a 4 dp green rule, then the title.
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
 
@@ -671,13 +803,29 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w800,
-        color: AppColors.darkText,
-      ),
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkText,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -696,6 +844,7 @@ class _Card extends StatelessWidget {
         color: background ?? AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.outline),
+        boxShadow: _cardShadow(),
       ),
       child: child,
     );
@@ -710,16 +859,22 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.outline),
+        boxShadow: _cardShadow(),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
+      child: Material(
+        color: AppColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
       ),
     );
   }
@@ -730,7 +885,49 @@ class _MenuDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, thickness: 1, color: AppColors.outline);
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      indent: 66,
+      endIndent: 14,
+      color: AppColors.outline,
+    );
+  }
+}
+
+/// The 40 dp rounded-square icon container every row and notice shares.
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({
+    required this.icon,
+    this.enabled = true,
+    this.size = 40,
+    this.radius = 12,
+    this.iconSize = 20,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final double size;
+  final double radius;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: enabled
+            ? AppColors.lightGreen
+            : AppColors.beige.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Icon(
+        icon,
+        size: iconSize,
+        color: enabled ? AppColors.primaryGreen : AppColors.softText,
+      ),
+    );
   }
 }
 
@@ -761,36 +958,24 @@ class _MenuRow extends StatelessWidget {
     final Widget content = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: available
-                    ? AppColors.lightGreen
-                    : AppColors.beige.withValues(alpha: 0.55),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: available ? AppColors.primaryGreen : AppColors.softText,
-              ),
-            ),
+            _IconBadge(icon: icon, enabled: available),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  const SizedBox(height: 1),
                   Text(
                     title,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.darkText,
+                      height: 1.25,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -798,7 +983,7 @@ class _MenuRow extends StatelessWidget {
                     subtitle,
                     style: const TextStyle(
                       fontSize: 12.5,
-                      height: 1.35,
+                      height: 1.4,
                       color: AppColors.softText,
                     ),
                   ),
@@ -812,7 +997,7 @@ class _MenuRow extends StatelessWidget {
             if (available) ...<Widget>[
               const SizedBox(width: 8),
               const Padding(
-                padding: EdgeInsets.only(top: 4),
+                padding: EdgeInsets.only(top: 8),
                 child: Icon(
                   Icons.chevron_right,
                   size: 22,
@@ -835,8 +1020,14 @@ class _MenuRow extends StatelessWidget {
 /// Static label/value line used by the About card. Stacked, so long values and
 /// 200% text scale wrap rather than collide.
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({super.key, required this.label, required this.value});
+  const _InfoRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
+  final IconData icon;
   final String label;
   final String value;
 
@@ -846,20 +1037,34 @@ class _InfoRow extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 44),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12.5, color: AppColors.softText),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.darkText,
+            _IconBadge(icon: icon, size: 36, radius: 10, iconSize: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.softText,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkText,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -878,9 +1083,9 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.warmIvory,
+        color: AppColors.creamBackground,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.outline),
       ),
@@ -888,6 +1093,7 @@ class _StatusChip extends StatelessWidget {
         label,
         style: const TextStyle(
           fontSize: 11.5,
+          height: 1.2,
           fontWeight: FontWeight.w700,
           color: AppColors.softText,
         ),

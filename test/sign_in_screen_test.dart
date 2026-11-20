@@ -139,4 +139,53 @@ void main() {
       await backend.dispose();
     });
   });
+
+  group('SignInScreen design polish', () {
+    testWidgets('hero, checklist and action card share one card style', (
+      WidgetTester tester,
+    ) async {
+      final FakeCloudBackend backend = FakeCloudBackend();
+      await _pumpSignIn(tester, SignInScreen(backend: backend));
+
+      expect(find.text('Optional Cloud Backup'), findsOneWidget);
+      expect(find.text('What signing in does'), findsOneWidget);
+      expect(find.text('Local data stays on this phone'), findsOneWidget);
+      expect(
+        find.byKey(const Key('continue-with-google-button')),
+        findsOneWidget,
+      );
+      // Not pushed here, so there is nothing to go back to and no quiet exit.
+      expect(find.byKey(const Key('sign-in-not-now-button')), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      await backend.dispose();
+    });
+
+    testWidgets('progress is inline and never a dialog', (
+      WidgetTester tester,
+    ) async {
+      final FakeCloudBackend backend = FakeCloudBackend();
+      final Completer<CloudUser?> pending = Completer<CloudUser?>();
+      backend.onSignInWithGoogle = () => pending.future;
+      await _pumpSignIn(tester, SignInScreen(backend: backend));
+
+      await tester.ensureVisible(
+        find.byKey(const Key('continue-with-google-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('continue-with-google-button')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('sign-in-progress')), findsOneWidget);
+      expect(find.text('Signing in…'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(Dialog), findsNothing);
+
+      pending.complete(null);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sign-in-progress')), findsNothing);
+
+      await backend.dispose();
+    });
+  });
 }

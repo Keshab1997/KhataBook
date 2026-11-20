@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/features/profile/backup_screen.dart';
 
 const preview = BackupPreview(
@@ -47,7 +48,19 @@ Future<void> open(WidgetTester t, BackupScreen screen) async {
   await t.pumpAndSettle();
 }
 
+Future<void> export(WidgetTester t) async {
+  // Same reason as pick(): the export card can sit below the fold.
+  await t.ensureVisible(find.text('Export Backup'));
+  await t.pumpAndSettle();
+  await t.tap(find.text('Export Backup'));
+  await t.pumpAndSettle();
+}
+
 Future<void> pick(WidgetTester t) async {
+  // The screen is two step cards tall after the polish; bring the pick control
+  // into view before tapping so the test never depends on the viewport height.
+  await t.ensureVisible(find.text('Pick Backup to Restore'));
+  await t.pumpAndSettle();
   await t.tap(find.text('Pick Backup to Restore'));
   await t.pumpAndSettle();
 }
@@ -72,16 +85,13 @@ void main() {
     );
     expect(find.text('A backup file contains:'), findsOneWidget);
     expect(find.textContaining('custom categories'), findsWidgets);
-    await t.tap(find.text('Export Backup'));
-    await t.pumpAndSettle();
+    await export(t);
     expect(find.text('Export cancelled.'), findsOneWidget);
     result = BackupExportResult.saved;
-    await t.tap(find.text('Export Backup'));
-    await t.pumpAndSettle();
+    await export(t);
     expect(find.text('Export saved successfully.'), findsOneWidget);
     result = BackupExportResult.failed;
-    await t.tap(find.text('Export Backup'));
-    await t.pumpAndSettle();
+    await export(t);
     expect(find.text('Export failed.'), findsOneWidget);
   });
   testWidgets('a preview without the side facts hides the details line', (
@@ -208,12 +218,16 @@ void main() {
         onRestore: (_) async => false,
       ),
     );
+    await t.ensureVisible(find.text('Export Backup'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Export Backup'));
     await t.pump();
+    await t.ensureVisible(find.text('Export Backup'));
+    await t.pumpAndSettle();
     expect(
       t
-          .widget<ElevatedButton>(
-            find.widgetWithText(ElevatedButton, 'Export Backup'),
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Export Backup'),
           )
           .onPressed,
       isNull,
@@ -236,6 +250,8 @@ void main() {
         onRestore: (_) async => false,
       ),
     );
+    await t.ensureVisible(find.text('Export Backup'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Export Backup'));
     await t.pump();
     await t.pumpWidget(const SizedBox());
@@ -265,6 +281,40 @@ void main() {
     await t.ensureVisible(find.text('Pick Backup to Restore'));
     await pick(t);
     await confirm(t);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('the screen is two green steps with one red restore action', (
+    t,
+  ) async {
+    await open(
+      t,
+      BackupScreen(
+        onExport: () async => BackupExportResult.saved,
+        onPickBackup: () async => preview,
+        onRestore: (_) async => false,
+      ),
+    );
+
+    // The step headings are real text, not a numbered decoration.
+    expect(find.text('Save a copy'), findsOneWidget);
+    expect(find.text('Restore from a file'), findsOneWidget);
+    expect(find.byKey(const Key('backup-export-button')), findsOneWidget);
+    expect(find.byKey(const Key('backup-pick-button')), findsOneWidget);
+    // No restore action until a backup is picked.
+    expect(find.byKey(const Key('backup-restore-button')), findsNothing);
+
+    await pick(t);
+
+    // The destructive action is red, full width and clearly labelled.
+    final FilledButton restore = t.widget<FilledButton>(
+      find.byKey(const Key('backup-restore-button')),
+    );
+    expect(
+      restore.style?.backgroundColor?.resolve(<WidgetState>{}),
+      AppColors.expenseRed,
+    );
+    expect(restore.onPressed, isNotNull);
     expect(t.takeException(), isNull);
   });
 }

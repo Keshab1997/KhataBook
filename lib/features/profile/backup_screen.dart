@@ -34,6 +34,22 @@ class BackupPreview {
   final int? savedSessionCount;
 }
 
+/// The single soft card shadow from `theme.md` (blur 14, offset 0/4).
+List<BoxShadow> _cardShadow() => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: 0.05),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
+/// S10-adjacent offline Backup / Restore screen.
+///
+/// Visual system: warm-ivory cards at radius 20 over the cream background, a
+/// green privacy banner, a contents checklist on a light-green panel, a
+/// numbered two-step flow (export, then pick + restore) and one clear primary
+/// action per step. Destructive restore is red and confirms first. Every
+/// colour is an [AppColors] token; the payload is never rendered.
 class BackupScreen extends StatefulWidget {
   const BackupScreen({
     super.key,
@@ -90,6 +106,11 @@ class _BackupScreenContentState extends State<BackupScreen> {
         '$sessions saved ${sessions == 1 ? 'session' : 'sessions'}.';
   }
 
+  /// A step heading in the screen's language. Kept as a local pair because the
+  /// shared `AppString` table belongs to core and is not edited here.
+  String _stepTitle({required String en, required String bn}) =>
+      widget.language == AppLanguage.bn ? bn : en;
+
   /// The always-on list of what a backup carries, en+bn as local pairs.
   List<(String, String)> get _contents => const <(String, String)>[
     (
@@ -114,23 +135,50 @@ class _BackupScreenContentState extends State<BackupScreen> {
     final bool bn = widget.language == AppLanguage.bn;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           Text(
             bn ? 'ব্যাকআপে যা থাকে:' : 'A backup file contains:',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkText,
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           for (final (String en, String bng) in _contents)
             Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text('\u2022  ${bn ? bng : en}'),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(
+                      Icons.check_circle_outlined,
+                      size: 16,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      bn ? bng : en,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: AppColors.darkText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
@@ -194,6 +242,9 @@ class _BackupScreenContentState extends State<BackupScreen> {
       context: context,
       builder: (context) => AlertDialog(
         scrollable: true,
+        backgroundColor: AppColors.surface,
+        icon: const Icon(Icons.error_outline, color: AppColors.expenseRed),
+        iconColor: AppColors.expenseRed,
         title: Text(_strings.text(AppString.restoreQuestion)),
         content: SingleChildScrollView(
           child: Column(
@@ -208,7 +259,7 @@ class _BackupScreenContentState extends State<BackupScreen> {
                     ? 'WARNING: ALL current khatas and transactions on device will be replaced. This action is irreversible.'
                     : _strings.text(AppString.restoreWarning),
                 style: const TextStyle(
-                  color: Colors.red,
+                  color: AppColors.expenseRed,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -218,10 +269,21 @@ class _BackupScreenContentState extends State<BackupScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryGreen,
+            ),
             child: Text(_strings.text(AppString.cancel)),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.expenseRed,
+              foregroundColor: AppColors.onPrimary,
+              minimumSize: const Size(0, 44),
+              // The dialog's actions can share one line with a long Bengali
+              // label only if the text is allowed to wrap inside the button.
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
             child: Text(_strings.text(AppString.confirmRestore)),
           ),
         ],
@@ -258,6 +320,63 @@ class _BackupScreenContentState extends State<BackupScreen> {
     }
   }
 
+  /// The status line under the actions: what the last operation reported,
+  /// plus the loaded counts when a backup is waiting to be restored.
+  Widget _messagePanel(AppString message) {
+    final bool isFailure =
+        message == AppString.restoreFailed || message == AppString.exportFailed;
+    final bool isSuccess =
+        message == AppString.exportSaved || message == AppString.backupRestored;
+    final Color accent = isFailure
+        ? AppColors.expenseRed
+        : (isSuccess ? AppColors.primaryGreen : AppColors.softText);
+    final IconData icon = isFailure
+        ? Icons.error_outline
+        : (isSuccess ? Icons.check_circle_outlined : Icons.info_outline);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 18, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  _strings.text(message),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: AppColors.darkText,
+                  ),
+                ),
+                if (_preview != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    _summary(loaded: true),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      color: AppColors.softText,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 320dp/200% scrolling, accessible 44dp targets
@@ -265,87 +384,317 @@ class _BackupScreenContentState extends State<BackupScreen> {
       canPop: !_isPending,
       child: Scaffold(
         appBar: AppBar(title: Text(_strings.text(AppString.backupRestore))),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _strings.text(AppString.offlineBackupRestore),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: <Widget>[
+                    const _IconBadge(
+                      icon: Icons.save_alt,
+                      size: 44,
+                      radius: 14,
+                      iconSize: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _strings.text(AppString.offlineBackupRestore),
+                        style: const TextStyle(
+                          fontSize: 19,
+                          height: 1.25,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.darkText,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  _strings.text(AppString.backupPrivacy),
-                  style: const TextStyle(color: Colors.orange, fontSize: 14),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.warmIvory,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.outline),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Icon(
+                        Icons.lock_outlined,
+                        size: 18,
+                        color: AppColors.orange,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _strings.text(AppString.backupPrivacy),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            height: 1.4,
+                            color: AppColors.darkText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _contentsList(),
                 const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _isPending ? null : _handleExport,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 44),
+                _StepCard(
+                  step: 1,
+                  title: _stepTitle(
+                    en: 'Save a copy',
+                    bn: 'একটি কপি সংরক্ষণ করুন',
                   ),
-                  child: Text(_strings.text(AppString.exportBackup)),
+                  child: FilledButton(
+                    key: const Key('backup-export-button'),
+                    onPressed: _isPending ? null : _handleExport,
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    child: _ButtonLabel(
+                      icon: Icons.file_upload_outlined,
+                      label: _strings.text(AppString.exportBackup),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: _isPending ? null : _handlePick,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 44),
+                _StepCard(
+                  step: 2,
+                  title: _stepTitle(
+                    en: 'Restore from a file',
+                    bn: 'ফাইল থেকে পুনরুদ্ধার',
                   ),
-                  child: Text(_strings.text(AppString.pickBackup)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      OutlinedButton(
+                        key: const Key('backup-pick-button'),
+                        onPressed: _isPending ? null : _handlePick,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: _ButtonLabel(
+                          icon: Icons.folder_open_outlined,
+                          label: _strings.text(AppString.pickBackup),
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                      if (_preview != null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.warmIvory,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.outline),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                _summary(),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.darkText,
+                                ),
+                              ),
+                              if (_hasDetails(_preview!))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    _detailsLine(_preview!),
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      height: 1.4,
+                                      color: AppColors.softText,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          key: const Key('backup-restore-button'),
+                          onPressed: _isPending ? null : _handleRestore,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.expenseRed,
+                            foregroundColor: AppColors.onPrimary,
+                            minimumSize: const Size.fromHeight(52),
+                          ),
+                          child: _ButtonLabel(
+                            icon: Icons.restore,
+                            label: _strings.text(AppString.confirmReplaceAll),
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                if (_preview != null) ...[
-                  const Divider(),
-                  Text(_summary()),
-                  if (_hasDetails(_preview!))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(_detailsLine(_preview!)),
-                    ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: _isPending ? null : _handleRestore,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 44),
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: Text(_strings.text(AppString.confirmReplaceAll)),
-                  ),
+                if (_message != null) ...<Widget>[
+                  const SizedBox(height: 16),
+                  _messagePanel(_message!),
                 ],
-                const SizedBox(height: 20),
-                if (_message != null || _preview != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _message == null
-                          ? _summary(loaded: true)
-                          : _strings.text(_message!),
+                if (_isPending) ...<Widget>[
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.primaryGreen,
+                      ),
                     ),
                   ),
                 ],
-                if (_isPending)
-                  const SizedBox(
-                    height: 20,
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A numbered step card: small green step badge, a heading, then its actions.
+class _StepCard extends StatelessWidget {
+  const _StepCard({
+    required this.step,
+    required this.title,
+    required this.child,
+  });
+
+  final int step;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.outline),
+        boxShadow: _cardShadow(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$step',
+                  textScaler: TextScaler.noScaling,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.onPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.darkText,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// A button's icon + label. A plain icon+label button cannot wrap gracefully
+/// at 200 % text scale; this keeps the text in a [Flexible] so it wraps onto a
+/// second line instead of overflowing.
+class _ButtonLabel extends StatelessWidget {
+  const _ButtonLabel({
+    required this.icon,
+    required this.label,
+    this.color = AppColors.onPrimary,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({
+    required this.icon,
+    this.size = 40,
+    this.radius = 12,
+    this.iconSize = 20,
+  });
+
+  final IconData icon;
+  final double size;
+  final double radius;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Icon(icon, size: iconSize, color: AppColors.primaryGreen),
     );
   }
 }
