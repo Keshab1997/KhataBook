@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
-import 'category_artwork.dart';
 import 'category_picker.dart';
 import 'category_store.dart';
 
@@ -40,20 +39,28 @@ class _CategoryOption {
 /// It sits a step quieter than the value it names: the field below is the
 /// thing to read, the caption is the label for it.
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+  const _SectionLabel(this.text, this.icon);
 
   final String text;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.4,
-        color: AppColors.softText,
-      ),
+    return Row(
+      children: <Widget>[
+        Icon(icon, color: AppColors.primaryGreen, size: 22),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppColors.headerGreen,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -62,8 +69,7 @@ class _SectionLabel extends StatelessWidget {
 ///
 /// S2 in docs/spec/screens.md, styled after the "Add Expense" phone in
 /// docs/design/ui-preview.png: cream canvas, green header and action, framed
-/// amount/date/description rows, AI-illustrated category chips and the
-/// notebook illustration under the form.
+/// amount/date/description rows, AI-illustrated category chips and a save action at the end of the form.
 class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
@@ -223,11 +229,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final int? amount = _parseAmount(_amount.text);
-    final int? afterSave = amount == null
-        ? null
-        : widget.openingBalancePaise +
-              (_kind == EntryFormKind.income ? amount : -amount);
     final DateTime now = DateTime.now();
     final bool future = _date.isAfter(DateTime(now.year, now.month, now.day));
 
@@ -243,11 +244,48 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 onPressed: () => Navigator.of(context).maybePop(),
               )
             : null,
-        title: Text(
-          _strings.text(AppString.addEntry),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+        titleSpacing: 0,
+        title: Row(
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/illustrations/entry_header_notebook.png',
+                width: 42,
+                height: 42,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _strings.text(AppString.addEntry),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20,
+                    ),
+                  ),
+                  Text(
+                    widget.language == AppLanguage.bn
+                        ? 'হিসাব রাখুন নিয়মিত'
+                        : 'Keep Your Account Updated',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: <Widget>[
           IconButton(
@@ -269,16 +307,19 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               children: <Widget>[
                 _kindSelector(),
                 const SizedBox(height: 22),
-                _SectionLabel(_strings.text(AppString.amount)),
+                _SectionLabel(
+                  _strings.text(AppString.amount),
+                  Icons.account_balance_wallet,
+                ),
                 const SizedBox(height: 8),
                 _amountField(),
                 const SizedBox(height: 18),
-                _SectionLabel(_strings.text(AppString.date)),
+                _SectionLabel(_strings.text(AppString.date), Icons.event),
                 const SizedBox(height: 8),
                 _dateField(),
                 if (future) _inlineWarning(_strings.text(AppString.futureDate)),
                 const SizedBox(height: 18),
-                _SectionLabel(_strings.text(AppString.category)),
+                _SectionLabel(_strings.text(AppString.category), Icons.sell),
                 const SizedBox(height: 12),
                 if (_kind == EntryFormKind.expense) ...<Widget>[
                   _categoryChips(),
@@ -287,19 +328,23 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 ] else
                   _incomeCategoryPill(),
                 const SizedBox(height: 18),
-                _SectionLabel(_strings.text(AppString.description)),
+                _SectionLabel(
+                  _strings.text(AppString.description),
+                  Icons.edit_note,
+                ),
                 const SizedBox(height: 8),
                 _descriptionField(),
                 const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: _save,
-                  icon: const Icon(Icons.save_outlined),
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size.fromHeight(58),
+                    backgroundColor: AppColors.primaryGreen,
+                  ),
+                  icon: const Icon(Icons.save),
                   label: Text(_strings.text(AppString.saveEntry)),
                 ),
-                const SizedBox(height: 12),
-                _afterSavePreview(afterSave),
-                const SizedBox(height: 12),
-                _illustration(),
               ],
             ),
           ),
@@ -312,7 +357,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   Widget _kindSelector() {
     return Material(
       color: AppColors.lightGreen,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(32),
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(5),
@@ -351,7 +396,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       child: Material(
         color: background,
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          borderRadius: const BorderRadius.all(Radius.circular(32)),
           side: BorderSide(
             color: selected ? AppColors.primaryGreen : AppColors.beige,
             width: 1.2,
@@ -407,7 +452,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         color: focused ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: focused ? AppColors.primaryGreen : AppColors.beige,
+          color: focused
+              ? AppColors.primaryGreen
+              : AppColors.accentGreen.withValues(alpha: 0.5),
           width: focused ? 1.6 : 1.4,
         ),
         boxShadow: focused
@@ -446,20 +493,38 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
+            filled: false,
             contentPadding: EdgeInsets.zero,
-            prefixText: '₹ ',
-            prefixStyle: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
-              color: AppColors.primaryGreen,
+            prefixIcon: Container(
+              margin: const EdgeInsets.only(right: 12),
+              decoration: const BoxDecoration(
+                color: AppColors.lightGreen,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.currency_rupee,
+                color: AppColors.primaryGreen,
+                size: 26,
+              ),
             ),
             hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
             hintStyle: const TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.w500,
               letterSpacing: -0.4,
-              color: AppColors.navigationGrey,
+              color: AppColors.headerGreen,
+            ),
+            suffixIcon: IconButton(
+              tooltip: _strings.text(AppString.amount),
+              onPressed: () => _amountFocus.requestFocus(),
+              icon: const Icon(
+                Icons.grid_view_rounded,
+                color: AppColors.primaryGreen,
+              ),
             ),
             errorMaxLines: 4,
             errorStyle: const TextStyle(
@@ -480,6 +545,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final MaterialLocalizations localizations = MaterialLocalizations.of(
       context,
     );
+    final String mediumDate = localizations.formatMediumDate(_date);
+    final String englishDate = mediumDate.contains('${_date.year}')
+        ? mediumDate
+        : '$mediumDate, ${_date.year}';
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: _pickDate,
@@ -496,7 +565,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               child: Text(
                 widget.language == AppLanguage.bn
                     ? _strings.day(_date)
-                    : localizations.formatMediumDate(_date),
+                    : englishDate,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -514,26 +583,30 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   Widget _categoryChips() {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 14,
-      children: [
-        ..._categories.map(_categoryTile),
-        if (widget.categoryStore != null)
-          CustomCategoryChoices(
-            store: widget.categoryStore!,
-            language: widget.language,
-            selected: _category,
-            onSelected: _selectCategory,
-          ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double tileWidth = (constraints.maxWidth - 36) / 4;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            ..._categories.map((option) => _categoryTile(option, tileWidth)),
+            if (widget.categoryStore != null)
+              CustomCategoryChoices(
+                store: widget.categoryStore!,
+                language: widget.language,
+                selected: _category,
+                onSelected: _selectCategory,
+              ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _categoryTile(_CategoryOption option) {
+  Widget _categoryTile(_CategoryOption option, double width) {
     final bool selected = _category == option.id;
     final Color accent = _categoryAccent(option.id);
-    // One semantic control announces both category and selected state.
     return Semantics(
       container: true,
       button: true,
@@ -541,58 +614,58 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       label: _strings.text(option.label),
       excludeSemantics: true,
       onTap: () => _selectCategory(option.id),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => _selectCategory(option.id),
-        child: SizedBox(
-          width: 64,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  // A chosen tile is tinted as well as outlined: the colour
-                  // carries the selection at a glance, the border confirms it.
-                  color: selected ? AppColors.lightGreen : AppColors.warmIvory,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selected ? accent : AppColors.beige,
-                    width: selected ? 1.8 : 1.1,
-                  ),
-                  boxShadow: selected
-                      ? <BoxShadow>[
-                          BoxShadow(
-                            color: accent.withValues(alpha: 0.20),
-                            blurRadius: 12,
-                            offset: const Offset(0, 5),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(17),
-                  child: CategoryArtwork(category: option.id, size: 52),
-                ),
+      child: Material(
+        color: selected ? AppColors.lightGreen : AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _selectCategory(option.id),
+          child: Container(
+            width: width,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? accent : AppColors.beige,
+                width: selected ? 1.8 : 1.1,
               ),
-              const SizedBox(height: 7),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  _strings.text(option.label),
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected
-                        ? AppColors.primaryGreen
-                        : AppColors.softText,
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.headerGreen.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.asset(
+                    'assets/illustrations/entry_category_${option.id.toLowerCase()}.png',
+                    key: Key('category-artwork-${option.id}'),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    excludeFromSemantics: true,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 5),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _strings.text(option.label),
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.headerGreen,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -668,12 +741,18 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 key: const Key('description-field'),
                 controller: _description,
                 focusNode: _descriptionFocus,
+                onChanged: (_) => setState(() {}),
                 maxLines: 2,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(fontSize: 15, color: AppColors.darkText),
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  filled: false,
                   contentPadding: EdgeInsets.zero,
                   hintText: _strings.text(AppString.descriptionHint),
                   hintStyle: const TextStyle(
@@ -681,6 +760,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                     color: AppColors.navigationGrey,
                   ),
                   helperText: _strings.text(AppString.descriptionLimit),
+                  counterText: '${_description.text.characters.length} / 120',
                   helperStyle: const TextStyle(
                     fontSize: 11,
                     color: AppColors.softText,
@@ -719,122 +799,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _afterSavePreview(int? afterSave) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.lightGreen,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Row(
-        children: <Widget>[
-          const Icon(
-            Icons.account_balance_wallet_outlined,
-            size: 18,
-            color: AppColors.primaryGreen,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              _strings.afterSave(afterSave),
-              maxLines: 2,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryGreen,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _illustration() {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    _strings.text(AppString.everyExpenseCounts),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryGreen,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    _strings.text(AppString.oneEntryAtATime),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      height: 1.25,
-                      color: AppColors.softText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: SizedBox(
-              width: 132,
-              height: 98,
-              child: Image.asset(
-                'assets/illustrations/entry_notebook.png',
-                key: const Key('add-entry-notebook-image'),
-                fit: BoxFit.cover,
-                semanticLabel: _strings.text(AppString.notebookIllustration),
-                errorBuilder: _illustrationError,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// The picture is decorative: when the asset is missing (an unregistered
-  /// bundle, a stripped build) the screen shows a drawn notebook instead of
-  /// the framework's red error box.
-  Widget _illustrationError(
-    BuildContext context,
-    Object error,
-    StackTrace? stackTrace,
-  ) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.warmIvory,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.beige),
-        ),
-        child: const Icon(
-          Icons.menu_book,
-          size: 56,
-          color: AppColors.primaryGreen,
-        ),
       ),
     );
   }

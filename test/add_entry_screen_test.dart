@@ -120,31 +120,30 @@ void main() {
     expect(saved.single.description, 'x' * 120);
   });
 
-  testWidgets(
-    'expense preview and callback use exact paise and selected category',
-    (tester) async {
-      final List<EntryFormResult> saved = <EntryFormResult>[];
-      await showForm(tester, saved);
-      await enter(tester, amountField, '999999999.99');
-      expect(find.text('After saving: -₹99,99,98,999.99'), findsOneWidget);
-      await enter(tester, amountField, '12.05');
-      expect(find.text('After saving: ₹987.95'), findsOneWidget);
-      await tapVisible(tester, find.text('Gifts'));
-      await enter(tester, descriptionField, 'A gift');
-      await tapVisible(tester, find.text('Save Entry'));
-      expect(saved, hasLength(1));
-      expect(saved.single.kind, EntryFormKind.expense);
-      expect(saved.single.amountPaise, 1205);
-      expect(saved.single.category, 'Gifts');
-      expect(saved.single.description, 'A gift');
-      final DateTime now = DateTime.now();
-      expect(saved.single.occurredAt, DateTime(now.year, now.month, now.day));
-      await tapVisible(tester, find.text('Save Entry'));
-      expect(saved, hasLength(2));
-    },
-  );
+  testWidgets('expense callback uses exact paise and selected category', (
+    tester,
+  ) async {
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(tester, saved);
+    await enter(tester, amountField, '999999999.99');
+    expect(find.text('After saving: -₹99,99,98,999.99'), findsNothing);
+    await enter(tester, amountField, '12.05');
+    expect(find.text('After saving: ₹987.95'), findsNothing);
+    await tapVisible(tester, find.text('Gifts'));
+    await enter(tester, descriptionField, 'A gift');
+    await tapVisible(tester, find.text('Save Entry'));
+    expect(saved, hasLength(1));
+    expect(saved.single.kind, EntryFormKind.expense);
+    expect(saved.single.amountPaise, 1205);
+    expect(saved.single.category, 'Gifts');
+    expect(saved.single.description, 'A gift');
+    final DateTime now = DateTime.now();
+    expect(saved.single.occurredAt, DateTime(now.year, now.month, now.day));
+    await tapVisible(tester, find.text('Save Entry'));
+    expect(saved, hasLength(2));
+  });
 
-  testWidgets('income needs no category and updates balance live', (
+  testWidgets('income needs no category and saves exact amount', (
     tester,
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
@@ -152,7 +151,7 @@ void main() {
     await enter(tester, amountField, '0.5');
     await tapVisible(tester, find.text('Income'));
     expect(find.text('Category: Income'), findsOneWidget);
-    expect(find.text('After saving: -₹0.50'), findsOneWidget);
+    expect(find.text('After saving: -₹0.50'), findsNothing);
     await tapVisible(tester, find.text('Save Entry'));
     expect(saved, hasLength(1));
     expect(saved.single.kind, EntryFormKind.income);
@@ -248,9 +247,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders the notebook illustration and the design chrome', (
-    tester,
-  ) async {
+  testWidgets('ends at Save Entry without the old footer', (tester) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
     await showForm(tester, saved, size: const Size(390, 844));
     expect(find.text('Add Entry'), findsOneWidget);
@@ -258,9 +255,8 @@ void main() {
     expect(find.text('Date'), findsOneWidget);
     expect(find.text('Category'), findsOneWidget);
     expect(find.text('Description'), findsOneWidget);
-    // Category illustrations are separate assets; this key identifies the
-    // notebook artwork below the form specifically.
-    expect(find.byKey(const Key('add-entry-notebook-image')), findsOneWidget);
+    expect(find.byKey(const Key('add-entry-notebook-image')), findsNothing);
+    expect(find.text('Save Entry'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -292,7 +288,7 @@ void main() {
     expect(find.text('Save Entry'), findsOneWidget);
     await enter(tester, amountField, '12.05');
     await tapVisible(tester, find.text('Food'));
-    expect(find.text('After saving: ₹987.95'), findsOneWidget);
+    expect(find.text('After saving: ₹987.95'), findsNothing);
     await tapVisible(tester, find.text('Save Entry'));
     expect(saved, hasLength(1));
     expect(saved.single.amountPaise, 1205);
