@@ -1,10 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/config/cloud_project.dart';
+import 'package:khatabook/features/sync/cloud_config.dart';
 
 void main() {
+  test('the default environment config is the baked-in project', () {
+    const CloudConfig config = CloudConfig.fromEnvironment();
+    expect(config.isConfigured, isTrue);
+    expect(config.url, kSupabaseUrl);
+    expect(config.publishableKey, kSupabasePublishableKey);
+    expect(
+      config.redirectTo,
+      kIsWeb ? isNull : 'in.keshab.khatabook://login-callback',
+    );
+  });
+
   test(
     'the cloud project URL is the HTTPS address of the KhataBook project',
     () {

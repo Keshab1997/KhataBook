@@ -6,15 +6,21 @@ import 'core/l10n/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'features/shell/main_shell.dart';
 import 'features/ledger/data/local_ledger.dart';
+import 'features/sync/cloud_sync.dart';
 
 class KhataBookApp extends StatelessWidget {
   const KhataBookApp({
     super.key,
     this.ledger,
+    this.cloudSync,
     this.initialLanguage = AppLanguage.en,
   });
 
   final LocalLedger? ledger;
+
+  /// The live cloud sync service started in `main`. `null` (tests, web
+  /// preview, or an unconfigured build) means the app stays purely local.
+  final CloudSync? cloudSync;
 
   /// The language saved on this device, read before the first frame.
   final AppLanguage initialLanguage;
@@ -25,7 +31,11 @@ class KhataBookApp extends StatelessWidget {
       title: 'KhataBook',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: MainShell(ledger: ledger, initialLanguage: initialLanguage),
+      home: MainShell(
+        ledger: ledger,
+        cloudSync: cloudSync,
+        initialLanguage: initialLanguage,
+      ),
     );
   }
 }

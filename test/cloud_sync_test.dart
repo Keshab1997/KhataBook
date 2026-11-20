@@ -21,12 +21,15 @@ void main() {
 
   group('CloudConfig & CloudSync.start', () {
     test(
-      'default environment config is unconfigured and returns null',
+      'CloudSync.start returns the service when the project is configured',
       () async {
-        const CloudConfig defaultConfig = CloudConfig.fromEnvironment();
-        expect(defaultConfig.isConfigured, isFalse);
+        const CloudConfig configured = CloudConfig(
+          url: 'https://project.supabase.co',
+          publishableKey: 'pub-key-123',
+        );
+        expect(configured.isConfigured, isTrue);
         expect(
-          defaultConfig.redirectTo,
+          configured.redirectTo,
           'in.keshab.khatabook://login-callback',
         );
         expect(

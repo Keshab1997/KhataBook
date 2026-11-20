@@ -38,6 +38,7 @@ class ProfileScreen extends StatelessWidget {
     super.key,
     this.onWalletSummary,
     this.onBackup,
+    this.onCloudBackup,
     this.language = AppLanguage.en,
     this.onLanguageChanged,
     this.profileStore,
@@ -50,6 +51,9 @@ class ProfileScreen extends StatelessWidget {
   final Future<Uint8List?> Function()? onPickAvatar;
   final VoidCallback? onWalletSummary;
   final VoidCallback? onBackup;
+
+  /// Opens the cloud backup & sync screen; `null` in the web preview.
+  final VoidCallback? onCloudBackup;
 
   /// Static build label, kept in step with `pubspec.yaml` by hand: this build
   /// ships no package-info dependency, so the number is stated, not read.
@@ -225,20 +229,25 @@ class ProfileScreen extends StatelessWidget {
                 const _MenuDivider(),
                 _MenuRow(
                   key: const Key('profile-sign-in-row'),
-                  icon: Icons.lock_outline,
-                  title: language == AppLanguage.bn
-                      ? 'ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন'
-                      : 'Sign in to enable cloud backup',
+                  icon: Icons.cloud_outlined,
+                  title: _profileText(
+                    language,
+                    'Cloud backup & sync',
+                    'ক্লাউড ব্যাকআপ ও সিঙ্ক',
+                  ),
                   subtitle: _profileText(
                     language,
-                    'Accounts and cloud sync are not available in this build. Your khata stays on this device.',
-                    'এই সংস্করণে অ্যাকাউন্ট ও ক্লাউড সিঙ্ক নেই। আপনার খাতা এই ডিভাইসেই থাকে।',
+                    'Sign in with Google to back up khatas and sync across phones.',
+                    'গুগল দিয়ে সাইন ইন করে খাতা ব্যাকআপ করুন ও অন্য ফোনে সিঙ্ক করুন।',
                   ),
-                  status: _profileText(
-                    language,
-                    'Not available yet',
-                    'এখনও উপলব্ধ নয়',
-                  ),
+                  status: onCloudBackup == null
+                      ? _profileText(
+                          language,
+                          'Not available yet',
+                          'এখনও উপলব্ধ নয়',
+                        )
+                      : null,
+                  onTap: onCloudBackup,
                 ),
               ],
             ),

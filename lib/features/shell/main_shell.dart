@@ -20,6 +20,8 @@ import '../ledger/khata_switcher.dart';
 import '../ledger/khata_manage_screen.dart';
 import '../ledger/all_transactions_screen.dart';
 import '../ledger/wallet_summary_screen.dart';
+import '../sync/cloud_backup_screen.dart';
+import '../sync/cloud_sync.dart';
 import '../profile/profile_screen.dart';
 import '../profile/profile_store.dart';
 
@@ -27,11 +29,15 @@ class MainShell extends StatefulWidget {
   const MainShell({
     super.key,
     this.ledger,
+    this.cloudSync,
     this.initialLanguage = AppLanguage.en,
   });
 
   /// An injected database is useful for isolated tests. The shell owns it.
   final LocalLedger? ledger;
+
+  /// Live cloud sync started in `main`; `null` keeps the app local-only.
+  final CloudSync? cloudSync;
 
   /// The UI language to start in; Settings changes it through the shell, which
   /// saves it and passes it to every screen.
@@ -57,6 +63,13 @@ class _MainShellState extends State<MainShell> {
   late AppLanguage _language = widget.initialLanguage;
   ProfileStore? _profileStore;
   NoteCounterStore? _noteCounterStore;
+
+  /// Live cloud sync (owned by `main`; never disposed here). Every local
+  /// write goes through [_notifyLocalChange] so a signed-in session backs up
+  /// automatically after a short debounce.
+  CloudSync? get _cloudSync => widget.cloudSync;
+
+  void _notifyLocalChange() => widget.cloudSync?.notifyLocalChange();
   bool get _webPreview => kIsWeb && widget.ledger == null;
   AppStrings get _strings => AppStrings(_language);
 
@@ -146,6 +159,7 @@ class _MainShellState extends State<MainShell> {
           },
           onRestore: (preview) async {
             await backup.restoreReplacing(preview.payload);
+            _notifyLocalChange();
             return true;
           },
         ),
@@ -172,9 +186,16 @@ class _MainShellState extends State<MainShell> {
           loadArchived: ledger.listArchivedKhatas,
           onRename: (id, name) async {
             await ledger.renameKhata(khataId: id, name: name);
+            _notifyLocalChange();
           },
-          onArchive: (id) => ledger.archiveKhata(khataId: id),
-          onUnarchive: (id) => ledger.unarchiveKhata(khataId: id),
+          onArchive: (id) async {
+            await ledger.archiveKhata(khataId: id);
+            _notifyLocalChange();
+          },
+          onUnarchive: (id) async {
+            await ledger.unarchiveKhata(khataId: id);
+            _notifyLocalChange();
+          },
         ),
       ),
     );
@@ -200,6 +221,7 @@ class _MainShellState extends State<MainShell> {
         khataId: selected.id,
       );
       await _ledger!.setActiveKhataId(selected.id);
+      _notifyLocalChange();
       if (mounted) {
         setState(() {
           _activeKhata = selected;
@@ -238,6 +260,7 @@ class _MainShellState extends State<MainShell> {
             _saving = true;
             try {
               await _ledger!.addEntry(entry, khataId: khataId);
+              _notifyLocalChange();
             } catch (_) {
               _saving = false;
               if (routeContext.mounted) {
@@ -304,6 +327,15 @@ class _MainShellState extends State<MainShell> {
         });
       }
     }
+  }
+
+  void _openCloudBackup() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            CloudBackupScreen(language: _language, cloudSync: _cloudSync),
+      ),
+    );
   }
 
   void _openWallet() {
@@ -399,6 +431,7 @@ class _MainShellState extends State<MainShell> {
                     _summary != null
                 ? _openBackup
                 : null,
+            onCloudBackup: _webPreview ? null : _openCloudBackup,
             onWalletSummary: !_webPreview && _summary != null
                 ? _openWallet
                 : null,
