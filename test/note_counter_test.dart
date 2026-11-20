@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/l10n/app_strings.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/counter/note_counter_screen.dart';
 import 'package:khatabook/features/counter/note_counter_store.dart';
@@ -187,6 +188,28 @@ Finder grandTotalText(String formatted) => find.descendant(
 );
 
 void main() {
+  group('row states', () {
+    testWidgets('a counted row lifts off the canvas', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      Color? rowColor(int denominationPaise) {
+        final AnimatedContainer row = tester.widget<AnimatedContainer>(
+          find.byKey(Key('note-counter-row-$denominationPaise')),
+        );
+        return (row.decoration! as BoxDecoration).color;
+      }
+
+      expect(rowColor(50000), AppColors.warmIvory);
+      await typeFiveHundreds(tester, '2');
+      expect(rowColor(50000), AppColors.lightGreen);
+      // Counting one denomination never tints the others.
+      expect(rowColor(20000), AppColors.warmIvory);
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('initial state', () {
     testWidgets('starts empty with a zero grand total', (
       WidgetTester tester,

@@ -547,6 +547,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      backgroundColor: AppColors.surface,
       builder: (BuildContext sheetContext) => SavedSessionsSheet(
         store: store,
         khataId: khataId,
@@ -638,6 +639,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               controller: _controllers[denomination]!,
               errorText: _inputErrors[denomination],
               rowTotalPaise: denomination * (_quantities[denomination] ?? 0),
+              counted: (_quantities[denomination] ?? 0) > 0,
               onChanged: (String raw) => _onRowChanged(raw, denomination),
               onTapSelectAll: () {
                 final TextEditingController controller =
@@ -660,7 +662,10 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               onPressed: _addToKhata,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.incomeGreen,
-                minimumSize: const Size.fromHeight(48),
+                minimumSize: const Size.fromHeight(52),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
               ),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
               label: Text(
@@ -719,7 +724,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   icon: const Icon(Icons.refresh, size: 20),
                   label: Text(strings.text(AppString.newCount)),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                    minimumSize: const Size.fromHeight(52),
                     foregroundColor: AppColors.primaryGreen,
                     side: const BorderSide(color: AppColors.primaryGreen),
                     shape: const RoundedRectangleBorder(
@@ -809,12 +814,14 @@ class _ActionButton extends StatelessWidget {
     const RoundedRectangleBorder shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.all(Radius.circular(16)),
     );
+    // Every action on this screen is the same height and radius, so the stack
+    // below the total reads as one control group.
     if (_filled) {
       return FilledButton(
         key: buttonKey,
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size.fromHeight(52),
           shape: shape,
         ),
         child: child,
@@ -824,7 +831,7 @@ class _ActionButton extends StatelessWidget {
       key: buttonKey,
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(48),
+        minimumSize: const Size.fromHeight(52),
         foregroundColor: AppColors.primaryGreen,
         side: const BorderSide(color: AppColors.primaryGreen),
         shape: shape,
@@ -845,6 +852,7 @@ class _DenominationRow extends StatelessWidget {
     required this.controller,
     required this.errorText,
     required this.rowTotalPaise,
+    required this.counted,
     required this.onChanged,
     required this.onTapSelectAll,
   });
@@ -855,6 +863,10 @@ class _DenominationRow extends StatelessWidget {
   final TextEditingController controller;
   final String? errorText;
   final int rowTotalPaise;
+
+  /// Whether this row holds a quantity: counted rows lift off the canvas so
+  /// the eye finds what has already been entered.
+  final bool counted;
   final ValueChanged<String> onChanged;
   final VoidCallback onTapSelectAll;
 
@@ -871,14 +883,17 @@ class _DenominationRow extends StatelessWidget {
     final String fieldLabel = isCoinRow
         ? copy.coinsAmountLabel(strings)
         : copy.quantityFieldLabel(strings, denominationPaise);
-    return Container(
+    return AnimatedContainer(
       key: Key('note-counter-row-$denominationPaise'),
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.warmIvory,
+        color: counted ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCoinRow ? AppColors.accentGreen : AppColors.beige,
+          color: counted || isCoinRow ? AppColors.accentGreen : AppColors.beige,
+          width: counted ? 1.4 : 1,
         ),
       ),
       child: Row(
@@ -1019,11 +1034,18 @@ class _GrandTotalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('note-counter-grand-total'),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accentGreen),
+        border: Border.all(color: AppColors.accentGreen, width: 1.4),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryGreen.withValues(alpha: 0.10),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: <Widget>[

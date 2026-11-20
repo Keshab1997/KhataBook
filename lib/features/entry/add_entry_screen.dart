@@ -36,6 +36,9 @@ class _CategoryOption {
 
 /// The small bold caption the design puts above every framed field
 /// (`Amount`, `Date`, `Category`, `Description`).
+///
+/// It sits a step quieter than the value it names: the field below is the
+/// thing to read, the caption is the label for it.
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
 
@@ -46,10 +49,10 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-        color: AppColors.darkText,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.4,
+        color: AppColors.softText,
       ),
     );
   }
@@ -100,6 +103,11 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _amount = TextEditingController();
   final TextEditingController _description = TextEditingController();
+
+  /// Focus is owned here rather than left to the fields, because the frame
+  /// that turns green is the *card around* the field, not the field itself.
+  final FocusNode _amountFocus = FocusNode();
+  final FocusNode _descriptionFocus = FocusNode();
   EntryFormKind _kind = EntryFormKind.expense;
   String? _category;
   bool _showCategoryError = false;
@@ -117,10 +125,19 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     _description.text = widget.initialDescription ?? '';
     final DateTime now = DateTime.now();
     _date = DateTime(now.year, now.month, now.day);
+    _amountFocus.addListener(_handleFocusChange);
+    _descriptionFocus.addListener(_handleFocusChange);
+  }
+
+  /// Repaints the frame of whichever field gained or lost focus.
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _amountFocus.dispose();
+    _descriptionFocus.dispose();
     _amount.dispose();
     _description.dispose();
     super.dispose();
@@ -251,37 +268,37 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 _kindSelector(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 _SectionLabel(_strings.text(AppString.amount)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _amountField(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 _SectionLabel(_strings.text(AppString.date)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _dateField(),
                 if (future) _inlineWarning(_strings.text(AppString.futureDate)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 _SectionLabel(_strings.text(AppString.category)),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 if (_kind == EntryFormKind.expense) ...<Widget>[
                   _categoryChips(),
                   if (_showCategoryError)
                     _inlineWarning(_strings.text(AppString.pickCategory)),
                 ] else
                   _incomeCategoryPill(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 _SectionLabel(_strings.text(AppString.description)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _descriptionField(),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: _save,
-                  icon: const Icon(Icons.save),
+                  icon: const Icon(Icons.save_outlined),
                   label: Text(_strings.text(AppString.saveEntry)),
                 ),
                 const SizedBox(height: 12),
                 _afterSavePreview(afterSave),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 _illustration(),
               ],
             ),
@@ -315,8 +332,12 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final bool income = kind == EntryFormKind.income;
     final Color background = selected
         ? AppColors.primaryGreen
-        : AppColors.lightGreen;
-    final Color foreground = selected
+        : AppColors.warmIvory;
+    // Unselected keeps the label in body ink and lets the arrow carry the
+    // income/expense colour; selected inverts the pair. That is the same
+    // treatment the editor uses, so the two forms read as one screen family.
+    final Color textColor = selected ? AppColors.onPrimary : AppColors.darkText;
+    final Color iconColor = selected
         ? AppColors.onPrimary
         : (income ? AppColors.incomeGreen : AppColors.expenseRed);
     return Semantics(
@@ -329,7 +350,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       onTap: () => _selectKind(kind),
       child: Material(
         color: background,
-        borderRadius: BorderRadius.circular(14),
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          side: BorderSide(
+            color: selected ? AppColors.primaryGreen : AppColors.beige,
+            width: 1.2,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _selectKind(kind),
@@ -341,7 +368,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 Icon(
                   income ? Icons.arrow_downward : Icons.arrow_upward,
                   size: 16,
-                  color: foreground,
+                  color: iconColor,
                 ),
                 const SizedBox(width: 6),
                 Flexible(
@@ -354,7 +381,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: foreground,
+                      color: textColor,
                     ),
                   ),
                 ),
@@ -366,15 +393,32 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  /// The cream input card used for amount, date and description: warm ivory
+  /// The ivory input card used for amount, date and description: warm ivory
   /// fill, beige frame, rounded corners.
-  Widget _framed({required Widget child}) {
-    return Container(
+  ///
+  /// The card holding focus turns green and lifts very slightly, so the row
+  /// being edited is obvious without moving any of the other rows.
+  Widget _framed({required Widget child, bool focused = false}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.warmIvory,
+        color: focused ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.beige, width: 1.4),
+        border: Border.all(
+          color: focused ? AppColors.primaryGreen : AppColors.beige,
+          width: focused ? 1.6 : 1.4,
+        ),
+        boxShadow: focused
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.10),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: child,
     );
@@ -382,6 +426,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _amountField() {
     return _framed(
+      focused: _amountFocus.hasFocus,
       // The caption above the frame is its own Text, so the field carries its
       // own accessible name rather than being an unlabeled text field.
       child: Semantics(
@@ -389,11 +434,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         child: TextFormField(
           key: const Key('amount-field'),
           controller: _amount,
+          focusNode: _amountFocus,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textInputAction: TextInputAction.next,
           style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
             color: AppColors.darkText,
           ),
           decoration: InputDecoration(
@@ -402,14 +449,16 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             contentPadding: EdgeInsets.zero,
             prefixText: '₹ ',
             prefixStyle: const TextStyle(
-              fontSize: 24,
+              fontSize: 30,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
               color: AppColors.primaryGreen,
             ),
             hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
             hintStyle: const TextStyle(
-              fontSize: 24,
+              fontSize: 30,
               fontWeight: FontWeight.w500,
+              letterSpacing: -0.4,
               color: AppColors.navigationGrey,
             ),
             errorMaxLines: 4,
@@ -466,8 +515,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _categoryChips() {
     return Wrap(
-      spacing: 10,
-      runSpacing: 12,
+      spacing: 12,
+      runSpacing: 14,
       children: [
         ..._categories.map(_categoryTile),
         if (widget.categoryStore != null)
@@ -496,44 +545,46 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         borderRadius: BorderRadius.circular(18),
         onTap: () => _selectCategory(option.id),
         child: SizedBox(
-          width: 62,
+          width: 64,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                width: 50,
-                height: 50,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: AppColors.warmIvory,
-                  borderRadius: BorderRadius.circular(17),
+                  // A chosen tile is tinted as well as outlined: the colour
+                  // carries the selection at a glance, the border confirms it.
+                  color: selected ? AppColors.lightGreen : AppColors.warmIvory,
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: selected ? accent : AppColors.outline,
-                    width: selected ? 1.5 : 1,
+                    color: selected ? accent : AppColors.beige,
+                    width: selected ? 1.8 : 1.1,
                   ),
                   boxShadow: selected
                       ? <BoxShadow>[
                           BoxShadow(
-                            color: accent.withValues(alpha: 0.18),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            color: accent.withValues(alpha: 0.20),
+                            blurRadius: 12,
+                            offset: const Offset(0, 5),
                           ),
                         ]
                       : null,
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: CategoryArtwork(category: option.id, size: 50),
+                  borderRadius: BorderRadius.circular(17),
+                  child: CategoryArtwork(category: option.id, size: 52),
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
                   _strings.text(option.label),
                   maxLines: 1,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected
                         ? AppColors.primaryGreen
@@ -567,17 +618,31 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.lightGreen,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.accentGreen),
         ),
-        child: Text(
-          _strings.text(AppString.categoryIncome),
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            color: AppColors.primaryGreen,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.south_west_rounded,
+              size: 16,
+              color: AppColors.incomeGreen,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                _strings.text(AppString.categoryIncome),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -585,6 +650,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _descriptionField() {
     return _framed(
+      focused: _descriptionFocus.hasFocus,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -601,6 +667,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               child: TextFormField(
                 key: const Key('description-field'),
                 controller: _description,
+                focusNode: _descriptionFocus,
                 maxLines: 2,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(fontSize: 15, color: AppColors.darkText),

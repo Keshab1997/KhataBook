@@ -218,22 +218,30 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Row(
               children: <Widget>[
-                const Icon(
-                  Icons.bookmark_outline,
-                  size: 20,
-                  color: AppColors.primaryGreen,
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.bookmark_outline,
+                    size: 19,
+                    color: AppColors.primaryGreen,
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 // Expanded so a long or scaled-up title wraps instead of
                 // overflowing a narrow phone.
                 Expanded(
                   child: Text(
                     copy.title,
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: AppColors.darkText,
                     ),
@@ -241,7 +249,9 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: AppColors.beige),
+            const SizedBox(height: 8),
             Flexible(child: _buildBody(strings, copy)),
             const SizedBox(height: 10),
             Text(
@@ -290,12 +300,20 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(
-                  Icons.bookmark_border,
-                  size: 34,
-                  color: AppColors.navigationGrey,
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.bookmark_border,
+                    size: 30,
+                    color: AppColors.primaryGreen,
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(
                   copy.empty,
                   textAlign: TextAlign.center,
@@ -318,45 +336,67 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
             ),
           );
         }
+        // Each session is its own rounded card rather than a row separated
+        // by rule lines: the list is short, and cards read faster.
         return ListView.separated(
           key: const Key('saved-sessions-list'),
           shrinkWrap: true,
           itemCount: _sessions.length,
           separatorBuilder: (BuildContext context, int index) =>
-              const Divider(height: 1, color: AppColors.beige),
+              const SizedBox(height: 8),
           itemBuilder: (BuildContext context, int index) {
             final SavedNoteCount session = _sessions[index];
             final DateTime local = session.savedAt.toLocal();
-            return ListTile(
-              key: Key('saved-session-${session.id}'),
-              onTap: () => _restore(session),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              leading: const Icon(
-                Icons.history_toggle_off,
-                color: AppColors.primaryGreen,
+            return Material(
+              color: AppColors.warmIvory,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: const BorderRadius.all(Radius.circular(14)),
+                side: const BorderSide(color: AppColors.beige),
               ),
-              title: Text(
-                strings.dateTime(local),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.darkText,
+              child: ListTile(
+                key: Key('saved-session-${session.id}'),
+                onTap: () => _restore(session),
+                contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.history_toggle_off,
+                    size: 19,
+                    color: AppColors.primaryGreen,
+                  ),
                 ),
-              ),
-              subtitle: Text(
-                '${strings.text(AppString.grandTotal)}: '
-                '${strings.money(session.totalPaise)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.softText),
-              ),
-              trailing: IconButton(
-                key: Key('saved-session-delete-${session.id}'),
-                tooltip: strings.text(AppString.delete),
-                onPressed: _deleting.contains(session.id)
-                    ? null
-                    : () => _delete(session),
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: AppColors.expenseRed,
+                title: Text(
+                  strings.dateTime(local),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.darkText,
+                  ),
+                ),
+                subtitle: Text(
+                  '${strings.text(AppString.grandTotal)}: '
+                  '${strings.money(session.totalPaise)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.softText,
+                  ),
+                ),
+                trailing: IconButton(
+                  key: Key('saved-session-delete-${session.id}'),
+                  tooltip: strings.text(AppString.delete),
+                  onPressed: _deleting.contains(session.id)
+                      ? null
+                      : () => _delete(session),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: AppColors.expenseRed,
+                  ),
                 ),
               ),
             );
