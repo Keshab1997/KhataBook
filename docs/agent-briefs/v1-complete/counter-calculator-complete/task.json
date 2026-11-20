@@ -1,0 +1,25 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "counter-calculator-complete",
+  "allowed": [
+    "lib/features/counter/note_counter_screen.dart",
+    "lib/features/counter/note_counter_store.dart",
+    "lib/features/counter/saved_sessions_sheet.dart",
+    "lib/features/calculator/calculator_screen.dart",
+    "test/note_counter_test.dart",
+    "test/note_counter_store_test.dart",
+    "test/calculator_test.dart",
+    "test/utilities_language_test.dart"
+  ],
+  "commit": "feat(counter): persistent per-khata note counts, saved sessions and hand-off to entries",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.1",
+    "test": "test/note_counter_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": null
+  }
+}

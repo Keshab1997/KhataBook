@@ -1,0 +1,48 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "profile-categories-complete",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/profile_store.dart",
+    "lib/features/profile/profile_photo_picker.dart",
+    "lib/features/profile/settings_screen.dart",
+    "lib/features/entry/add_entry_screen.dart",
+    "lib/features/entry/transaction_editor_screen.dart",
+    "lib/features/entry/category_artwork.dart",
+    "lib/features/entry/category_store.dart",
+    "lib/features/entry/category_picker.dart",
+    "lib/features/home/home_screen.dart",
+    "lib/features/home/models.dart",
+    "lib/features/ledger/all_transactions_screen.dart",
+    "lib/features/ledger/ledger_domain.dart",
+    "test/custom_categories_test.dart",
+    "test/category_store_test.dart",
+    "test/offline_profile_test.dart",
+    "test/profile_store_test.dart",
+    "test/profile_settings_test.dart",
+    "test/settings_navigation_test.dart",
+    "test/settings_language_test.dart",
+    "test/add_entry_screen_test.dart",
+    "test/transaction_editor_test.dart",
+    "test/transaction_edit_flow_test.dart",
+    "test/home_entry_language_test.dart",
+    "test/home_design_test.dart",
+    "test/home_live_test.dart",
+    "test/all_transactions_test.dart",
+    "test/ledger_domain_test.dart",
+    "test/offline_flow_test.dart",
+    "test/multi_khata_flow_test.dart",
+    "test/overview_flow_test.dart"
+  ],
+  "commit": "feat(profile): offline name and photo, custom categories and entry prefill",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.1",
+    "test": "test/custom_categories_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": null
+  }
+}
