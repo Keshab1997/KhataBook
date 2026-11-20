@@ -8,6 +8,7 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/language_preference.dart';
 import '../calculator/calculator_screen.dart';
 import '../counter/note_counter_screen.dart';
+import '../counter/note_counter_store.dart';
 import '../entry/add_entry_screen.dart';
 import '../home/home_screen.dart';
 import '../home/models.dart';
@@ -55,6 +56,7 @@ class _MainShellState extends State<MainShell> {
   int _openRequest = 0;
   late AppLanguage _language = widget.initialLanguage;
   ProfileStore? _profileStore;
+  NoteCounterStore? _noteCounterStore;
   bool get _webPreview => kIsWeb && widget.ledger == null;
   AppStrings get _strings => AppStrings(_language);
 
@@ -77,6 +79,7 @@ class _MainShellState extends State<MainShell> {
       final LocalLedger ledger = _ledger!;
       await ledger.initialize();
       _profileStore ??= ProfileStore(ledger);
+      _noteCounterStore ??= NoteCounterStore(ledger);
       final String activeId = await ledger.readActiveKhataId();
       final List<LocalKhata> khatas = await ledger.listKhatas();
       final LocalKhata active = khatas.firstWhere(
@@ -215,7 +218,10 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _addEntry() {
+  /// Opens the entry form for the active khata. The calculator and the note
+  /// counter pass an amount (and the counter a kind and note) to prefill; the
+  /// user still reviews and saves the entry, so nothing is written for them.
+  void _addEntry({int? amountPaise, EntryFormKind? kind, String? description}) {
     final LedgerSummary? current = _summary;
     if (current == null) return;
     final String khataId = _activeKhata.id;
@@ -223,6 +229,9 @@ class _MainShellState extends State<MainShell> {
       MaterialPageRoute<void>(
         builder: (BuildContext routeContext) => AddEntryScreen(
           language: _language,
+          initialAmountPaise: amountPaise,
+          initialKind: kind,
+          initialDescription: description,
           openingBalancePaise: current.remainingPaise,
           onSave: (EntryFormResult entry) async {
             if (_saving) return;
@@ -308,9 +317,26 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  /// Counted cash becomes an income entry for the user to review: it may
+  /// already be inside the opening balance, so it is never saved silently.
+  void _addCountedCash(int amountPaise, String note) => _addEntry(
+    amountPaise: amountPaise,
+    kind: EntryFormKind.income,
+    description: note,
+  );
+
+  void _useCalculatorResult(int amountPaise) =>
+      _addEntry(amountPaise: amountPaise);
+
   @override
   Widget build(BuildContext context) {
     final AppStrings strings = _strings;
+    // The counter keeps a saved count per khata once the ledger is open; until
+    // then (and in the web preview) it counts in memory only.
+    final bool ledgerReady = !_webPreview && _summary != null;
+    final NoteCounterStore? counterStore = ledgerReady
+        ? _noteCounterStore
+        : null;
     final Widget home;
     if (_webPreview) {
       home = Column(
@@ -353,8 +379,16 @@ class _MainShellState extends State<MainShell> {
         index: _index,
         children: <Widget>[
           home,
-          CalculatorScreen(language: _language),
-          const NoteCounterScreen(),
+          CalculatorScreen(
+            language: _language,
+            onUseInEntry: ledgerReady ? _useCalculatorResult : null,
+          ),
+          NoteCounterScreen(
+            language: _language,
+            store: counterStore,
+            khataId: counterStore == null ? null : _activeKhata.id,
+            onAddToKhata: ledgerReady ? _addCountedCash : null,
+          ),
           ProfileScreen(
             language: _language,
             onLanguageChanged: _webPreview ? null : _changeLanguage,
