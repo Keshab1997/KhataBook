@@ -2,7 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show defaultTargetPlatform, TargetPlatform;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/language_preference.dart';
@@ -71,13 +71,13 @@ class _MainShellState extends State<MainShell> {
   CloudSync? get _cloudSync => widget.cloudSync;
 
   void _notifyLocalChange() => widget.cloudSync?.notifyLocalChange();
-  bool get _webPreview => kIsWeb && widget.ledger == null;
+
   AppStrings get _strings => AppStrings(_language);
 
   @override
   void initState() {
     super.initState();
-    if (!_webPreview) _open();
+    _open();
   }
 
   Future<void> _open() async {
@@ -368,24 +368,12 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final AppStrings strings = _strings;
-    // The counter keeps a saved count per khata once the ledger is open; until
-    // then (and in the web preview) it counts in memory only.
-    final bool ledgerReady = !_webPreview && _summary != null;
+    final bool ledgerReady = _summary != null;
     final NoteCounterStore? counterStore = ledgerReady
         ? _noteCounterStore
         : null;
     final Widget home;
-    if (_webPreview) {
-      home = Column(
-        children: <Widget>[
-          MaterialBanner(
-            content: Text(strings.text(AppString.webLedgerUnavailable)),
-            actions: const <Widget>[SizedBox.shrink()],
-          ),
-          Expanded(child: HomeScreen(language: _language)),
-        ],
-      );
-    } else if (_error != null) {
+    if (_error != null) {
       home = Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -436,18 +424,15 @@ class _MainShellState extends State<MainShell> {
           ),
           ProfileScreen(
             language: _language,
-            onLanguageChanged: _webPreview ? null : _changeLanguage,
+            onLanguageChanged: _changeLanguage,
             profileStore: _profileStore,
             onBackup:
-                !_webPreview &&
-                    defaultTargetPlatform == TargetPlatform.android &&
+                defaultTargetPlatform == TargetPlatform.android &&
                     _summary != null
                 ? _openBackup
                 : null,
-            onCloudBackup: _webPreview ? null : _openCloudBackup,
-            onWalletSummary: !_webPreview && _summary != null
-                ? _openWallet
-                : null,
+            onCloudBackup: _openCloudBackup,
+            onWalletSummary: _summary != null ? _openWallet : null,
           ),
         ],
       ),
