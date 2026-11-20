@@ -1,0 +1,30 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "backup-v2",
+  "allowed": [
+    "lib/features/ledger/data/ledger_backup.dart",
+    "lib/features/profile/backup_screen.dart",
+    "lib/features/profile/backup_files.dart",
+    "lib/features/counter/note_counter_screen.dart",
+    "lib/features/counter/note_counter_store.dart",
+    "lib/features/counter/saved_sessions_sheet.dart",
+    "lib/features/calculator/calculator_screen.dart",
+    "test/ledger_backup_test.dart",
+    "test/backup_integration_test.dart",
+    "test/backup_screen_test.dart",
+    "test/backup_files_test.dart",
+    "test/note_counter_test.dart",
+    "test/note_counter_store_test.dart",
+    "test/calculator_test.dart",
+    "test/utilities_language_test.dart"
+  ],
+  "commit": "feat(backup): version-2 backups carry the profile, custom categories and the note counter",
+  "check": {
+    "kind": "preflight"
+  },
+  "arena": {
+    "branch": "arena/3b5df89b-khatabook",
+    "base_sha": "2ac599ad05e432563312fafede303944e7257ed2"
+  }
+}
