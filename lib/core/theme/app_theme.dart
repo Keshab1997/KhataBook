@@ -104,7 +104,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.warmIvory,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: const BorderRadius.all(Radius.circular(16)),
           borderSide: BorderSide(color: AppColors.beige.withValues(alpha: 0.9)),
