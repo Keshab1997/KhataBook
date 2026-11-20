@@ -189,7 +189,7 @@ Finder grandTotalText(String formatted) => find.descendant(
 
 void main() {
   group('row states', () {
-    testWidgets('a counted row lifts off the canvas', (
+    testWidgets('counted rows keep an ivory background and an accent border', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
@@ -203,7 +203,17 @@ void main() {
 
       expect(rowColor(50000), AppColors.warmIvory);
       await typeFiveHundreds(tester, '2');
-      expect(rowColor(50000), AppColors.lightGreen);
+      expect(rowColor(50000), AppColors.warmIvory);
+      final AnimatedContainer counted = tester.widget<AnimatedContainer>(
+        find.byKey(const Key('note-counter-row-50000')),
+      );
+      final AnimatedContainer uncounted = tester.widget<AnimatedContainer>(
+        find.byKey(const Key('note-counter-row-20000')),
+      );
+      expect(
+        (counted.decoration! as BoxDecoration).border,
+        isNot((uncounted.decoration! as BoxDecoration).border),
+      );
       // Counting one denomination never tints the others.
       expect(rowColor(20000), AppColors.warmIvory);
       expectNoLayoutErrors(tester);

@@ -746,6 +746,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   );
                 },
               ),
+              const SizedBox(height: 1.5),
             ],
             const SizedBox(height: 2),
             _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
@@ -800,7 +801,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
             ] else ...<Widget>[
               _ActionButton.outlined(
                 buttonKey: const Key('note-counter-copy-summary'),
@@ -838,7 +839,11 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                     ? copy.savedHint
                     : strings.text(AppString.counterSession),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: AppColors.softText),
+                style: const TextStyle(
+                  fontSize: 10,
+                  height: 1.1,
+                  color: AppColors.softText,
+                ),
               ),
             ),
           ],
@@ -971,13 +976,13 @@ class _DenominationRow extends StatelessWidget {
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: counted ? AppColors.lightGreen : AppColors.warmIvory,
+        color: AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: counted || isCoinRow
-              ? AppColors.accentGreen
-              : AppColors.accentGreen.withValues(alpha: 0.45),
-          width: counted ? 1.4 : 1,
+          color: counted
+              ? AppColors.secondaryGreen.withValues(alpha: 0.55)
+              : AppColors.accentGreen.withValues(alpha: 0.4),
+          width: counted ? 1.3 : 1,
         ),
       ),
       child: Row(
@@ -985,7 +990,7 @@ class _DenominationRow extends StatelessWidget {
         children: <Widget>[
           ExcludeSemantics(
             child: SizedBox(
-              width: 76,
+              width: 84,
               height: 42,
               child: Image.asset(
                 _asset,
@@ -1051,7 +1056,7 @@ class _DenominationRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 86,
+            width: 90,
             child: Semantics(
               textField: true,
               label: fieldLabel,
@@ -1068,7 +1073,7 @@ class _DenominationRow extends StatelessWidget {
                 keyboardType: TextInputType.number,
                 style: const TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.headerGreen,
                 ),
                 decoration: InputDecoration(
@@ -1137,52 +1142,67 @@ class _GrandTotalCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Stack(
         children: <Widget>[
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: AppColors.warmIvory,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_circle,
-              size: 21,
-              color: AppColors.incomeGreen,
+          Positioned(
+            right: -10,
+            bottom: -4,
+            child: Image.asset(
+              'assets/illustrations/counter_total_leaves.png',
+              width: 65,
+              height: 48,
+              fit: BoxFit.contain,
+              excludeFromSemantics: true,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  strings.text(AppString.grandTotal),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onPrimary,
-                  ),
+          Row(
+            children: <Widget>[
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.warmIvory,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    strings.money(amountPaise),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: const TextStyle(
-                      fontSize: 27,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.onPrimary,
+                child: const Icon(
+                  Icons.check_circle,
+                  size: 21,
+                  color: AppColors.incomeGreen,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      strings.text(AppString.grandTotal),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onPrimary,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        strings.money(amountPaise),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
