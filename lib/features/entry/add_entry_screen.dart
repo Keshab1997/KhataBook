@@ -1,6 +1,7 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
@@ -235,15 +236,39 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBackground,
       appBar: AppBar(
-        leading:
-            widget.language == AppLanguage.bn &&
-                (ModalRoute.of(context)?.impliesAppBarDismissal ?? false)
-            ? IconButton(
-                icon: const BackButtonIcon(),
-                tooltip: _strings.text(AppString.back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        toolbarHeight: 76,
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(14),
+          child: SizedBox(height: 14),
+        ),
+        flexibleSpace: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            const CustomPaint(painter: _EntryHeaderPainter()),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Image.asset(
+                'assets/illustrations/entry_header_leaves.png',
+                height: 48,
+                fit: BoxFit.contain,
+                excludeFromSemantics: true,
+              ),
+            ),
+          ],
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: _strings.text(AppString.back),
+          onPressed: () => Navigator.of(context).maybePop(),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.primaryGreen,
+            foregroundColor: AppColors.onPrimary,
+          ),
+        ),
         titleSpacing: 0,
         title: Row(
           children: <Widget>[
@@ -291,64 +316,104 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           IconButton(
             onPressed: _save,
             tooltip: _strings.text(AppString.save),
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: AppColors.onPrimary,
+            ),
             icon: const Icon(Icons.save),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                _kindSelector(),
-                const SizedBox(height: 22),
-                _SectionLabel(
-                  _strings.text(AppString.amount),
-                  Icons.account_balance_wallet,
-                ),
-                const SizedBox(height: 8),
-                _amountField(),
-                const SizedBox(height: 18),
-                _SectionLabel(_strings.text(AppString.date), Icons.event),
-                const SizedBox(height: 8),
-                _dateField(),
-                if (future) _inlineWarning(_strings.text(AppString.futureDate)),
-                const SizedBox(height: 18),
-                _SectionLabel(_strings.text(AppString.category), Icons.sell),
-                const SizedBox(height: 12),
-                if (_kind == EntryFormKind.expense) ...<Widget>[
-                  _categoryChips(),
-                  if (_showCategoryError)
-                    _inlineWarning(_strings.text(AppString.pickCategory)),
-                ] else
-                  _incomeCategoryPill(),
-                const SizedBox(height: 18),
-                _SectionLabel(
-                  _strings.text(AppString.description),
-                  Icons.edit_note,
-                ),
-                const SizedBox(height: 8),
-                _descriptionField(),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: _save,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    minimumSize: const Size.fromHeight(58),
-                    backgroundColor: AppColors.primaryGreen,
-                  ),
-                  icon: const Icon(Icons.save),
-                  label: Text(_strings.text(AppString.saveEntry)),
-                ),
-              ],
+      body: Stack(
+        children: <Widget>[
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              child: Image.asset(
+                'assets/illustrations/entry_footer_leaves.png',
+                fit: BoxFit.fitWidth,
+                excludeFromSemantics: true,
+              ),
             ),
           ),
-        ),
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _kindSelector(),
+                    const SizedBox(height: 14),
+                    _SectionLabel(
+                      _strings.text(AppString.amount),
+                      Icons.account_balance_wallet,
+                    ),
+                    const SizedBox(height: 8),
+                    _amountField(),
+                    const SizedBox(height: 12),
+                    _SectionLabel(_strings.text(AppString.date), Icons.event),
+                    const SizedBox(height: 8),
+                    _dateField(),
+                    if (future)
+                      _inlineWarning(_strings.text(AppString.futureDate)),
+                    const SizedBox(height: 12),
+                    _SectionLabel(
+                      _strings.text(AppString.category),
+                      Icons.sell,
+                    ),
+                    const SizedBox(height: 12),
+                    if (_kind == EntryFormKind.expense) ...<Widget>[
+                      _categoryChips(),
+                      if (_showCategoryError)
+                        _inlineWarning(_strings.text(AppString.pickCategory)),
+                    ] else
+                      _incomeCategoryPill(),
+                    const SizedBox(height: 12),
+                    _SectionLabel(
+                      _strings.text(AppString.description),
+                      Icons.edit_note,
+                    ),
+                    const SizedBox(height: 8),
+                    _descriptionField(),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(
+                          color: AppColors.onPrimary,
+                          width: 3,
+                        ),
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: AppColors.golden.withValues(alpha: 0.4),
+                            blurRadius: 9,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: _save,
+                        style: FilledButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          minimumSize: const Size.fromHeight(58),
+                          backgroundColor: AppColors.primaryGreen,
+                        ),
+                        icon: const Icon(Icons.save),
+                        label: Text(_strings.text(AppString.saveEntry)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -802,6 +867,40 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       ),
     );
   }
+}
+
+/// Decorative curved header; all controls remain live AppBar widgets.
+class _EntryHeaderPainter extends CustomPainter {
+  const _EntryHeaderPainter();
+
+  Path _wave(Size size, double bottom) => Path()
+    ..moveTo(0, 0)
+    ..lineTo(size.width, 0)
+    ..lineTo(size.width, size.height - bottom + 8)
+    ..cubicTo(
+      size.width * .78,
+      size.height - bottom - 24,
+      size.width * .35,
+      size.height - bottom + 20,
+      0,
+      size.height - bottom - 10,
+    )
+    ..close();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawPath(_wave(size, 0), Paint()..color = AppColors.golden);
+    canvas.drawPath(
+      _wave(size, 4),
+      Paint()
+        ..shader = const LinearGradient(
+          colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+        ).createShader(Offset.zero & size),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 enum _DatePickerCopy {

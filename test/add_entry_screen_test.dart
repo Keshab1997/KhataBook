@@ -257,6 +257,17 @@ void main() {
     expect(find.text('Description'), findsOneWidget);
     expect(find.byKey(const Key('add-entry-notebook-image')), findsNothing);
     expect(find.text('Save Entry'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/illustrations/entry_footer_leaves.png',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
