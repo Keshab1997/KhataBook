@@ -1,0 +1,24 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "polish-home-ledger",
+  "allowed": [
+    "lib/features/home/home_screen.dart",
+    "lib/features/ledger/all_transactions_screen.dart",
+    "lib/features/ledger/wallet_summary_screen.dart",
+    "lib/features/ledger/khata_manage_screen.dart",
+    "lib/features/ledger/khata_switcher.dart",
+    "test/home_design_test.dart",
+    "test/all_transactions_test.dart",
+    "test/wallet_summary_test.dart",
+    "test/khata_manage_screen_test.dart"
+  ],
+  "commit": "style(home,ledger): polish visual hierarchy, spacing, and card design",
+  "check": {
+    "kind": "preflight"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "953c0c7923cf4051f5c341d16894ca29be879f8a"
+  }
+}
