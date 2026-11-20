@@ -617,164 +617,164 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     }
     final bool addToKhataVisible =
         widget.onAddToKhata != null && _grandTotalPaise > 0;
+    // The whole body scrolls: at large system text scales the fixed chrome
+    // below the rows (total card, buttons, hint) no longer fits on small
+    // phones — a pinned column overflows instead of scrolling.
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              copy.grandTotalHint,
-              key: const Key('note-counter-hint'),
-              style: const TextStyle(fontSize: 11, color: AppColors.softText),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  for (final int denomination in _rowOrderPaise) ...<Widget>[
-                    _DenominationRow(
-                      strings: strings,
-                      denominationPaise: denomination,
-                      isCoinRow: denomination == kCoinDenominationPaise,
-                      controller: _controllers[denomination]!,
-                      errorText: _inputErrors[denomination],
-                      rowTotalPaise:
-                          denomination * (_quantities[denomination] ?? 0),
-                      counted: (_quantities[denomination] ?? 0) > 0,
-                      onChanged: (String raw) =>
-                          _onRowChanged(raw, denomination),
-                      onTapSelectAll: () {
-                        final TextEditingController controller =
-                            _controllers[denomination]!;
-                        if (controller.text.isEmpty) return;
-                        controller.selection = TextSelection(
-                          baseOffset: 0,
-                          extentOffset: controller.text.length,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 5),
-                  ],
-                ],
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                copy.grandTotalHint,
+                key: const Key('note-counter-hint'),
+                style: const TextStyle(fontSize: 11, color: AppColors.softText),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
-          const SizedBox(height: 8),
-          if (addToKhataVisible) ...<Widget>[
-            FilledButton.icon(
-              key: const Key('note-counter-add-to-khata'),
-              onPressed: _addToKhata,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.incomeGreen,
-                minimumSize: const Size.fromHeight(52),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
+            const SizedBox(height: 6),
+            for (final int denomination in _rowOrderPaise) ...<Widget>[
+              _DenominationRow(
+                strings: strings,
+                denominationPaise: denomination,
+                isCoinRow: denomination == kCoinDenominationPaise,
+                controller: _controllers[denomination]!,
+                errorText: _inputErrors[denomination],
+                rowTotalPaise: denomination * (_quantities[denomination] ?? 0),
+                counted: (_quantities[denomination] ?? 0) > 0,
+                onChanged: (String raw) => _onRowChanged(raw, denomination),
+                onTapSelectAll: () {
+                  final TextEditingController controller =
+                      _controllers[denomination]!;
+                  if (controller.text.isEmpty) return;
+                  controller.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: controller.text.length,
+                  );
+                },
+              ),
+              const SizedBox(height: 5),
+            ],
+            const SizedBox(height: 6),
+            _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
+            const SizedBox(height: 8),
+            if (addToKhataVisible) ...<Widget>[
+              FilledButton.icon(
+                key: const Key('note-counter-add-to-khata'),
+                onPressed: _addToKhata,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.incomeGreen,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 20,
+                ),
+                label: Text(
+                  copy.addToKhata,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
                 ),
               ),
-              icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
-              label: Text(
-                copy.addToKhata,
-                maxLines: 2,
-                textAlign: TextAlign.center,
+              const SizedBox(height: 12),
+            ],
+            if (_persistent) ...<Widget>[
+              _ActionButton.filled(
+                buttonKey: const Key('note-counter-save'),
+                onPressed: _isEmpty ? null : _saveSession,
+                icon: Icons.save_outlined,
+                label: strings.text(AppString.save),
               ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_persistent) ...<Widget>[
-            _ActionButton.filled(
-              buttonKey: const Key('note-counter-save'),
-              onPressed: _isEmpty ? null : _saveSession,
-              icon: Icons.save_outlined,
-              label: strings.text(AppString.save),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _ActionButton.outlined(
+                      buttonKey: const Key('note-counter-saved-sessions'),
+                      onPressed: _showSessions,
+                      icon: Icons.bookmark_outline,
+                      label: copy.savedSessions,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ActionButton.outlined(
+                      buttonKey: const Key('note-counter-copy-summary'),
+                      onPressed: _isEmpty ? null : _copySummary,
+                      icon: Icons.content_copy,
+                      label: copy.copySummary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ] else ...<Widget>[
+              _ActionButton.outlined(
+                buttonKey: const Key('note-counter-copy-summary'),
+                onPressed: _isEmpty ? null : _copySummary,
+                icon: Icons.content_copy,
+                label: copy.copySummary,
+              ),
+              const SizedBox(height: 8),
+            ],
             Row(
               children: <Widget>[
                 Expanded(
-                  child: _ActionButton.outlined(
-                    buttonKey: const Key('note-counter-saved-sessions'),
-                    onPressed: _showSessions,
-                    icon: Icons.bookmark_outline,
-                    label: copy.savedSessions,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _ActionButton.outlined(
-                    buttonKey: const Key('note-counter-copy-summary'),
-                    onPressed: _isEmpty ? null : _copySummary,
-                    icon: Icons.content_copy,
-                    label: copy.copySummary,
+                  child: OutlinedButton.icon(
+                    key: const Key('note-counter-new-count'),
+                    onPressed: _confirmNewCount,
+                    icon: const Icon(Icons.refresh, size: 20),
+                    label: Text(strings.text(AppString.newCount)),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      foregroundColor: AppColors.primaryGreen,
+                      side: const BorderSide(color: AppColors.primaryGreen),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-          ] else ...<Widget>[
-            _ActionButton.outlined(
-              buttonKey: const Key('note-counter-copy-summary'),
-              onPressed: _isEmpty ? null : _copySummary,
-              icon: Icons.content_copy,
-              label: copy.copySummary,
-            ),
-            const SizedBox(height: 8),
-          ],
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('note-counter-new-count'),
-                  onPressed: _confirmNewCount,
-                  icon: const Icon(Icons.refresh, size: 20),
-                  label: Text(strings.text(AppString.newCount)),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                    foregroundColor: AppColors.primaryGreen,
-                    side: const BorderSide(color: AppColors.primaryGreen),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(16)),
-                    ),
+            if (_persistent) ...<Widget>[
+              const SizedBox(height: 8),
+              _SaveStatus(
+                strings: strings,
+                phase: _savePhase,
+                error: _saveError,
+                onRetry: _schedulePersist,
+              ),
+              if (_unreadableRows) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  copy.unreadableRows,
+                  key: const Key('note-counter-unreadable-warning'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.softText,
                   ),
                 ),
-              ),
+              ],
             ],
-          ),
-          if (_persistent) ...<Widget>[
             const SizedBox(height: 8),
-            _SaveStatus(
-              strings: strings,
-              phase: _savePhase,
-              error: _saveError,
-              onRetry: _schedulePersist,
-            ),
-            if (_unreadableRows) ...<Widget>[
-              const SizedBox(height: 6),
-              Text(
-                copy.unreadableRows,
-                key: const Key('note-counter-unreadable-warning'),
+            Center(
+              child: Text(
+                _persistent
+                    ? copy.savedHint
+                    : strings.text(AppString.counterSession),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 11, color: AppColors.softText),
               ),
-            ],
-          ],
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              _persistent
-                  ? copy.savedHint
-                  : strings.text(AppString.counterSession),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, color: AppColors.softText),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
