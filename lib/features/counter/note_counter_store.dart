@@ -24,6 +24,11 @@
 // The JSON backup codec (lib/features/ledger/data/ledger_backup.dart) carries
 // these rows in format version 2, so a backup restored on another phone brings
 // the counts and the saved sessions along with the ledger.
+//
+// The ₹2,000 note is withdrawn: it has no row and no flag any more. Loading a
+// khata repairs away any stored ₹2,000 quantity rows and the old
+// `show_two_thousand` flag (in the state row and in saved sessions), so the
+// retired note can never resurface - not kept, not silently ignored.
 
 import 'dart:async';
 import 'dart:convert';
@@ -36,7 +41,17 @@ import '../ledger/data/local_ledger.dart';
 /// Largest quantity a single denomination accepts (docs/spec/data-model.md).
 const int kMaxNoteQuantity = 99999;
 
-/// Denominations always offered, in paise, smallest first.
+/// The ₹1 coin, in paise. The counter's one-and-only coin row stores how many
+/// rupees of coins the user counted there (1 coin = ₹1), so a quantity of 37
+/// is ₹37 of coins - the user never enters a number of coins.
+const int kCoinDenominationPaise = 100;
+
+/// The ₹2,000 note was withdrawn from the counter. It has no row and cannot be
+/// stored any more; the constant only names the retired value so the load-time
+/// repair can find and remove stored rows for it.
+const int kRetiredTwoThousandPaise = 200000;
+
+/// Note denominations always offered, in paise, smallest first.
 const List<int> kStandardDenominationsPaise = <int>[
   1000, // ₹10
   2000, // ₹20
@@ -46,32 +61,35 @@ const List<int> kStandardDenominationsPaise = <int>[
   50000, // ₹500
 ];
 
-/// The optional denomination, hidden until the user opts in (D3/Q3).
-const int kOptionalDenominationPaise = 200000; // ₹2,000
-
 /// Every storable denomination in paise, ascending.
 ///
-/// Derived from the two lists above so a denomination cannot be offered on
+/// Derived from the lists above so a denomination cannot be offered on
 /// screen without also being storable, and the store cannot accept one the
-/// screen will never show.
+/// screen will never show. The retired ₹2,000 note is deliberately absent, so
+/// no code path can write or resurrect it any more.
 final List<int> kAllDenominationsPaise = List<int>.unmodifiable(<int>[
+  kCoinDenominationPaise,
   ...kStandardDenominationsPaise,
-  kOptionalDenominationPaise,
 ]);
 
 /// The denomination a saved session starts on when it has none of its own.
 const int kDefaultDenominationPaise = 50000; // ₹500, as in the mockup.
 
-/// One khata's note-count session: how many notes of each denomination are
-/// counted, which denomination is selected, and whether ₹2,000 is shown.
+/// One khata's note-count session: how many of each denomination are counted.
+///
+/// [selectedDenominationPaise] and [showTwoThousand] are kept for API
+/// compatibility with the retired selected-denomination UI: the screen always
+/// passes the default selection and `false`, and the load-time repair clears
+/// any stored ₹2,000 flag, so neither carries meaning any more.
 ///
 /// Immutable: [quantities] is copied and unmodifiable, and every value is
 /// validated in the constructor, so a snapshot is either a real count or an
 /// error - never a half-counted map that would be saved as if it were complete.
 ///
-/// [quantities] always has one entry per known denomination, including zero:
-/// "not counted yet" and "counted zero" are the same stored value, which is
-/// what lets a restart show the same screen it was left on.
+/// [quantities] always has one entry per known denomination, including zero
+/// (the seven storable denominations: six notes and the ₹1 coin): "not counted
+/// yet" and "counted zero" are the same stored value, which is what lets a
+/// restart show the same screen it was left on.
 final class NoteCounterSnapshot {
   /// Validates and copies [quantities].
   ///
@@ -98,7 +116,8 @@ final class NoteCounterSnapshot {
   /// The denomination the screen has selected, in paise.
   final int selectedDenominationPaise;
 
-  /// Whether the optional ₹2,000 denomination is offered.
+  /// Kept for API compatibility; always `false` on load - the load-time
+  /// repair clears the retired ₹2,000 flag.
   final bool showTwoThousand;
 
   /// True when [NoteCounterStore.load] had to skip or adjust stored rows that
@@ -180,8 +199,8 @@ final class NoteCounterSnapshot {
 /// One saved count for a khata: a timestamped snapshot the user asked to keep.
 ///
 /// Immutable like [NoteCounterSnapshot]. [savedAt] is UTC; callers render it in
-/// device-local time. [snapshot] carries the quantities, the selected
-/// denomination and the ₹2,000 visibility as they were when the user saved.
+/// device-local time. [snapshot] carries the quantities as they were when the
+/// user saved.
 final class SavedNoteCount {
   const SavedNoteCount({
     required this.id,
@@ -366,6 +385,7 @@ class NoteCounterStore {
 
   Future<NoteCounterSnapshot> _readSnapshot(String khataId) async {
     if (!await _khataExists(khataId)) throw KhataNotFoundException(khataId);
+    final bool repaired = await _repairRetiredTwoThousand(khataId);
 
     final List<QueryRow> quantityRows = await _ledger
         .customSelect(
@@ -375,7 +395,7 @@ class NoteCounterStore {
         )
         .get();
 
-    bool unreadable = false;
+    bool unreadable = repaired;
     final Map<int, int> quantities = <int, int>{};
     for (final QueryRow row in quantityRows) {
       try {
@@ -436,18 +456,129 @@ class NoteCounterStore {
       }
     }
 
-    if (!showTwoThousand && selected == kOptionalDenominationPaise) {
-      // The stored pair cannot be drawn: the selection sits on a hidden chip.
-      // The count is untouched; only the selection moves.
-      selected = kDefaultDenominationPaise;
-    }
-
     return NoteCounterSnapshot(
       quantities: quantities,
       selectedDenominationPaise: selected,
       showTwoThousand: showTwoThousand,
       hasUnreadableRows: unreadable,
     );
+  }
+
+  /// Retired ₹2,000 note: repairs away any stored quantity rows and the old
+  /// `show_two_thousand` flag, for [khataId]'s current count and for its saved
+  /// sessions. Runs at the start of every load (and before listing sessions),
+  /// inside the same transaction, so the retired note can never resurface.
+  ///
+  /// This is a deliberate, active repair - never a kept value, never a silent
+  /// skip: the quantities are deleted and the flags reset to 0, and saved
+  /// sessions are rewritten without the ₹2,000 entry. Other denominations,
+  /// quantities and timestamps are carried through unchanged. Only rows this
+  /// khata owns are touched. Idempotent: a phone without ₹2,000 data writes
+  /// nothing.
+  /// Returns true when anything was repaired, so the caller can report it
+  /// instead of pretending the stored rows were read as they were.
+  Future<bool> _repairRetiredTwoThousand(String khataId) async {
+    bool changed = false;
+    final List<QueryRow> retiredQty = await _ledger
+        .customSelect(
+          'SELECT COUNT(*) AS c FROM note_counter_quantities '
+          'WHERE khata_id = ? AND denomination_paise = ?',
+          variables: <Variable<Object>>[
+            Variable<String>(khataId),
+            const Variable<int>(kRetiredTwoThousandPaise),
+          ],
+        )
+        .get();
+    changed = retiredQty.single.read<int>('c') > 0;
+    final List<QueryRow> retiredState = await _ledger
+        .customSelect(
+          'SELECT COUNT(*) AS c FROM note_counter_state '
+          'WHERE khata_id = ? AND (show_two_thousand != 0 '
+          'OR selected_denomination_paise = ?)',
+          variables: <Variable<Object>>[
+            Variable<String>(khataId),
+            const Variable<int>(kRetiredTwoThousandPaise),
+          ],
+        )
+        .get();
+    changed = changed || retiredState.single.read<int>('c') > 0;
+    await _ledger.customStatement(
+      'DELETE FROM note_counter_quantities '
+      'WHERE khata_id = ? AND denomination_paise = ?',
+      <Object>[khataId, kRetiredTwoThousandPaise],
+    );
+    await _ledger.customStatement(
+      'UPDATE note_counter_state SET show_two_thousand = 0 '
+      'WHERE khata_id = ? AND show_two_thousand != 0',
+      <Object>[khataId],
+    );
+    await _ledger.customStatement(
+      'UPDATE note_counter_state SET selected_denomination_paise = ? '
+      'WHERE khata_id = ? AND selected_denomination_paise = ?',
+      <Object>[kDefaultDenominationPaise, khataId, kRetiredTwoThousandPaise],
+    );
+    final List<QueryRow> sessions = await _ledger
+        .customSelect(
+          'SELECT id, quantities_json, selected_denomination_paise, '
+          'show_two_thousand FROM note_counter_saved_sessions '
+          'WHERE khata_id = ?',
+          variables: <Variable<Object>>[Variable<String>(khataId)],
+        )
+        .get();
+    for (final QueryRow row in sessions) {
+      final String id = row.read<String>('id');
+      try {
+        final Object? decoded = jsonDecode(row.read<String>('quantities_json'));
+        if (decoded is! Map<dynamic, dynamic>) {
+          // Corrupt JSON is not decoded or rewritten here; the session-row
+          // reader reports such rows as unreadable instead of guessing.
+          continue;
+        }
+        final Map<String, int> kept = <String, int>{};
+        bool dropped = false;
+        bool unhandled = false;
+        for (final MapEntry<dynamic, dynamic> entry in decoded.entries) {
+          final String key = entry.key.toString();
+          if (key == '$kRetiredTwoThousandPaise') {
+            dropped = true;
+            continue;
+          }
+          final Object? value = entry.value;
+          if (value is! int) {
+            // Not a value this code rewrites or invents a substitute for;
+            // leave the whole row for the normal reader to report.
+            unhandled = true;
+            break;
+          }
+          kept[key] = value;
+        }
+        if (unhandled) continue;
+        int selected = row.read<int>('selected_denomination_paise');
+        int visibility = row.read<int>('show_two_thousand');
+        final bool selectionRepaired = selected == kRetiredTwoThousandPaise;
+        if (!dropped && !selectionRepaired && visibility == 0) continue;
+        changed = true;
+        if (selectionRepaired) selected = kDefaultDenominationPaise;
+        if (visibility != 0) visibility = 0;
+        await _ledger.customStatement(
+          'UPDATE note_counter_saved_sessions '
+          'SET quantities_json = ?, selected_denomination_paise = ?, '
+          'show_two_thousand = ? '
+          'WHERE khata_id = ? AND id = ?',
+          <Object>[
+            jsonEncode(kept),
+            selected,
+            visibility,
+            khataId,
+            id,
+          ],
+        );
+      } catch (_) {
+        // A row that cannot be read is left alone; the session-row reader
+        // reports such rows as unreadable instead of guessing at them.
+      }
+    }
+    return changed;
   }
 
   /// Queues [snapshot] as the newest count for [khataId].
@@ -539,18 +670,23 @@ class NoteCounterStore {
     if (khataId.trim().isEmpty) throw KhataNotFoundException(khataId);
     await _ensureSchema();
     if (!await _khataExists(khataId)) throw KhataNotFoundException(khataId);
-    final List<QueryRow> rows = await _ledger
-        .customSelect(
-          _listSessions,
-          variables: <Variable<Object>>[Variable<String>(khataId)],
-        )
-        .get();
-    final List<SavedNoteCount> sessions = <SavedNoteCount>[];
-    for (final QueryRow row in rows) {
-      final SavedNoteCount? parsed = _parseSessionRow(row, khataId);
-      if (parsed != null) sessions.add(parsed);
-    }
-    return sessions;
+    // Repair before reading, so the sheet never has to render a session that
+    // still carries the retired ₹2,000 note. One transaction, like a load.
+    return _ledger.transaction(() async {
+      await _repairRetiredTwoThousand(khataId);
+      final List<QueryRow> rows = await _ledger
+          .customSelect(
+            _listSessions,
+            variables: <Variable<Object>>[Variable<String>(khataId)],
+          )
+          .get();
+      final List<SavedNoteCount> sessions = <SavedNoteCount>[];
+      for (final QueryRow row in rows) {
+        final SavedNoteCount? parsed = _parseSessionRow(row, khataId);
+        if (parsed != null) sessions.add(parsed);
+      }
+      return sessions;
+    });
   }
 
   /// Removes one saved session, scoped by [khataId] so one khata's sheet can

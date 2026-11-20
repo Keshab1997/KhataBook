@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../ledger/data/local_ledger.dart' show KhataNotFoundException;
-import '../profile/settings_screen.dart';
 import 'note_counter_store.dart';
 import 'saved_sessions_sheet.dart';
 
@@ -17,10 +16,12 @@ import 'saved_sessions_sheet.dart';
 
 /// S4 - Note Counter. See docs/spec/screens.md#s4--note-counter.
 ///
-/// Counts physical notes by denomination: pick a denomination, enter how
-/// many you hold, read the per-denomination total and the grand total. All
-/// arithmetic is integer paise - no doubles anywhere - and money text goes
-/// through [AppStrings].
+/// Counts physical notes and coins: every denomination is one row on one
+/// screen - ₹500, ₹200, ₹100, ₹50, ₹20, ₹10 and a final row for the total
+/// value of coins in rupees - each with its illustration, a quantity field
+/// and its row total, and the grand total at the bottom. All arithmetic is
+/// integer paise - no doubles anywhere - and money text goes through
+/// [AppStrings].
 ///
 /// Two modes:
 ///
@@ -28,10 +29,9 @@ import 'saved_sessions_sheet.dart';
 ///   counter: nothing is persisted, nothing leaves the screen, and the
 ///   "nothing is saved" hint is shown.
 /// * **Per-khata** (both [store] and [khataId]) - the count for that khata is
-///   loaded on open and every edit (quantities, selected denomination, ₹2,000
-///   visibility) is written back through the store on a coalescing write
-///   queue, so a fast tap sequence is never dropped and never blocks the UI.
-///   A new `khataId` reloads and never carries quantities over.
+///   loaded on open and every edit is written back through the store on a
+///   coalescing write queue, so a fast tap sequence is never dropped and never
+///   blocks the UI. A new `khataId` reloads and never carries quantities over.
 ///
 /// In both modes the screen never writes a ledger transaction. The optional
 /// [onAddToKhata] action hands the Grand Total to its caller as integer paise
@@ -79,10 +79,23 @@ class _Copy {
 
   bool get _bn => language == AppLanguage.bn;
 
-  String get currentNote => _bn ? 'বর্তমান নোট' : 'CURRENT NOTE';
+  String quantityFieldLabel(AppStrings strings, int denominationPaise) => _bn
+      ? '${strings.money(denominationPaise)} নোটের সংখ্যা'
+      : 'Quantity of ${strings.money(denominationPaise)} notes';
 
-  String get chooseNote =>
-      _bn ? 'নিচ থেকে নোট বেছে নিন' : 'Choose a note below';
+  String coinsAmountLabel(AppStrings strings) => _bn
+      ? 'কয়েনের মোট পরিমাণ (টাকা)'
+      : 'Total value of coins (₹)';
+
+  String coinsRowValue(AppStrings strings, int paise) => _bn
+      ? '${strings.money(paise)} কয়েন'
+      : 'Coins totalling ${strings.money(paise)}';
+
+  String get grandTotalLabel => _bn ? 'সর্বমোট' : 'Grand Total';
+
+  String get grandTotalHint => _bn
+      ? 'মাত্র সংখ্যাগুলো লিখুন — হিসাব নিজেই হয়ে যায়'
+      : 'Just type the numbers - the maths is done for you';
 
   String get savedHint => _bn
       ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়; ব্যাকআপ ফাইলের সাথে যায়'
@@ -152,18 +165,6 @@ class _Copy {
 
   String get sessionRestored =>
       _bn ? 'সংরক্ষিত গণনা ফিরিয়ে আনা হয়েছে' : 'Saved count restored';
-
-  String hiddenTwoThousand(AppStrings strings, int quantity) => _bn
-      ? '₹২,০০০ × ${strings.number(quantity)} নোট রয়েছে (নোটটি লুকানো)'
-      : 'Includes ₹2,000 × $quantity (denomination hidden)';
-
-  String quantityFieldLabel(AppStrings strings, int denominationPaise) => _bn
-      ? '${strings.money(denominationPaise)} নোটের সংখ্যা'
-      : 'Quantity of ${strings.money(denominationPaise)} notes';
-
-  String chipNoteLabel(AppStrings strings, int denominationPaise) => _bn
-      ? '${strings.money(denominationPaise)} নোট'
-      : '${strings.money(denominationPaise)} note';
 }
 
 /// Which body a per-khata counter shows.
@@ -179,17 +180,20 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     for (final int denomination in kAllDenominationsPaise) denomination: 0,
   };
 
-  final TextEditingController _quantityController = TextEditingController(
-    text: '0',
-  );
+  /// One controller per row: the six notes hold a number of notes,
+  /// [kCoinDenominationPaise] holds the total coin amount in rupees (integer,
+  /// no paise). "1 coin = ₹1" - the user types how many rupees of coins they
+  /// hold, never a coin count.
+  final Map<int, TextEditingController> _controllers =
+      <int, TextEditingController>{
+    for (final int denomination in kAllDenominationsPaise)
+      denomination: TextEditingController(text: '0'),
+  };
 
-  int _selectedDenominationPaise = kDefaultDenominationPaise;
-  bool _showTwoThousand = false;
-
-  /// Set when the last typed value was rejected (negative or decimal). The
-  /// field is not rewritten, so the user sees exactly what they typed plus an
-  /// explicit error instead of a silently corrected number.
-  String? _inputError;
+  /// Per-row error message keyed by denomination, shown as helper text.
+  final Map<int, String?> _inputErrors = <int, String?>{
+    for (final int denomination in kAllDenominationsPaise) denomination: null,
+  };
 
   /// True when both halves of the per-khata mode were supplied.
   bool get _persistent => widget.khataId != null && widget.store != null;
@@ -257,20 +261,18 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     );
   }
 
-  /// Returns this screen to the empty ₹500 session.
+  /// Returns this screen to the empty session.
   void _resetSession() {
     for (final int denomination in _quantities.keys.toList()) {
       _quantities[denomination] = 0;
+      _controllers[denomination]!.text = '0';
+      _inputErrors[denomination] = null;
     }
-    _selectedDenominationPaise = kDefaultDenominationPaise;
-    _showTwoThousand = false;
-    _inputError = null;
     _phase = _CountPhase.ready;
     _loadError = null;
     _savePhase = _SavePhase.idle;
     _saveError = null;
     _unreadableRows = false;
-    _syncFieldToSelection();
   }
 
   @override
@@ -288,283 +290,139 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
         unawaited(_persist(store, khataId, _snapshot(), _writeRequest));
       }
     }
-    _quantityController.dispose();
+    for (final TextEditingController controller in _controllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  /// Denominations currently offered, largest first for the chip row.
-  List<int> get _visibleDenominationsPaise => <int>[
-    if (_showTwoThousand) kOptionalDenominationPaise,
+  /// Rows currently shown, largest note first; the coin row is always last.
+  List<int> get _rowOrderPaise => <int>[
     ...kStandardDenominationsPaise.reversed,
+    kCoinDenominationPaise,
   ];
-
-  int get _selectedQuantity => _quantities[_selectedDenominationPaise] ?? 0;
-
-  int get _selectedTotalPaise => _selectedDenominationPaise * _selectedQuantity;
 
   int get _grandTotalPaise => _quantities.entries.fold<int>(
     0,
     (int sum, MapEntry<int, int> entry) => sum + entry.key * entry.value,
   );
 
-  /// Quantity counted for a denomination that is currently hidden.
-  int get _hiddenQuantity =>
-      _showTwoThousand ? 0 : (_quantities[kOptionalDenominationPaise] ?? 0);
+  /// True when every row is still at zero.
+  bool get _isEmpty =>
+      _quantities.values.every((int quantity) => quantity == 0);
 
-  void _selectDenomination(int denominationPaise) {
-    setState(() {
-      _selectedDenominationPaise = denominationPaise;
-      _inputError = null;
-    });
-    _syncFieldToSelection();
-    _schedulePersist();
-  }
+  bool get _bn => widget.language == AppLanguage.bn;
 
-  void _setQuantity(int denominationPaise, int requested) {
-    final int clamped = requested.clamp(0, kMaxNoteQuantity);
-    setState(() {
-      _quantities[denominationPaise] = clamped;
-      _inputError = null;
-    });
-    if (denominationPaise == _selectedDenominationPaise) {
-      _writeField(clamped.toString());
-    }
-    _schedulePersist();
-  }
+  _Copy _copy() => _Copy(widget.language);
 
-  void _increment() {
-    _setQuantity(_selectedDenominationPaise, _selectedQuantity + 1);
-  }
-
-  void _decrement() {
-    if (_selectedQuantity == 0) {
-      return;
-    }
-    _setQuantity(_selectedDenominationPaise, _selectedQuantity - 1);
-  }
-
-  /// Validates the text field.
+  /// Validates the text of [denomination]'s field.
   ///
-  /// Empty means "nothing counted yet" (zero), which is not an error. Anything
-  /// that is not a non-negative whole number - `-5`, `1.5`, `abc`, `0x10` - is
-  /// **rejected**: the quantity is not changed and [_inputError] explains why.
-  /// Silently turning `-5` or `1.5` into some other positive count would be a
-  /// lie about what the user entered.
-  ///
-  /// A correctly typed value above [kMaxNoteQuantity] is clamped, because the
-  /// limit is a documented ceiling rather than a typo.
-  void _onQuantityChanged(String raw) {
+  /// Empty means "nothing counted" (zero), which is not an error. Any digit
+  /// string is a number of notes for note rows and a **total coin amount in
+  /// rupees** for the coin row; both are capped at [kMaxNoteQuantity].
+  /// Anything that is not a non-negative whole number is rejected: the value
+  /// is not changed and the field keeps exactly what the user typed, with an
+  /// explicit error. A digit string longer than an int is pinned to the
+  /// documented maximum *and the field is rewritten*, so the visible number
+  /// and the counted number always agree.
+  void _onRowChanged(String raw, int denomination) {
     final AppStrings strings = AppStrings(widget.language);
-    // Only a genuinely empty field means "nothing counted". Whitespace is
-    // *not* emptiness: `' '` is something the user typed, so it is rejected
-    // like any other invalid entry rather than silently resetting the count.
     if (raw.isEmpty) {
       setState(() {
-        _quantities[_selectedDenominationPaise] = 0;
-        _inputError = null;
-      });
-      _schedulePersist();
-      return;
-    }
-
-    // Validate the raw string - no trimming - so surrounding or internal
-    // spaces (`' 5'`, `'5 0'`) are rejected instead of being quietly accepted
-    // as a different number.
-    final bool isWholeNumber = RegExp(r'^[0-9]+$').hasMatch(raw);
-    final String? error = isWholeNumber
-        ? null
-        : raw.trimLeft().startsWith('-')
-        ? strings.text(AppString.negativeQuantity)
-        : strings.text(AppString.wholeNotes);
-    if (!isWholeNumber) {
-      setState(() => _inputError = error);
-      return;
-    }
-
-    final int? parsed = int.tryParse(raw);
-    if (parsed == null) {
-      // A digit string longer than the platform int can hold (e.g. 30 nines)
-      // parses to null. Pin the count to the documented maximum *and rewrite
-      // the field*, so the visible number and the counted number agree; the
-      // old `?? kMaxNoteQuantity` fallback left the field showing the huge
-      // string while the count sat at the maximum.
-      setState(() {
-        _quantities[_selectedDenominationPaise] = kMaxNoteQuantity;
-        _inputError = null;
-      });
-      _writeField(kMaxNoteQuantity.toString());
-      _schedulePersist();
-      return;
-    }
-
-    final int clamped = parsed.clamp(0, kMaxNoteQuantity);
-    setState(() {
-      _quantities[_selectedDenominationPaise] = clamped;
-      _inputError = null;
-    });
-    if (clamped != parsed) {
-      _writeField(clamped.toString());
-    }
-    _schedulePersist();
-  }
-
-  /// Direct-input values longer than five digits would otherwise keep growing;
-  /// normalizing on demand keeps the visible field and the state identical.
-  void _commitTypedQuantity() {
-    FocusScope.of(context).unfocus();
-    if (_inputError != null) {
-      // "Calculate" with a bad value returns the field to the last valid count
-      // rather than computing a total from a number the user did not enter.
-      setState(() => _inputError = null);
-    }
-    _writeField(_selectedQuantity.toString());
-  }
-
-  void _toggleTwoThousand(bool value) {
-    setState(() {
-      _showTwoThousand = value;
-      if (!value && _selectedDenominationPaise == kOptionalDenominationPaise) {
-        // Never leave the selection on a hidden chip. The counted quantity is
-        // kept (see _hiddenQuantity) - only the selection moves.
-        _selectedDenominationPaise = kDefaultDenominationPaise;
-      }
-    });
-    _syncFieldToSelection();
-    _schedulePersist();
-  }
-
-  /// The "New count" button: resets only the current session, in both modes.
-  /// Ledger entries, the balance, saved sessions and any other khata are not
-  /// touched. Per-khata mode additionally stores the zeros.
-  /// `New count`: reset every denomination. A non-empty count is wiped from
-  /// the screen (and, per-khata, persisted as zeros), so the user confirms
-  /// first; an empty count resets without a dialog. Saved sessions are kept.
-  Future<void> _newCount() async {
-    if (_grandTotalPaise > 0) {
-      final AppStrings strings = AppStrings(widget.language);
-      final _Copy copy = _Copy(widget.language);
-      final bool? confirmed = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext dialogContext) => AlertDialog(
-          title: Text(copy.newCountConfirmTitle),
-          content: Text(copy.newCountConfirmBody),
-          actions: <Widget>[
-            TextButton(
-              key: const Key('note-counter-new-count-cancel'),
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(strings.text(AppString.cancel)),
-            ),
-            FilledButton(
-              key: const Key('note-counter-new-count-confirm'),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(strings.text(AppString.newCount)),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-    setState(() {
-      for (final int denomination in _quantities.keys.toList()) {
         _quantities[denomination] = 0;
-      }
-      _inputError = null;
+        _inputErrors[denomination] = null;
+      });
+      _schedulePersist();
+      return;
+    }
+    if (!RegExp(r'^[0-9]+$').hasMatch(raw)) {
+      setState(() {
+        _inputErrors[denomination] = strings.text(AppString.wholeNotes);
+      });
+      return;
+    }
+    final int? parsed = int.tryParse(raw);
+    final int clamped =
+        parsed == null ? kMaxNoteQuantity : parsed.clamp(0, kMaxNoteQuantity);
+    setState(() {
+      _quantities[denomination] = clamped;
+      _inputErrors[denomination] = null;
     });
-    _syncFieldToSelection();
-    // Per-khata mode persists the zeros for this khata only. No rows are
-    // deleted, so this cannot sweep away another khata's session or any saved
-    // session snapshot.
+    if (parsed == null || clamped != parsed) {
+      _setRowText(denomination, clamped);
+    }
     _schedulePersist();
   }
 
-  void _syncFieldToSelection() {
-    _writeField(_selectedQuantity.toString());
-  }
-
-  /// Writes text without firing `onChanged` (setting `controller.text` does
-  /// not call the field's callback) and keeps the caret at the end.
-  void _writeField(String text) {
-    _quantityController.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
+  /// Writes [value] (in stored units) into [denomination]'s field.
+  void _setRowText(int denomination, int value) {
+    final TextEditingController controller = _controllers[denomination]!;
+    final String text = value.toString();
+    if (controller.text == text) return;
+    controller.text = text;
+    controller.selection = TextSelection(
+      baseOffset: text.length,
+      extentOffset: text.length,
     );
   }
 
-  NoteCounterSnapshot _snapshot() => NoteCounterSnapshot(
-    quantities: Map<int, int>.of(_quantities),
-    selectedDenominationPaise: _selectedDenominationPaise,
-    showTwoThousand: _showTwoThousand,
-  );
-
-  void _startLoad({required bool notify}) {
+  Future<void> _startLoad({required bool notify}) async {
     final NoteCounterStore? store = widget.store;
     final String? khataId = widget.khataId;
     if (store == null || khataId == null) return;
     final int request = ++_loadRequest;
-    if (notify) {
+    if (notify && mounted) {
       setState(() {
         _phase = _CountPhase.loading;
         _loadError = null;
       });
     }
-    unawaited(_load(store, khataId, request));
-  }
-
-  Future<void> _load(
-    NoteCounterStore store,
-    String khataId,
-    int request,
-  ) async {
-    NoteCounterSnapshot snapshot;
     try {
-      snapshot = await store.load(khataId);
+      final NoteCounterSnapshot snapshot = await store.load(khataId);
+      if (!mounted || request != _loadRequest) return;
+      setState(() {
+        _phase = _CountPhase.ready;
+        _loadError = null;
+        _applySnapshot(snapshot);
+      });
     } catch (error) {
-      if (!mounted || request != _loadRequest || widget.khataId != khataId) {
-        return;
-      }
+      if (!mounted || request != _loadRequest) return;
       setState(() {
         _phase = _CountPhase.failed;
         _loadError = error;
       });
-      return;
     }
-    if (!mounted || request != _loadRequest || widget.khataId != khataId) {
-      // The user already switched khata: showing this answer would be a
-      // cross-account display of the previous khata's count.
-      return;
-    }
-    setState(() {
-      for (final int denomination in _quantities.keys.toList()) {
-        _quantities[denomination] = snapshot.quantityFor(denomination);
-      }
-      _selectedDenominationPaise = snapshot.selectedDenominationPaise;
-      _showTwoThousand = snapshot.showTwoThousand;
-      _unreadableRows = snapshot.hasUnreadableRows;
-      _inputError = null;
-      _phase = _CountPhase.ready;
-      _savePhase = _SavePhase.idle;
-      _saveError = null;
-    });
-    _syncFieldToSelection();
   }
 
-  /// Persists the current count for the active khata, if this is a saved counter.
-  ///
-  /// Every edit calls this. The store keeps only the newest snapshot per khata
-  /// and writes serially, so a burst of taps - or a khata switch in the middle
-  /// of one - can neither reorder the writes nor leave an older value behind.
-  /// A failed write stays visible with a retry instead of being reported as
-  /// saved.
+  /// Applies a snapshot from storage to the fields, without scheduling a
+  /// write back. Writes the fields with the same integer units the store
+  /// keeps.
+  void _applySnapshot(NoteCounterSnapshot snapshot) {
+    for (final int denomination in _quantities.keys.toList()) {
+      _quantities[denomination] = snapshot.quantities[denomination] ?? 0;
+      _setRowText(denomination, _quantities[denomination]!);
+      _inputErrors[denomination] = null;
+    }
+    _unreadableRows = snapshot.hasUnreadableRows;
+    _savePhase = _SavePhase.idle;
+    _saveError = null;
+  }
+
+  NoteCounterSnapshot _snapshot() => NoteCounterSnapshot(
+    quantities: <int, int>{
+      for (final MapEntry<int, int> entry in _quantities.entries)
+        entry.key: entry.value,
+    },
+    selectedDenominationPaise: kDefaultDenominationPaise,
+    showTwoThousand: false,
+  );
+
   void _schedulePersist() {
-    if (!_persistent || _phase != _CountPhase.ready) return;
+    if (!_persistent) return;
     final NoteCounterStore? store = widget.store;
     final String? khataId = widget.khataId;
     if (store == null || khataId == null) return;
     final int request = ++_writeRequest;
-    setState(() {
-      _savePhase = _SavePhase.saving;
-      _saveError = null;
-    });
     unawaited(_persist(store, khataId, _snapshot(), request));
   }
 
@@ -574,185 +432,155 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     NoteCounterSnapshot snapshot,
     int request,
   ) async {
+    if (mounted && request == _writeRequest) {
+      setState(() {
+        _savePhase = _SavePhase.saving;
+        _saveError = null;
+      });
+    }
     try {
       await store.save(khataId, snapshot);
+      if (!mounted || request != _writeRequest) return;
+      setState(() {
+        _savePhase = _SavePhase.saved;
+        _saveError = null;
+        _unreadableRows = false;
+      });
     } catch (error) {
-      if (!mounted || request != _writeRequest || widget.khataId != khataId) {
-        return;
-      }
+      if (!mounted || request != _writeRequest) return;
       setState(() {
         _savePhase = _SavePhase.failed;
         _saveError = error;
       });
-      return;
     }
-    if (!mounted || request != _writeRequest || widget.khataId != khataId) {
-      // A newer edit (or a khata switch) already owns the status line.
-      return;
-    }
-    setState(() {
-      _savePhase = _SavePhase.saved;
-      _saveError = null;
-      // The save rewrote every known denomination, so rows that could not be
-      // read before are now clean.
-      _unreadableRows = false;
-    });
   }
 
-  /// `Save`: keep a timestamped snapshot of the current, non-empty count.
-  ///
-  /// Disabled at zero, so the sessions list only ever holds real counts. The
-  /// current session is untouched - it keeps counting as usual.
+  /// Every row with a non-zero count, as `500×3 = ₹1,500`-style lines.
+  List<String> _summaryLines(_Copy copy) {
+    final AppStrings strings = AppStrings(widget.language);
+    final List<String> lines = <String>[];
+    for (final int denomination in _rowOrderPaise) {
+      final int quantity = _quantities[denomination] ?? 0;
+      if (quantity == 0) continue;
+      final int linePaise = denomination * quantity;
+      final String amount = strings.money(linePaise);
+      if (denomination == kCoinDenominationPaise) {
+        lines.add(copy.coinsRowValue(strings, linePaise));
+      } else {
+        lines.add(
+          '${strings.money(denomination)} × ${strings.number(quantity)} = $amount',
+        );
+      }
+    }
+    lines.add('${copy.grandTotalLabel}: ${strings.money(_grandTotalPaise)}');
+    return lines;
+  }
+
+  Future<void> _copySummary() async {
+    if (_isEmpty) return;
+    final _Copy copy = _copy();
+    await Clipboard.setData(
+      ClipboardData(text: _summaryLines(copy).join('\n')),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(copy.summaryCopied)),
+    );
+  }
+
   Future<void> _saveSession() async {
     final NoteCounterStore? store = widget.store;
     final String? khataId = widget.khataId;
-    final _Copy copy = _Copy(widget.language);
     if (store == null || khataId == null) return;
-    if (_grandTotalPaise <= 0) return;
+    final _Copy copy = _copy();
     try {
       await store.saveSession(khataId, _snapshot());
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaved)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(copy.sessionSaved)),
+      );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaveFailed)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(copy.sessionSaveFailed)),
+      );
     }
   }
 
-  /// `Copy summary`: readable plain text on the clipboard - each non-zero
-  /// denomination × quantity = amount, the Grand Total and the date and time.
-  Future<void> _copySummary() async {
-    final AppStrings strings = AppStrings(widget.language);
-    final String summary = _buildSummaryText(strings);
-    await Clipboard.setData(ClipboardData(text: summary));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_Copy(widget.language).summaryCopied)),
+  Future<void> _confirmNewCount() async {
+    if (_isEmpty) {
+      _resetSession();
+      _schedulePersist();
+      return;
+    }
+    final _Copy copy = _copy();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(copy.newCountConfirmTitle),
+        content: Text(copy.newCountConfirmBody),
+        actions: <Widget>[
+          TextButton(
+            key: const Key('note-counter-new-count-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(MaterialLocalizations.of(dialogContext).cancelButtonLabel),
+          ),
+          FilledButton(
+            key: const Key('note-counter-new-count-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(_bn ? 'নতুন গণনা' : 'New count'),
+          ),
+        ],
+      ),
     );
+    if (confirmed == true) {
+      setState(_resetSession);
+      _schedulePersist();
+    }
   }
 
-  String _buildSummaryText(AppStrings strings) {
-    final _Copy copy = _Copy(widget.language);
-    final List<String> lines = <String>[
-      '${copy.noteCounterWord} — ${strings.dateTime(DateTime.now())}',
-      for (final int denomination in kAllDenominationsPaise)
-        if (_quantities[denomination]! > 0)
-          '${strings.money(denomination)} × '
-              '${strings.number(_quantities[denomination]!)} = '
-              '${strings.money(denomination * _quantities[denomination]!)}',
-      '${strings.text(AppString.grandTotal)}: '
-          '${strings.money(_grandTotalPaise)}',
-    ];
-    return lines.join('\n');
-  }
-
-  /// Opens the saved sessions sheet for the active khata. Tapping a session
-  /// restores it (confirming first when the current count is not empty);
-  /// sessions can also be deleted there. The screen pops the sheet itself once
-  /// the restore has been applied.
-  Future<void> _openSavedSessions() async {
+  Future<void> _showSessions() async {
     final NoteCounterStore? store = widget.store;
     final String? khataId = widget.khataId;
     if (store == null || khataId == null) return;
-    await showModalBottomSheet<void>(
+    final _Copy copy = _copy();
+    final NoteCounterSnapshot? restored = await showSavedSessionsSheet(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (BuildContext sheetContext) => SavedSessionsSheet(
-        store: store,
-        khataId: khataId,
-        currentTotalPaise: _grandTotalPaise,
-        language: widget.language,
-        onRestore: (SavedNoteCount session) async {
-          Navigator.of(sheetContext).pop();
-          _restoreSavedSession(session);
-        },
-      ),
+      store: store,
+      khataId: khataId,
+      language: widget.language,
+    );
+    if (restored == null || !mounted) return;
+    setState(() => _applySnapshot(restored));
+    _schedulePersist();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(copy.sessionRestored)),
     );
   }
 
-  /// Writes the saved values into the current session (through the normal
-  /// persist path) and leaves the rest of the screen alone.
-  void _restoreSavedSession(SavedNoteCount session) {
-    final _Copy copy = _Copy(widget.language);
-    final NoteCounterSnapshot snapshot = session.snapshot;
-    setState(() {
-      for (final int denomination in _quantities.keys.toList()) {
-        _quantities[denomination] = snapshot.quantityFor(denomination);
-      }
-      int selected = snapshot.selectedDenominationPaise;
-      // The mirror of the load-time repair: never land the selection on a
-      // chip that is hidden.
-      if (!snapshot.showTwoThousand && selected == kOptionalDenominationPaise) {
-        selected = kDefaultDenominationPaise;
-      }
-      _selectedDenominationPaise = selected;
-      _showTwoThousand = snapshot.showTwoThousand;
-      _unreadableRows = false;
-      _inputError = null;
-      _savePhase = _SavePhase.idle;
-    });
-    _syncFieldToSelection();
-    _schedulePersist();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(copy.sessionRestored)));
-  }
-
-  /// The "Add to khata as income" action: hand the Grand Total to the caller
-  /// as integer paise plus a short note. This screen never writes a
-  /// transaction itself - the caller opens the entry form for the user to
-  /// review and save.
   void _addToKhata() {
-    final void Function(int amountPaise, String note)? onAddToKhata =
+    final void Function(int amountPaise, String note)? callback =
         widget.onAddToKhata;
-    if (onAddToKhata == null) return;
+    if (callback == null) return;
     final int total = _grandTotalPaise;
     if (total <= 0) return;
     final AppStrings strings = AppStrings(widget.language);
+    final _Copy copy = _copy();
     final String note =
-        '${_Copy(widget.language).noteCounterWord} — ${strings.dateTime(DateTime.now())}';
-    onAddToKhata(total, note);
+        '${copy.noteCounterWord} — ${strings.dateTime(DateTime.now())}';
+    callback(total, note);
   }
 
   @override
   Widget build(BuildContext context) {
     final AppStrings strings = AppStrings(widget.language);
+    final _Copy copy = _copy();
     return Scaffold(
-      appBar: AppBar(
-        title: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.payments_outlined,
-                color: AppColors.golden,
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Text(strings.text(AppString.noteCounter)),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            ),
-            icon: const Icon(Icons.settings),
-            tooltip: strings.text(AppString.settings),
-          ),
-        ],
-      ),
-      body: _buildBody(strings),
+      body: SafeArea(child: _buildBody(strings, copy)),
     );
   }
 
-  Widget _buildBody(AppStrings strings) {
-    final _Copy copy = _Copy(widget.language);
+  Widget _buildBody(AppStrings strings, _Copy copy) {
     if (_persistent && _phase == _CountPhase.loading) {
       return Center(
         key: const Key('note-counter-loading'),
@@ -789,63 +617,40 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          _NoteBundle(
-            strings: strings,
-            denominationPaise: _selectedDenominationPaise,
-          ),
-          const SizedBox(height: 12),
-          _DenominationPicker(
-            strings: strings,
-            denominationsPaise: _visibleDenominationsPaise,
-            selectedPaise: _selectedDenominationPaise,
-            onSelected: _selectDenomination,
-          ),
-          const SizedBox(height: 10),
-          _TwoThousandToggle(
-            strings: strings,
-            value: _showTwoThousand,
-            onChanged: _toggleTwoThousand,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            strings.text(AppString.enterQuantity),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.darkText,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              copy.grandTotalHint,
+              key: const Key('note-counter-hint'),
+              style: const TextStyle(fontSize: 11, color: AppColors.softText),
             ),
           ),
           const SizedBox(height: 8),
-          _QuantityStepper(
-            strings: strings,
-            controller: _quantityController,
-            errorText: _inputError,
-            denominationPaise: _selectedDenominationPaise,
-            onIncrement: _increment,
-            onDecrement: _selectedQuantity == 0 ? null : _decrement,
-            onChanged: _onQuantityChanged,
-          ),
-          const SizedBox(height: 12),
-          _TotalCard(
-            label: strings.text(AppString.totalAmount),
-            amountPaise: _selectedTotalPaise,
-            strings: strings,
-            background: AppColors.warmIvory,
-            border: AppColors.beige,
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            key: const Key('note-counter-calculate'),
-            onPressed: _commitTypedQuantity,
-            icon: const Icon(Icons.calculate_outlined, size: 20),
-            label: Text(strings.text(AppString.calculate)),
-          ),
-          const SizedBox(height: 12),
+          for (final int denomination in _rowOrderPaise) ...<Widget>[
+            _DenominationRow(
+              strings: strings,
+              denominationPaise: denomination,
+              isCoinRow: denomination == kCoinDenominationPaise,
+              controller: _controllers[denomination]!,
+              errorText: _inputErrors[denomination],
+              rowTotalPaise: denomination * (_quantities[denomination] ?? 0),
+              onChanged: (String raw) => _onRowChanged(raw, denomination),
+              onTapSelectAll: () {
+                final TextEditingController controller =
+                    _controllers[denomination]!;
+                if (controller.text.isEmpty) return;
+                controller.selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: controller.text.length,
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 4),
           _GrandTotalCard(
             strings: strings,
             amountPaise: _grandTotalPaise,
-            hiddenTwoThousandQuantity: _hiddenQuantity,
           ),
           const SizedBox(height: 12),
           if (addToKhataVisible) ...<Widget>[
@@ -868,7 +673,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           if (_persistent) ...<Widget>[
             _ActionButton.filled(
               buttonKey: const Key('note-counter-save'),
-              onPressed: _grandTotalPaise > 0 ? _saveSession : null,
+              onPressed: _isEmpty ? null : _saveSession,
               icon: Icons.save_outlined,
               label: strings.text(AppString.save),
             ),
@@ -878,7 +683,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 Expanded(
                   child: _ActionButton.outlined(
                     buttonKey: const Key('note-counter-saved-sessions'),
-                    onPressed: _openSavedSessions,
+                    onPressed: _showSessions,
                     icon: Icons.bookmark_outline,
                     label: copy.savedSessions,
                   ),
@@ -887,7 +692,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                 Expanded(
                   child: _ActionButton.outlined(
                     buttonKey: const Key('note-counter-copy-summary'),
-                    onPressed: _copySummary,
+                    onPressed: _isEmpty ? null : _copySummary,
                     icon: Icons.content_copy,
                     label: copy.copySummary,
                   ),
@@ -898,7 +703,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           ] else ...<Widget>[
             _ActionButton.outlined(
               buttonKey: const Key('note-counter-copy-summary'),
-              onPressed: _copySummary,
+              onPressed: _isEmpty ? null : _copySummary,
               icon: Icons.content_copy,
               label: copy.copySummary,
             ),
@@ -909,7 +714,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('note-counter-new-count'),
-                  onPressed: _newCount,
+                  onPressed: _confirmNewCount,
                   icon: const Icon(Icons.refresh, size: 20),
                   label: Text(strings.text(AppString.newCount)),
                   style: OutlinedButton.styleFrom(
@@ -957,7 +762,6 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     );
   }
 }
-
 /// A flat-friendly full-width action button that tolerates two lines of
 /// label at large text scales. Never overflows: the label wraps.
 class _ActionButton extends StatelessWidget {
@@ -1028,484 +832,167 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// A visual cue for the selected denomination. The illustration is bundled
-/// locally, so the counter stays useful without a network connection.
-class _NoteBundle extends StatelessWidget {
-  const _NoteBundle({required this.strings, required this.denominationPaise});
+/// One denomination row: its illustration, a quantity field and the row
+/// total. Note rows hold how many notes; the coin row holds the **total
+/// value of the coins in rupees**, never a coin count.
+class _DenominationRow extends StatelessWidget {
+  const _DenominationRow({
+    required this.strings,
+    required this.denominationPaise,
+    required this.isCoinRow,
+    required this.controller,
+    required this.errorText,
+    required this.rowTotalPaise,
+    required this.onChanged,
+    required this.onTapSelectAll,
+  });
 
   final AppStrings strings;
   final int denominationPaise;
+  final bool isCoinRow;
+  final TextEditingController controller;
+  final String? errorText;
+  final int rowTotalPaise;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onTapSelectAll;
+
+  String get _asset => isCoinRow
+      ? 'assets/notes/coins.png'
+      : 'assets/notes/note_${denominationPaise ~/ 100}.png';
 
   @override
   Widget build(BuildContext context) {
     final _Copy copy = _Copy(strings.language);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.lightGreen,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: AppColors.outline),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: AppColors.darkText.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: <Widget>[
-              ExcludeSemantics(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    width: 92,
-                    height: 76,
-                    child: Image.asset(
-                      'assets/illustrations/note_bundle.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const ColoredBox(
-                            color: AppColors.warmIvory,
-                            child: Icon(
-                              Icons.payments_outlined,
-                              size: 42,
-                              color: AppColors.primaryGreen,
-                            ),
-                          ),
-                    ),
+    final String title = isCoinRow
+        ? (strings.language == AppLanguage.bn ? 'কয়েন' : 'Coins')
+        : strings.money(denominationPaise);
+    final String fieldLabel = isCoinRow
+        ? copy.coinsAmountLabel(strings)
+        : copy.quantityFieldLabel(strings, denominationPaise);
+    return Container(
+      key: Key('note-counter-row-$denominationPaise'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isCoinRow ? AppColors.accentGreen : AppColors.beige,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          ExcludeSemantics(
+            child: SizedBox(
+              width: 64,
+              height: 44,
+              child: Image.asset(
+                _asset,
+                fit: BoxFit.contain,
+                errorBuilder: (BuildContext context, Object error,
+                        StackTrace stackTrace) =>
+                    const ColoredBox(
+                  color: AppColors.warmIvory,
+                  child: Icon(
+                    Icons.payments_outlined,
+                    size: 28,
+                    color: AppColors.primaryGreen,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      copy.currentNote,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 0.8,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.softText,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        strings.money(denominationPaise),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryGreen,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      copy.chooseNote,
-                      maxLines: 2,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.2,
-                        color: AppColors.softText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Chip row for choosing the active denomination. Wraps instead of scrolling,
-/// so a narrow phone or 200% text scale never clips a chip.
-class _DenominationPicker extends StatelessWidget {
-  const _DenominationPicker({
-    required this.strings,
-    required this.denominationsPaise,
-    required this.selectedPaise,
-    required this.onSelected,
-  });
-
-  final AppStrings strings;
-  final List<int> denominationsPaise;
-  final int selectedPaise;
-  final ValueChanged<int> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        for (final int denomination in denominationsPaise)
-          _DenominationChip(
-            key: Key('denomination-$denomination'),
-            strings: strings,
-            denominationPaise: denomination,
-            selected: denomination == selectedPaise,
-            onTap: () => onSelected(denomination),
-          ),
-      ],
-    );
-  }
-}
-
-class _DenominationChip extends StatelessWidget {
-  const _DenominationChip({
-    super.key,
-    required this.strings,
-    required this.denominationPaise,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final AppStrings strings;
-  final int denominationPaise;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final _Copy copy = _Copy(strings.language);
-    final Color background = selected
-        ? AppColors.primaryGreen
-        : AppColors.warmIvory;
-    final Color foreground = selected
-        ? AppColors.onPrimary
-        : AppColors.darkText;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      // `excludeSemantics` stops the child `Text` from being announced as a
-      // second node, so the chip reads as one control: "₹500 note, selected".
-      label: copy.chipNoteLabel(strings, denominationPaise),
-      excludeSemantics: true,
-      child: Material(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            // No `alignment` here: an aligned Container in a Wrap stretches to
-            // the full available width, which produced one full-width chip per
-            // row. A compact box keeps the chips side by side.
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 64),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: selected ? AppColors.primaryGreen : AppColors.outline,
-              ),
-            ),
-            child: Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: Text(
-                strings.money(denominationPaise),
-                maxLines: 1,
-                softWrap: false,
-                // Chips must stay compact when text is huge: at 300% scale a
-                // label alone was wider than the 288 dp content area, and its
-                // Run height overflowed the Wrap's Row by 12 px.
-                // Capping the chip label's growth keeps every chip narrow
-                // enough to wrap, while the 44 dp minimum height keeps the
-                // touch target legal. The label itself is unchanged, so the
-                // "₹500 note" semantics stay intact.
-                textScaler: TextScaler.linear(
-                  MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.3),
-                ),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: foreground,
-                ),
-              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Opt-in ₹2,000 denomination (off by default).
-class _TwoThousandToggle extends StatelessWidget {
-  const _TwoThousandToggle({
-    required this.strings,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final AppStrings strings;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.warmIvory,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => onChanged(!value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  strings.text(AppString.includeTwoThousand),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 1,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.darkText,
                   ),
                 ),
-              ),
-              Switch(
-                key: const Key('note-counter-show-2000'),
-                value: value,
-                onChanged: onChanged,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `−  10  +` with a numeric field in the middle.
-class _QuantityStepper extends StatelessWidget {
-  const _QuantityStepper({
-    required this.strings,
-    required this.controller,
-    required this.denominationPaise,
-    required this.errorText,
-    required this.onIncrement,
-    required this.onDecrement,
-    required this.onChanged,
-  });
-
-  final AppStrings strings;
-  final TextEditingController controller;
-  final int denominationPaise;
-
-  /// Shown under the field when the last typed value was rejected.
-  final String? errorText;
-  final VoidCallback onIncrement;
-
-  /// `null` disables the button, which is how "disabled at zero" is expressed.
-  final VoidCallback? onDecrement;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final _Copy copy = _Copy(strings.language);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        _StepperButton(
-          key: const Key('note-counter-decrement'),
-          icon: Icons.remove,
-          semanticLabel: strings.text(AppString.decreaseQuantity),
-          onPressed: onDecrement,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          // A `TextField` gets no accessible name from a suppressed floating
-          // label, and the visible "Enter Quantity" text above is a separate
-          // node. This wrapper names the field itself, including the active
-          // denomination, so the announced name follows the selection.
-          child: Semantics(
-            textField: true,
-            label: copy.quantityFieldLabel(strings, denominationPaise),
-            child: TextField(
-              key: const Key('note-counter-quantity-field'),
-              controller: controller,
-              onChanged: onChanged,
-              textAlign: TextAlign.center,
-              textInputAction: TextInputAction.done,
-              // No filtering formatters: `digitsOnly` would silently swallow
-              // the `-` in `-5` and abandon the `.5` in `1.5`, leaving the user
-              // with a plausible-looking count they never typed. The keyboard
-              // is numeric as a convenience; _onQuantityChanged validates
-              // whatever actually arrives.
-              keyboardType: TextInputType.number,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: AppColors.darkText,
-              ),
-              decoration: InputDecoration(
-                errorText: errorText,
-                errorMaxLines: 2,
-                filled: true,
-                fillColor: AppColors.warmIvory,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.beige),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.beige),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: AppColors.primaryGreen,
-                    width: 1.5,
-                  ),
-                ),
-                hintText: '0',
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        _StepperButton(
-          key: const Key('note-counter-increment'),
-          icon: Icons.add,
-          semanticLabel: strings.text(AppString.increaseQuantity),
-          onPressed: onIncrement,
-        ),
-      ],
-    );
-  }
-}
-
-/// Circular green stepper button; greys out when [onPressed] is null.
-class _StepperButton extends StatelessWidget {
-  const _StepperButton({
-    super.key,
-    required this.icon,
-    required this.semanticLabel,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String semanticLabel;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool enabled = onPressed != null;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: semanticLabel,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Material(
-          color: enabled ? AppColors.primaryGreen : AppColors.lightGreen,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onPressed,
-            child: Icon(
-              icon,
-              size: 24,
-              color: enabled ? AppColors.onPrimary : AppColors.navigationGrey,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `Total Amount` / `Grand Total` card.
-class _TotalCard extends StatelessWidget {
-  const _TotalCard({
-    required this.label,
-    required this.amountPaise,
-    required this.strings,
-    required this.background,
-    required this.border,
-  });
-
-  final String label;
-  final int amountPaise;
-  final AppStrings strings;
-  final Color background;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 40,
-            height: 40,
-            decoration: const BoxDecoration(
-              color: AppColors.lightGreen,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.payments_outlined,
-              size: 20,
-              color: AppColors.primaryGreen,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.softText,
-                  ),
-                ),
                 const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    strings.money(amountPaise),
-                    maxLines: 1,
-                    softWrap: false,
+                Text(
+                  strings.money(rowTotalPaise),
+                  key: Key('note-counter-row-total-$denominationPaise'),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                if (isCoinRow) ...<Widget>[
+                  const SizedBox(height: 1),
+                  Text(
+                    copy.coinsAmountLabel(strings),
+                    maxLines: 2,
                     style: const TextStyle(
-                      fontSize: 25,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.darkText,
+                      fontSize: 10,
+                      height: 1.15,
+                      color: AppColors.softText,
                     ),
                   ),
-                ),
+                ],
               ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 78,
+            child: Semantics(
+              textField: true,
+              label: fieldLabel,
+              child: TextField(
+                key: Key('note-counter-field-$denominationPaise'),
+                controller: controller,
+                onChanged: onChanged,
+                onTap: onTapSelectAll,
+                textAlign: TextAlign.center,
+                textInputAction: TextInputAction.next,
+                // No filtering formatters: the controller is the single
+                // source of validation, so a rejected value is shown as
+                // typed with an explicit error rather than silently kept.
+                keyboardType: TextInputType.number,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.darkText,
+                ),
+                decoration: InputDecoration(
+                  errorText: errorText,
+                  errorMaxLines: 2,
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.lightGreen,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.beige),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.beige),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryGreen,
+                      width: 1.5,
+                    ),
+                  ),
+                  hintText: '0',
+                ),
+              ),
             ),
           ),
         ],
@@ -1519,19 +1006,13 @@ class _GrandTotalCard extends StatelessWidget {
   const _GrandTotalCard({
     required this.strings,
     required this.amountPaise,
-    required this.hiddenTwoThousandQuantity,
   });
 
   final AppStrings strings;
   final int amountPaise;
 
-  /// Non-zero when ₹2,000 notes are counted but the denomination is hidden.
-  /// The card says so rather than silently including invisible money.
-  final int hiddenTwoThousandQuantity;
-
   @override
   Widget build(BuildContext context) {
-    final _Copy copy = _Copy(strings.language);
     return Container(
       key: const Key('note-counter-grand-total'),
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
@@ -1540,66 +1021,53 @@ class _GrandTotalCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.accentGreen),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: AppColors.warmIvory,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  size: 21,
-                  color: AppColors.incomeGreen,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      strings.text(AppString.grandTotal),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        strings.money(amountPaise),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: const TextStyle(
-                          fontSize: 27,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryGreen,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (hiddenTwoThousandQuantity > 0) ...<Widget>[
-            const SizedBox(height: 6),
-            Text(
-              copy.hiddenTwoThousand(strings, hiddenTwoThousandQuantity),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, color: AppColors.softText),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: AppColors.warmIvory,
+              shape: BoxShape.circle,
             ),
-          ],
+            child: const Icon(
+              Icons.check_circle,
+              size: 21,
+              color: AppColors.incomeGreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  strings.text(AppString.grandTotal),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.darkText,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    strings.money(amountPaise),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
