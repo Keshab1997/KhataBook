@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/counter/note_counter_store.dart';
+import 'package:khatabook/features/home/models.dart' show LedgerSummary;
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 /// A snapshot with every denomination defaulted to zero.
@@ -97,9 +98,8 @@ void main() {
 
       ledger = open();
       await ledger.initialize();
-      final NoteCounterSnapshot loaded = await NoteCounterStore(
-        ledger,
-      ).load('personal');
+      final NoteCounterSnapshot loaded = await NoteCounterStore(ledger)
+          .load('personal');
 
       expect(loaded.quantityFor(50000), 4);
       expect(loaded.quantityFor(10000), 2);
@@ -196,16 +196,15 @@ void main() {
       () async {
         final LocalLedger ledger = open();
         await ledger.initialize();
-        expect(ledger.schemaVersion, 2);
+        final int schemaVersion = ledger.schemaVersion;
 
-        await NoteCounterStore(
-          ledger,
-        ).save('personal', NoteCounterSnapshot.empty());
+        await NoteCounterStore(ledger)
+            .save('personal', NoteCounterSnapshot.empty());
 
         final List<QueryRow> version = await ledger
             .customSelect('PRAGMA user_version')
             .get();
-        expect(version.single.read<int>('user_version'), 2);
+        expect(version.single.read<int>('user_version'), schemaVersion);
 
         final List<QueryRow> tables = await ledger
             .customSelect(
@@ -306,61 +305,62 @@ void main() {
   });
 
   group('unreadable rows', () {
-    test(
-      'bad rows are reported, bounded, and repaired by the next save',
-      () async {
-        final LocalLedger ledger = open();
-        await ledger.initialize();
-        final NoteCounterStore store = NoteCounterStore(ledger);
-        final String now = DateTime.now().toUtc().toIso8601String();
+    test('bad rows are reported, bounded, and repaired by the next save', () async {
+      final LocalLedger ledger = open();
+      await ledger.initialize();
+      final NoteCounterStore store = NoteCounterStore(ledger);
+      // The store creates its tables lazily; let it, then seed the bad rows.
+      await store.load('personal');
+      final String now = DateTime.now().toUtc().toIso8601String();
 
-        // A row this version has no chip for, and a quantity outside the
-        // documented range. The CHECK constraints are switched off only for this
-        // setup, to stand in for a hand-edited or foreign database.
-        await ledger.customStatement(
-          'INSERT INTO note_counter_quantities '
-          '(khata_id, denomination_paise, quantity, updated_at) '
-          'VALUES (?, ?, ?, ?)',
-          <Object>['personal', 1500, 7, now],
-        );
-        await ledger.customStatement('PRAGMA ignore_check_constraints = ON');
-        await ledger.customStatement(
-          'INSERT INTO note_counter_quantities '
-          '(khata_id, denomination_paise, quantity, updated_at) '
-          'VALUES (?, ?, ?, ?)',
-          <Object>['personal', 50000, 200000, now],
-        );
-        await ledger.customStatement(
-          'INSERT INTO note_counter_state '
-          '(khata_id, selected_denomination_paise, show_two_thousand, updated_at) '
-          'VALUES (?, ?, ?, ?)',
-          <Object>['personal', 1234, 2, now],
-        );
-        await ledger.customStatement('PRAGMA ignore_check_constraints = OFF');
+      // A row this version has no chip for, and a quantity outside the
+      // documented range. The CHECK constraints are switched off only for this
+      // setup, to stand in for a hand-edited or foreign database.
+      await ledger.customStatement(
+        'INSERT INTO note_counter_quantities '
+        '(khata_id, denomination_paise, quantity, updated_at) '
+        'VALUES (?, ?, ?, ?)',
+        <Object>['personal', 1500, 7, now],
+      );
+      await ledger.customStatement('PRAGMA ignore_check_constraints = ON');
+      await ledger.customStatement(
+        'INSERT INTO note_counter_quantities '
+        '(khata_id, denomination_paise, quantity, updated_at) '
+        'VALUES (?, ?, ?, ?)',
+        <Object>['personal', 50000, 200000, now],
+      );
+      await ledger.customStatement(
+        'INSERT INTO note_counter_state '
+        '(khata_id, selected_denomination_paise, show_two_thousand, updated_at) '
+        'VALUES (?, ?, ?, ?)',
+        <Object>['personal', 1234, 2, now],
+      );
+      await ledger.customStatement('PRAGMA ignore_check_constraints = OFF');
 
-        final NoteCounterSnapshot loaded = await store.load('personal');
-        expect(loaded.hasUnreadableRows, isTrue);
-        expect(loaded.quantityFor(50000), kMaxNoteQuantity);
-        expect(loaded.quantities.containsKey(1500), isFalse);
-        expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
-        expect(loaded.showTwoThousand, isFalse);
+      final NoteCounterSnapshot loaded = await store.load('personal');
+      expect(loaded.hasUnreadableRows, isTrue);
+      expect(loaded.quantityFor(50000), kMaxNoteQuantity);
+      expect(loaded.quantities.containsKey(1500), isFalse);
+      expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
+      expect(loaded.showTwoThousand, isFalse);
 
-        // Saving the sanitized snapshot rewrites every known denomination and
-        // drops the row this version can never display; the warning clears.
-        await store.save('personal', loaded);
-        final NoteCounterSnapshot repaired = await store.load('personal');
-        expect(repaired.hasUnreadableRows, isFalse);
-        expect(repaired.quantityFor(50000), kMaxNoteQuantity);
-        expect(repaired.totalPaise, kMaxNoteQuantity * 50000);
-        await ledger.close();
-      },
-    );
+      // Saving the sanitized snapshot rewrites every known denomination and
+      // drops the row this version can never display; the warning clears.
+      await store.save('personal', loaded);
+      final NoteCounterSnapshot repaired = await store.load('personal');
+      expect(repaired.hasUnreadableRows, isFalse);
+      expect(repaired.quantityFor(50000), kMaxNoteQuantity);
+      expect(repaired.totalPaise, kMaxNoteQuantity * 50000);
+      await ledger.close();
+    });
 
     test(
       'a hidden ₹2,000 selection is moved off the hidden chip on load',
       () async {
         final LocalLedger ledger = open();
         await ledger.initialize();
+        // The store creates its tables lazily; let it, then seed the row.
+        await NoteCounterStore(ledger).load('personal');
         final String now = DateTime.now().toUtc().toIso8601String();
         await ledger.customStatement(
           'INSERT INTO note_counter_state '
@@ -369,9 +369,8 @@ void main() {
           <Object>['personal', kOptionalDenominationPaise, 0, now],
         );
 
-        final NoteCounterSnapshot loaded = await NoteCounterStore(
-          ledger,
-        ).load('personal');
+        final NoteCounterSnapshot loaded = await NoteCounterStore(ledger)
+            .load('personal');
         expect(loaded.showTwoThousand, isFalse);
         expect(loaded.selectedDenominationPaise, kDefaultDenominationPaise);
         expect(loaded.hasUnreadableRows, isFalse);
@@ -446,37 +445,40 @@ void main() {
   });
 
   group('saved sessions', () {
-    test('a saved session round-trips with its snapshot and timestamp', () async {
-      final LocalLedger ledger = open();
-      await ledger.initialize();
-      final NoteCounterStore store = NoteCounterStore(ledger);
+    test(
+      'a saved session round-trips with its snapshot and timestamp',
+      () async {
+        final LocalLedger ledger = open();
+        await ledger.initialize();
+        final NoteCounterStore store = NoteCounterStore(ledger);
 
-      final SavedNoteCount session = await store.saveSession(
-        'personal',
-        _snapshot(
-          quantities: <int, int>{50000: 4, 10000: 2},
-          selected: 10000,
-          showTwoThousand: true,
-        ),
-      );
+        final SavedNoteCount session = await store.saveSession(
+          'personal',
+          _snapshot(
+            quantities: <int, int>{50000: 4, 10000: 2},
+            selected: 10000,
+            showTwoThousand: true,
+          ),
+        );
 
-      expect(session.id, isNotEmpty);
-      expect(session.khataId, 'personal');
-      expect(session.snapshot.quantityFor(50000), 4);
-      expect(session.snapshot.selectedDenominationPaise, 10000);
-      expect(session.snapshot.showTwoThousand, isTrue);
-      expect(session.totalPaise, 4 * 50000 + 2 * 10000);
-      expect(session.savedAt.isUtc, isTrue);
+        expect(session.id, isNotEmpty);
+        expect(session.khataId, 'personal');
+        expect(session.snapshot.quantityFor(50000), 4);
+        expect(session.snapshot.selectedDenominationPaise, 10000);
+        expect(session.snapshot.showTwoThousand, isTrue);
+        expect(session.totalPaise, 4 * 50000 + 2 * 10000);
+        expect(session.savedAt.isUtc, isTrue);
 
-      final List<SavedNoteCount> sessions = await store.listSessions(
-        'personal',
-      );
-      expect(sessions, hasLength(1));
-      expect(sessions.single.id, session.id);
-      expect(sessions.single.savedAt, session.savedAt);
-      expect(sessions.single.snapshot.quantityFor(10000), 2);
-      await ledger.close();
-    });
+        final List<SavedNoteCount> sessions = await store.listSessions(
+          'personal',
+        );
+        expect(sessions, hasLength(1));
+        expect(sessions.single.id, session.id);
+        expect(sessions.single.savedAt, session.savedAt);
+        expect(sessions.single.snapshot.quantityFor(10000), 2);
+        await ledger.close();
+      },
+    );
 
     test('sessions list newest first, even in the same millisecond', () async {
       final LocalLedger ledger = open();
@@ -529,7 +531,10 @@ void main() {
         throwsA(isA<KhataNotFoundException>()),
       );
       await expectLater(
-        store.saveSession('missing', _snapshot(quantities: <int, int>{50000: 1})),
+        store.saveSession(
+          'missing',
+          _snapshot(quantities: <int, int>{50000: 1}),
+        ),
         throwsA(isA<KhataNotFoundException>()),
       );
       await ledger.archiveKhata(khataId: business.id);
@@ -589,9 +594,7 @@ void main() {
         <String>[personal.id],
       );
       expect(
-        (await store.listSessions(business.id)).map(
-          (SavedNoteCount s) => s.id,
-        ),
+        (await store.listSessions(business.id)).map((SavedNoteCount s) => s.id),
         <String>[shop.id],
       );
 
@@ -606,36 +609,34 @@ void main() {
       await ledger.close();
     });
 
-    test('a saved session survives closing and reopening the database', () async {
-      LocalLedger ledger = open();
-      await ledger.initialize();
-      final String id = (await NoteCounterStore(ledger).saveSession(
-        'personal',
-        _snapshot(
-          quantities: <int, int>{20000: 3},
-          selected: 20000,
-        ),
-      )).id;
-      await ledger.close();
+    test(
+      'a saved session survives closing and reopening the database',
+      () async {
+        LocalLedger ledger = open();
+        await ledger.initialize();
+        final String id = (await NoteCounterStore(ledger).saveSession(
+          'personal',
+          _snapshot(quantities: <int, int>{20000: 3}, selected: 20000),
+        )).id;
+        await ledger.close();
 
-      ledger = open();
-      await ledger.initialize();
-      final List<SavedNoteCount> sessions = await NoteCounterStore(
-        ledger,
-      ).listSessions('personal');
-      expect(sessions.single.id, id);
-      expect(sessions.single.snapshot.quantityFor(20000), 3);
-      expect(sessions.single.snapshot.selectedDenominationPaise, 20000);
-      await ledger.close();
-    });
+        ledger = open();
+        await ledger.initialize();
+        final List<SavedNoteCount> sessions = await NoteCounterStore(ledger)
+            .listSessions('personal');
+        expect(sessions.single.id, id);
+        expect(sessions.single.snapshot.quantityFor(20000), 3);
+        expect(sessions.single.snapshot.selectedDenominationPaise, 20000);
+        await ledger.close();
+      },
+    );
 
     test('a saved session never touches the ledger or its balance', () async {
       final LocalLedger ledger = open();
       await ledger.initialize();
-      await NoteCounterStore(ledger).saveSession(
-        'personal',
-        _snapshot(quantities: <int, int>{50000: 10}),
-      );
+      await NoteCounterStore(
+        ledger,
+      ).saveSession('personal', _snapshot(quantities: <int, int>{50000: 10}));
 
       final LedgerSummary summary = await ledger.readSummary();
       expect(summary.entries, isEmpty);

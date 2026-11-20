@@ -21,8 +21,8 @@ import 'package:khatabook/features/sync/cloud_backend.dart';
 class FakeCloudBackend implements CloudBackend {
   FakeCloudBackend({CloudUser? initialUser, DateTime? initialServerTime})
     : _currentUser = initialUser,
-      _serverClock =
-          (initialServerTime ?? DateTime.utc(2026, 11, 20, 9, 0, 0)).toUtc();
+      _serverClock = (initialServerTime ?? DateTime.utc(2026, 11, 20, 9, 0, 0))
+          .toUtc();
 
   CloudUser? _currentUser;
   DateTime _serverClock;
@@ -216,14 +216,14 @@ class FakeCloudBackend implements CloudBackend {
               r.serverUpdatedAt!.isAfter(normalizedSince),
         )
         .toList(growable: false);
-    final List<CloudTransactionRow> transactions =
-        _transactionsFor(user.id).values
-            .where(
-              (CloudTransactionRow r) =>
-                  normalizedSince == null ||
-                  r.serverUpdatedAt!.isAfter(normalizedSince),
-            )
-            .toList(growable: false);
+    final List<CloudTransactionRow> transactions = _transactionsFor(user.id)
+        .values
+        .where(
+          (CloudTransactionRow r) =>
+              normalizedSince == null ||
+              r.serverUpdatedAt!.isAfter(normalizedSince),
+        )
+        .toList(growable: false);
 
     DateTime? cursor = normalizedSince;
     for (final CloudKhataRow r in _khatasFor(user.id).values) {

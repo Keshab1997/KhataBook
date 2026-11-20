@@ -38,6 +38,22 @@ class _SignInScreenState extends State<SignInScreen> {
   _SignInFeedback _feedback = _SignInFeedback.none;
   String? _errorDetail;
 
+  /// Wraps the progress or feedback panel so it can be scrolled into view: on
+  /// a short screen or at a large text scale it sits below the fold.
+  final GlobalKey _statusKey = GlobalKey();
+
+  void _revealStatus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final BuildContext? target = _statusKey.currentContext;
+      if (!mounted || target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 250),
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
+  }
+
   bool get _bn => widget.language == AppLanguage.bn;
 
   String _pair(String en, String bn) => _bn ? bn : en;
@@ -49,6 +65,7 @@ class _SignInScreenState extends State<SignInScreen> {
       _feedback = _SignInFeedback.none;
       _errorDetail = null;
     });
+    _revealStatus();
 
     try {
       final CloudUser? user = await widget.backend.signInWithGoogle();
@@ -58,6 +75,7 @@ class _SignInScreenState extends State<SignInScreen> {
           _signingIn = false;
           _feedback = _SignInFeedback.cancelled;
         });
+        _revealStatus();
         return;
       }
       setState(() {
@@ -73,6 +91,7 @@ class _SignInScreenState extends State<SignInScreen> {
         _signingIn = false;
         _feedback = _SignInFeedback.offline;
       });
+      _revealStatus();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -80,6 +99,7 @@ class _SignInScreenState extends State<SignInScreen> {
         _feedback = _SignInFeedback.failed;
         _errorDetail = _sanitizeError(error);
       });
+      _revealStatus();
     }
   }
 
@@ -110,10 +130,7 @@ class _SignInScreenState extends State<SignInScreen> {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
           children: <Widget>[
             _HeroCard(
-              title: _pair(
-                'Optional Cloud Backup',
-                'ঐচ্ছিক ক্লাউড ব্যাকআপ',
-              ),
+              title: _pair('Optional Cloud Backup', 'ঐচ্ছিক ক্লাউড ব্যাকআপ'),
               subtitle: _pair(
                 'Cloud backup is completely optional. Your khatas and entries always stay saved on this phone, even without an account or internet.',
                 'ক্লাউড ব্যাকআপ সম্পূর্ণ ঐচ্ছিক। অ্যাকাউন্ট বা ইন্টারনেট ছাড়াই আপনার সব খাতা ও লেনদেন এই ফোনে সুরক্ষিত থাকে।',
@@ -154,6 +171,7 @@ class _SignInScreenState extends State<SignInScreen> {
             if (_signingIn) ...<Widget>[
               const SizedBox(height: 14),
               Semantics(
+                key: _statusKey,
                 liveRegion: true,
                 child: Container(
                   key: const Key('sign-in-progress'),
@@ -194,10 +212,13 @@ class _SignInScreenState extends State<SignInScreen> {
             ],
             if (_feedback != _SignInFeedback.none) ...<Widget>[
               const SizedBox(height: 14),
-              _FeedbackBanner(
-                feedback: _feedback,
-                detail: _errorDetail,
-                bn: _bn,
+              KeyedSubtree(
+                key: _statusKey,
+                child: _FeedbackBanner(
+                  feedback: _feedback,
+                  detail: _errorDetail,
+                  bn: _bn,
+                ),
               ),
             ],
             const SizedBox(height: 12),

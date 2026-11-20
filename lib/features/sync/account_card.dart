@@ -259,9 +259,7 @@ class _AccountCardState extends State<AccountCard> {
             TextButton(
               key: const Key('account-switch-cancel'),
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.softText,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.softText),
               child: Text(_pair('Cancel', 'বাতিল করুন')),
             ),
             FilledButton(
@@ -431,10 +429,7 @@ class _AccountCardState extends State<AccountCard> {
             key: const Key('account-card-confirm-switch-button'),
             onPressed: _busyAction ? null : _confirmAccountSwitch,
             child: Text(
-              _pair(
-                'Confirm & Back up now',
-                'নিশ্চিত করুন ও এখন ব্যাকআপ নিন',
-              ),
+              _pair('Confirm & Back up now', 'নিশ্চিত করুন ও এখন ব্যাকআপ নিন'),
             ),
           ),
         ] else ...<Widget>[

@@ -400,10 +400,7 @@ void main() {
       WidgetTester tester,
     ) async {
       int calls = 0;
-      await pumpCalculator(
-        tester,
-        onUseInEntry: (int paise) => calls += 1,
-      );
+      await pumpCalculator(tester, onUseInEntry: (int paise) => calls += 1);
       final OutlinedButton button = tester.widget<OutlinedButton>(
         find.byKey(const Key('calculator-use-in-entry')),
       );
@@ -417,10 +414,7 @@ void main() {
 
     testWidgets('disabled on an evaluation error', (WidgetTester tester) async {
       int calls = 0;
-      await pumpCalculator(
-        tester,
-        onUseInEntry: (int paise) => calls += 1,
-      );
+      await pumpCalculator(tester, onUseInEntry: (int paise) => calls += 1);
       await tapKeys(tester, <String>['5', '÷', '0']);
       expect(resultText(tester), isNotEmpty);
 
@@ -433,10 +427,7 @@ void main() {
 
     testWidgets('disabled for a zero result', (WidgetTester tester) async {
       int calls = 0;
-      await pumpCalculator(
-        tester,
-        onUseInEntry: (int paise) => calls += 1,
-      );
+      await pumpCalculator(tester, onUseInEntry: (int paise) => calls += 1);
       await tapKeys(tester, <String>['0', '×', '5']);
 
       final OutlinedButton button = tester.widget<OutlinedButton>(
@@ -448,10 +439,7 @@ void main() {
 
     testWidgets('disabled for a negative result', (WidgetTester tester) async {
       int calls = 0;
-      await pumpCalculator(
-        tester,
-        onUseInEntry: (int paise) => calls += 1,
-      );
+      await pumpCalculator(tester, onUseInEntry: (int paise) => calls += 1);
       await tapKeys(tester, <String>['−', '5']);
 
       final OutlinedButton button = tester.widget<OutlinedButton>(
@@ -470,7 +458,7 @@ void main() {
       await tester.tap(find.byKey(const Key('calc-key-C')));
       await tester.pumpAndSettle();
       expect(resultText(tester), '0');
-      expect(expressionText(tester), '');
+      expect(expressionText(tester), 'Enter an amount or expression');
     });
   });
 }

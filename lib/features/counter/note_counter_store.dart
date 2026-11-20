@@ -562,10 +562,7 @@ class NoteCounterStore {
       throw ArgumentError.value(sessionId, 'sessionId', 'Cannot be blank');
     }
     await _ensureSchema();
-    await _ledger.customStatement(_deleteSession, <Object>[
-      khataId,
-      sessionId,
-    ]);
+    await _ledger.customStatement(_deleteSession, <Object>[khataId, sessionId]);
   }
 
   /// Rebuilds a saved session from its row, or null when this version cannot

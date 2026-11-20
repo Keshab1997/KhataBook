@@ -23,8 +23,7 @@ class _CalcCopy {
 
   bool get _bn => language == AppLanguage.bn;
 
-  String get useInEntry =>
-      _bn ? 'এন্ট্রিতে ব্যবহার করুন' : 'Use in entry';
+  String get useInEntry => _bn ? 'এন্ট্রিতে ব্যবহার করুন' : 'Use in entry';
 }
 
 /// Bounds keep a long key run from producing Infinity, NaN or runaway work.
@@ -167,8 +166,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             final double minDisplayHeight = compact ? 104 : 150;
             // The "Use in entry" control, when shown, sits between the
             // display and the keypad.
-            final double useInEntryExtra =
-                widget.onUseInEntry == null ? 0 : (compact ? 54 : 58);
+            final double useInEntryExtra = widget.onUseInEntry == null
+                ? 0
+                : (compact ? 54 : 58);
             final double maxKeySize = compact ? 110 : 140;
             final double keySizeByWidth =
                 (constraints.maxWidth - 32 - keyGap * 3) / 4;
