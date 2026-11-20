@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'category_artwork.dart';
+import 'category_picker.dart';
+import 'category_store.dart';
 
 enum EntryFormKind { expense, income }
 
@@ -63,6 +65,7 @@ class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
     this.language = AppLanguage.en,
+    this.categoryStore,
     this.initialAmountPaise,
     this.initialKind,
     this.initialDescription,
@@ -72,6 +75,7 @@ class AddEntryScreen extends StatefulWidget {
 
   final AppLanguage language;
 
+  final CategoryStore? categoryStore;
   final int? initialAmountPaise;
   final EntryFormKind? initialKind;
   final String? initialDescription;
@@ -106,7 +110,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     super.initState();
     final amount = widget.initialAmountPaise;
     if (amount != null && amount > 0) {
-      _amount.text = '${amount ~/ 100}.${(amount % 100).toString().padLeft(2, '0')}';
+      _amount.text =
+          '${amount ~/ 100}.${(amount % 100).toString().padLeft(2, '0')}';
     }
     _kind = widget.initialKind ?? EntryFormKind.expense;
     _description.text = widget.initialDescription ?? '';
@@ -463,7 +468,16 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return Wrap(
       spacing: 10,
       runSpacing: 12,
-      children: _categories.map(_categoryTile).toList(),
+      children: [
+        ..._categories.map(_categoryTile),
+        if (widget.categoryStore != null)
+          CustomCategoryChoices(
+            store: widget.categoryStore!,
+            language: widget.language,
+            selected: _category,
+            onSelected: _selectCategory,
+          ),
+      ],
     );
   }
 

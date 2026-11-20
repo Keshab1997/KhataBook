@@ -12,11 +12,18 @@ import 'package:khatabook/features/profile/settings_screen.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('profile forwards language and callback to settings', (tester) async {
+  testWidgets('profile forwards language and callback to settings', (
+    tester,
+  ) async {
     Future<bool> change(AppLanguage language) async => true;
-    await tester.pumpWidget(MaterialApp(
-      home: ProfileScreen(language: AppLanguage.bn, onLanguageChanged: change),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          language: AppLanguage.bn,
+          onLanguageChanged: change,
+        ),
+      ),
+    );
     await tester.tap(find.byKey(const Key('profile-app-settings-gear')));
     await tester.pumpAndSettle();
     final settings = tester.widget<SettingsScreen>(find.byType(SettingsScreen));
@@ -32,4 +39,15 @@ void main() {
     final second = ProfileStore(ledger);
     expect((await second.load()).name, 'বাংলা');
   });
+
+  testWidgets('Bengali profile shows localized offline and menu copy', (tester) async {
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: ProfileScreen(language: AppLanguage.bn)));
+    expect(find.text('অফলাইন ও শুধু স্থানীয়'), findsOneWidget);
+    expect(find.text('অ্যাপ সেটিংস'), findsOneWidget);
+    expect(find.text('খাতাবুক সম্পর্কে'), findsOneWidget);
+  });
+
 }

@@ -46,7 +46,7 @@ const categoryColors = <Color>[
 
 /// Local-only storage. The auxiliary table is created lazily without a schema
 /// version change, and archived records retain their stable transaction IDs.
-class CategoryStore {
+class CategoryStore extends ChangeNotifier {
   CategoryStore(this._ledger);
   final LocalLedger _ledger;
 
@@ -63,15 +63,23 @@ class CategoryStore {
   String _name(String name) {
     final value = name.trim();
     if (value.isEmpty || value.runes.length > 30) {
-      throw const FormatException('Category name must contain 1 to 30 characters.');
+      throw const FormatException(
+        'Category name must contain 1 to 30 characters.',
+      );
     }
     return value;
   }
 
-  Future<CustomCategory> add(String name, {int iconIndex = 0, int colorIndex = 0}) async {
+  Future<CustomCategory> add(
+    String name, {
+    int iconIndex = 0,
+    int colorIndex = 0,
+  }) async {
     final validName = _name(name);
-    if (iconIndex < 0 || iconIndex >= categoryIcons.length ||
-        colorIndex < 0 || colorIndex >= categoryColors.length) {
+    if (iconIndex < 0 ||
+        iconIndex >= categoryIcons.length ||
+        colorIndex < 0 ||
+        colorIndex >= categoryColors.length) {
       throw const FormatException('Unknown category appearance.');
     }
     final category = CustomCategory(
@@ -85,6 +93,7 @@ class CategoryStore {
       'INSERT INTO custom_categories (id, name, icon_index, color_index) VALUES (?, ?, ?, ?)',
       [category.id, category.name, iconIndex, colorIndex],
     );
+    notifyListeners();
     return category;
   }
 
@@ -92,23 +101,29 @@ class CategoryStore {
     final validName = _name(name);
     await _ensureTable();
     await _ledger.customStatement(
-      'UPDATE custom_categories SET name = ? WHERE id = ?', [validName, id],
+      'UPDATE custom_categories SET name = ? WHERE id = ?',
+      [validName, id],
     );
+    notifyListeners();
   }
 
   Future<void> archive(String id) async {
     await _ensureTable();
     await _ledger.customStatement(
-      'UPDATE custom_categories SET archived = 1 WHERE id = ?', [id],
+      'UPDATE custom_categories SET archived = 1 WHERE id = ?',
+      [id],
     );
+    notifyListeners();
   }
 
   Future<List<CustomCategory>> load({bool includeArchived = false}) async {
     await _ensureTable();
-    final rows = await _ledger.customSelect(
-      'SELECT id, name, icon_index, color_index, archived FROM custom_categories '
-      '${includeArchived ? '' : 'WHERE archived = 0 '}ORDER BY name, id',
-    ).get();
+    final rows = await _ledger
+        .customSelect(
+          'SELECT id, name, icon_index, color_index, archived FROM custom_categories '
+          '${includeArchived ? '' : 'WHERE archived = 0 '}ORDER BY name, id',
+        )
+        .get();
     return rows.map((row) {
       final icon = row.read<int>('icon_index');
       final color = row.read<int>('color_index');

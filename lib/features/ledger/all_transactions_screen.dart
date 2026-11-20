@@ -6,6 +6,9 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
 import '../entry/add_entry_screen.dart';
+import '../entry/category_artwork.dart';
+import '../entry/category_picker.dart';
+import '../entry/category_store.dart';
 import '../entry/transaction_editor_screen.dart';
 import 'data/local_ledger.dart';
 
@@ -95,9 +98,11 @@ class AllTransactionsScreen extends StatefulWidget {
     this.khataId,
     this.onSummaryChanged,
     this.language = AppLanguage.en,
+    this.categoryStore,
   });
 
   /// The khata to display. Treated as immutable, including its entry list.
+  final CategoryStore? categoryStore;
   final LedgerSummary summary;
   final LocalLedger? ledger;
   final String? khataId;
@@ -182,6 +187,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final result = await Navigator.of(context).push<TransactionEditResult>(
       MaterialPageRoute<TransactionEditResult>(
         builder: (_) => TransactionEditorScreen(
+          categoryStore: widget.categoryStore,
           language: widget.language,
           initial: EntryFormResult(
             kind: entry.type == EntryType.income
@@ -468,6 +474,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.categoryStore == null) return _buildContent(context, null);
+    return CategoryCatalog(
+      store: widget.categoryStore!,
+      builder: (context, categories) => _buildContent(context, categories),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, List<CustomCategory>? categories) {
     final AppStrings strings = _strings;
     if (_refreshError) {
       return Scaffold(
@@ -654,9 +668,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 for (final String category in _categoryOptions)
                   _FilterChip(
                     key: Key('category-filter-$category'),
-                    label: _categoryLabel(strings, category),
+                    label: categories == null ? _categoryLabel(strings, category) : categoryDisplayName(widget.language, category, categories),
+                    customCategory: categories == null ? null : findCustomCategory(category, categories),
                     semanticLabel: strings.categoryLabel(
-                      _categoryLabel(strings, category),
+                      categories == null ? _categoryLabel(strings, category) : categoryDisplayName(widget.language, category, categories),
                       filter: true,
                     ),
                     selected: _categoryFilter == category,
@@ -676,6 +691,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     _EntryRow(
                       entry: entry,
                       strings: strings,
+                      categories: categories,
                       onTap: widget.ledger != null && entry.id != null
                           ? () => _edit(entry)
                           : null,
@@ -857,12 +873,14 @@ class _FilterChip extends StatelessWidget {
     super.key,
     required this.label,
     required this.semanticLabel,
+    this.customCategory,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
   final String semanticLabel;
+  final CustomCategory? customCategory;
   final bool selected;
   final VoidCallback onTap;
 
@@ -904,6 +922,10 @@ class _FilterChip extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    if (customCategory != null) ...<Widget>[
+                      Icon(customCategory!.icon, color: customCategory!.color, size: 16),
+                      const SizedBox(width: 4),
+                    ],
                     if (selected) ...<Widget>[
                       Icon(Icons.check, size: 16, color: foreground),
                       const SizedBox(width: 4),
@@ -1023,10 +1045,11 @@ class _DayHeader extends StatelessWidget {
 
 /// One transaction: type icon, title, category and timestamp, signed amount.
 class _EntryRow extends StatelessWidget {
-  const _EntryRow({required this.entry, required this.strings, this.onTap});
+  const _EntryRow({required this.entry, required this.strings, this.categories, this.onTap});
 
   final LedgerEntry entry;
   final AppStrings strings;
+  final List<CustomCategory>? categories;
   final VoidCallback? onTap;
 
   @override
@@ -1042,14 +1065,17 @@ class _EntryRow extends StatelessWidget {
 
     // The stored category is translated for display only; the title is the
     // user's own text and is never touched.
-    final String category = _categoryLabel(strings, entry.category);
+    final String category = categories == null ? _categoryLabel(strings, entry.category) : categoryDisplayName(strings.language, entry.category, categories!);
+    final custom = categories == null ? null : findCustomCategory(entry.category, categories!);
+
+    final title = categories != null && entry.title == entry.category ? category : entry.title;
 
     return Semantics(
       container: true,
       button: onTap != null,
       onTap: onTap,
       label: strings.transactionLabel(
-        title: entry.title,
+        title: title,
         category: category,
         amountPaise: entry.amountPaise,
         income: isIncome,
@@ -1078,11 +1104,18 @@ class _EntryRow extends StatelessWidget {
                     color: amountColor.withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                    size: 20,
-                    color: amountColor,
-                  ),
+                  child: categories == null
+                      ? Icon(
+                          isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+                          size: 20,
+                          color: amountColor,
+                        )
+                      : ClipOval(child: CategoryArtwork(
+                          category: entry.category,
+                          size: 36,
+                          fallbackColor: AppColors.navigationGrey,
+                          customCategory: custom,
+                        )),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1090,7 +1123,7 @@ class _EntryRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       Text(
-                        entry.title,
+                        title,
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
