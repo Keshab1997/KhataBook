@@ -1,0 +1,20 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "web-shell-home",
+  "allowed": [
+    "lib/features/shell/main_shell.dart",
+    "test/shell_utilities_test.dart",
+    "test/shell_language_test.dart"
+  ],
+  "commit": "feat(web): drop web-preview guards in MainShell for real ledger",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/shell_language_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "c428bfafc74732aa2ef115fd435679e63ce2c85a"
+  }
+}

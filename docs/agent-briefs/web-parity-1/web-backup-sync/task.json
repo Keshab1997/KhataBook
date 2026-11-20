@@ -1,0 +1,27 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "web-backup-sync",
+  "allowed": [
+    "lib/features/profile/backup_files.dart",
+    "lib/features/profile/backup_screen.dart",
+    "lib/features/sync/cloud_backup_screen.dart",
+    "lib/features/sync/cloud_sync.dart",
+    "lib/features/sync/sync_engine.dart",
+    "test/backup_files_test.dart",
+    "test/backup_screen_test.dart",
+    "test/cloud_backup_screen_test.dart",
+    "test/sync_test.dart",
+    "test/cloud_sync_test.dart"
+  ],
+  "commit": "feat(web): web-safe backup/sync (cloud on, local-file off)",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/sync_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "c428bfafc74732aa2ef115fd435679e63ce2c85a"
+  }
+}

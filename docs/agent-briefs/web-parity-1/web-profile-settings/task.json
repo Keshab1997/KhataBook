@@ -1,0 +1,25 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "web-profile-settings",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "lib/features/profile/profile_photo_picker.dart",
+    "test/profile_settings_test.dart",
+    "test/offline_profile_test.dart",
+    "test/settings_language_test.dart",
+    "test/settings_navigation_test.dart",
+    "test/profile_store_test.dart"
+  ],
+  "commit": "feat(web): make Profile/Settings real on web (drop preview-only)",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/profile_settings_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "c428bfafc74732aa2ef115fd435679e63ce2c85a"
+  }
+}
