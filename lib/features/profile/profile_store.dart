@@ -71,9 +71,8 @@ final class ProfileStore {
     if (bytes.length > maxAvatarBytes) return false;
     const png = <int>[137, 80, 78, 71, 13, 10, 26, 10];
     return (bytes.length >= png.length &&
-            Iterable<int>.generate(
-              png.length,
-            ).every((i) => bytes[i] == png[i])) ||
+            Iterable<int>.generate(png.length)
+                .every((i) => bytes[i] == png[i])) ||
         (bytes.length >= 4 &&
             bytes[0] == 0xff &&
             bytes[1] == 0xd8 &&

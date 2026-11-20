@@ -106,7 +106,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     super.initState();
     final amount = widget.initialAmountPaise;
     if (amount != null && amount > 0) {
-      _amount.text = '${amount ~/ 100}.${(amount % 100).toString().padLeft(2, '0')}';
+      _amount.text =
+          '${amount ~/ 100}.${(amount % 100).toString().padLeft(2, '0')}';
     }
     _kind = widget.initialKind ?? EntryFormKind.expense;
     _description.text = widget.initialDescription ?? '';

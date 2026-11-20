@@ -12,11 +12,18 @@ import 'package:khatabook/features/profile/settings_screen.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('profile forwards language and callback to settings', (tester) async {
+  testWidgets('profile forwards language and callback to settings', (
+    tester,
+  ) async {
     Future<bool> change(AppLanguage language) async => true;
-    await tester.pumpWidget(MaterialApp(
-      home: ProfileScreen(language: AppLanguage.bn, onLanguageChanged: change),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProfileScreen(
+          language: AppLanguage.bn,
+          onLanguageChanged: change,
+        ),
+      ),
+    );
     await tester.tap(find.byKey(const Key('profile-app-settings-gear')));
     await tester.pumpAndSettle();
     final settings = tester.widget<SettingsScreen>(find.byType(SettingsScreen));

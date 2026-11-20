@@ -271,7 +271,8 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save(LocalProfile profile) async {
@@ -282,7 +283,11 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
       final saved = await widget.store.load();
       if (mounted) setState(() => _profile = saved);
     } catch (_) {
-      if (mounted) _message(_text('Could not save profile.', 'প্রোফাইল সংরক্ষণ করা যায়নি।'));
+      if (mounted) {
+        _message(
+          _text('Could not save profile.', 'প্রোফাইল সংরক্ষণ করা যায়নি।'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -318,7 +323,9 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
       final bytes = await widget.pickPhoto();
       if (!mounted) return;
       if (bytes == null) {
-        _message(_text('Photo selection cancelled.', 'ছবি নির্বাচন বাতিল হয়েছে।'));
+        _message(
+          _text('Photo selection cancelled.', 'ছবি নির্বাচন বাতিল হয়েছে।'),
+        );
         return;
       }
       if (!ProfileStore.isSupportedAvatar(bytes)) {
@@ -329,14 +336,18 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
       if (!mounted) return;
       await _save(LocalProfile(name: _profile!.name, avatarBytes: bytes));
     } catch (_) {
-      if (mounted) _message(_text('Could not set the photo.', 'ছবি সেট করা যায়নি।'));
+      if (mounted) {
+        _message(_text('Could not set the photo.', 'ছবি সেট করা যায়নি।'));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final profile = _profile;
-    if (profile == null) return const Center(child: CircularProgressIndicator());
+    if (profile == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return _Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -357,26 +368,45 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
                             height: 72,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.person, color: AppColors.primaryGreen),
+                                const Icon(
+                                  Icons.person,
+                                  color: AppColors.primaryGreen,
+                                ),
                           ),
                         ),
                 ),
                 const CircleAvatar(
                   radius: 13,
                   backgroundColor: AppColors.primaryGreen,
-                  child: Icon(Icons.camera_alt, size: 16, color: AppColors.onPrimary),
+                  child: Icon(
+                    Icons.camera_alt,
+                    size: 16,
+                    color: AppColors.onPrimary,
+                  ),
                 ),
               ],
             ),
-            Text(profile.name.isEmpty ? _text('Local profile', 'স্থানীয় প্রোফাইল') : profile.name),
+            Text(
+              profile.name.isEmpty
+                  ? _text('Local profile', 'স্থানীয় প্রোফাইল')
+                  : profile.name,
+            ),
             Wrap(
               alignment: WrapAlignment.center,
               children: [
-                TextButton(onPressed: _busy ? null : _editName, child: Text(_text('Edit name', 'নাম পরিবর্তন'))),
-                TextButton(onPressed: _busy ? null : _choosePhoto, child: Text(_text('Choose photo', 'ছবি বাছুন'))),
+                TextButton(
+                  onPressed: _busy ? null : _editName,
+                  child: Text(_text('Edit name', 'নাম পরিবর্তন')),
+                ),
+                TextButton(
+                  onPressed: _busy ? null : _choosePhoto,
+                  child: Text(_text('Choose photo', 'ছবি বাছুন')),
+                ),
                 if (profile.avatarBytes != null)
                   TextButton(
-                    onPressed: _busy ? null : () => _save(LocalProfile(name: profile.name)),
+                    onPressed: _busy
+                        ? null
+                        : () => _save(LocalProfile(name: profile.name)),
                     child: Text(_text('Remove photo', 'ছবি সরান')),
                   ),
               ],

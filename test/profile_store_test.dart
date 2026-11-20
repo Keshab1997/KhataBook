@@ -53,7 +53,7 @@ void main() {
     final oversized = Uint8List(ProfileStore.maxAvatarBytes + 1)
       ..setAll(0, photo);
     for (final invalid in <LocalProfile>[
-      LocalProfile(name: '${name}🌱'),
+      LocalProfile(name: '$name🌱'),
       LocalProfile(name: 'empty', avatarBytes: Uint8List(0)),
       LocalProfile(name: 'wrong format', avatarBytes: Uint8List(20)),
       LocalProfile(name: 'oversized', avatarBytes: oversized),
