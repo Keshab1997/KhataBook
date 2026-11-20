@@ -4,7 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MaxLengthEnforcement;
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/theme/app_colors.dart';
 import 'data/local_ledger.dart';
+
+/// Geometry shared by this screen: one card radius and one hairline border, so
+/// the khata rows, the banners and the empty states line up.
+const double _cardRadius = 18;
+const double _edge = 0.85;
+const double _softEdge = 0.6;
 
 /// Callback-driven screen for managing active and archived khatas.
 ///
@@ -214,15 +221,18 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
             onPressed: _mutating ? null : _handleBack,
           ),
         ),
-        body: _buildBody(context, strings),
+        body: _buildBody(strings),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, AppStrings strings) {
+  Widget _buildBody(AppStrings strings) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(key: Key('manage-khatas-loading')),
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(key: Key('manage-khatas-loading')),
+        ),
       );
     }
 
@@ -230,17 +240,41 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(_loadError!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                key: const Key('manage-khatas-retry'),
-                onPressed: _mutating ? null : _loadAll,
-                child: Text(strings.text(AppString.retry)),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(_cardRadius),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _edge),
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.expenseRed,
+                  size: 28,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _loadError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: AppColors.softText,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  key: const Key('manage-khatas-retry'),
+                  onPressed: _mutating ? null : _loadAll,
+                  child: Text(strings.text(AppString.retry)),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -250,33 +284,51 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         if (_actionError != null) ...<Widget>[
-          MaterialBanner(
-            key: const Key('manage-khatas-action-error'),
-            content: Text(_actionError!),
-            actions: <Widget>[
-              TextButton(
-                onPressed: _mutating
-                    ? null
-                    : () => setState(() => _actionError = null),
-                child: Text(strings.text(AppString.dismiss)),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(_cardRadius),
+            child: MaterialBanner(
+              key: const Key('manage-khatas-action-error'),
+              backgroundColor: AppColors.lightGreen,
+              elevation: 0,
+              content: Text(
+                _actionError!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.darkText,
+                ),
               ),
-              TextButton(
-                onPressed: _mutating ? null : _loadAll,
-                child: Text(strings.text(AppString.retry)),
-              ),
-            ],
+              actions: <Widget>[
+                TextButton(
+                  onPressed: _mutating
+                      ? null
+                      : () => setState(() => _actionError = null),
+                  child: Text(strings.text(AppString.dismiss)),
+                ),
+                TextButton(
+                  onPressed: _mutating ? null : _loadAll,
+                  child: Text(strings.text(AppString.retry)),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
         ],
         Text(
           strings.text(AppString.activeKhatas),
-          style: Theme.of(context).textTheme.titleMedium,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.2,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryGreen,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (_active.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(strings.text(AppString.noActiveKhatas)),
+          _EmptyGroup(
+            key: const Key('empty-active-khatas'),
+            message: strings.text(AppString.noActiveKhatas),
           )
         else
           for (final LocalKhata khata in _active)
@@ -292,17 +344,22 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                   ? null
                   : () => _promptArchive(khata),
             ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
         Text(
           strings.text(AppString.archivedKhatas),
-          style: Theme.of(context).textTheme.titleMedium,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.2,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryGreen,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (_archived.isEmpty)
-          Padding(
+          _EmptyGroup(
             key: const Key('empty-archived-khatas'),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(strings.text(AppString.noArchivedKhatas)),
+            message: strings.text(AppString.noArchivedKhatas),
           )
         else
           for (final LocalKhata khata in _archived)
@@ -316,6 +373,48 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
               onUnarchive: () => _promptUnarchive(khata),
             ),
       ],
+    );
+  }
+}
+
+/// The placeholder shown for an empty group of khatas: a quiet, bordered card
+/// so an empty section still reads as part of the screen.
+class _EmptyGroup extends StatelessWidget {
+  const _EmptyGroup({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(
+          color: AppColors.outline.withValues(alpha: _softEdge),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(
+            Icons.inbox_outlined,
+            color: AppColors.navigationGrey,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: AppColors.softText,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -345,9 +444,15 @@ class _KhataRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_cardRadius),
+        side: BorderSide(color: AppColors.outline.withValues(alpha: _edge)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -362,13 +467,26 @@ class _KhataRow extends StatelessWidget {
                 children: <Widget>[
                   Text(
                     khata.name,
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.25,
+                      letterSpacing: -0.1,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkText,
+                    ),
                   ),
-                  if (isPersonal)
+                  if (isPersonal) ...<Widget>[
+                    const SizedBox(height: 2),
                     Text(
                       strings.text(AppString.defaultKhata),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        height: 1.3,
+                        color: AppColors.softText,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
+                  ],
                 ],
               ),
             ),

@@ -3,7 +3,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/theme/app_colors.dart';
 import 'data/local_ledger.dart';
+
+/// One radius for the sheet and for every row inside it.
+const double _sheetRadius = 24;
+const double _rowRadius = 14;
 
 /// Choosing a khata is session-only; ledger contents always remain on device.
 ///
@@ -22,29 +27,97 @@ Future<LocalKhata?> showKhataSwitcher(
   final String? choice = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
+    backgroundColor: AppColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(_sheetRadius)),
+    ),
     builder: (context) => SafeArea(
       child: ListView(
         shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
         children: <Widget>[
-          ListTile(title: Text(strings.text(AppString.chooseKhata))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            child: Text(
+              strings.text(AppString.chooseKhata),
+              style: const TextStyle(
+                fontSize: 16,
+                height: 1.2,
+                letterSpacing: -0.2,
+                fontWeight: FontWeight.w800,
+                color: AppColors.darkText,
+              ),
+            ),
+          ),
           for (final khata in khatas)
             ListTile(
               key: Key('khata-${khata.id}'),
-              title: Text(khata.name),
-              trailing: khata.id == activeId ? const Icon(Icons.check) : null,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 2,
+              ),
+              title: Text(
+                khata.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.25,
+                  fontWeight: khata.id == activeId
+                      ? FontWeight.w700
+                      : FontWeight.w600,
+                  color: khata.id == activeId
+                      ? AppColors.primaryGreen
+                      : AppColors.darkText,
+                ),
+              ),
+              trailing: khata.id == activeId
+                  ? const Icon(Icons.check, color: AppColors.primaryGreen)
+                  : null,
               onTap: () => Navigator.pop(context, khata.id),
             ),
+          const Divider(height: 12, color: AppColors.outline),
           ListTile(
             key: const Key('new-khata'),
-            leading: const Icon(Icons.add),
-            title: Text(strings.text(AppString.newKhata)),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            leading: const Icon(Icons.add, color: AppColors.primaryGreen),
+            title: Text(
+              strings.text(AppString.newKhata),
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                color: AppColors.darkText,
+              ),
+            ),
             onTap: () => Navigator.pop(context, '__new__'),
           ),
           if (onManage != null)
             ListTile(
               key: const Key('manage-khatas'),
-              leading: const Icon(Icons.manage_accounts_outlined),
-              title: Text(strings.text(AppString.manageKhatas)),
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              leading: const Icon(
+                Icons.manage_accounts_outlined,
+                color: AppColors.softText,
+              ),
+              title: Text(
+                strings.text(AppString.manageKhatas),
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.darkText,
+                ),
+              ),
               onTap: () => Navigator.pop(context, '__manage__'),
             ),
         ],
@@ -139,7 +212,18 @@ class _CreateKhataState extends State<_CreateKhata> {
   Widget build(BuildContext context) {
     final AppStrings strings = _strings;
     return AlertDialog(
-      title: Text(strings.text(AppString.newKhata)),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(_sheetRadius - 4)),
+      ),
+      title: Text(
+        strings.text(AppString.newKhata),
+        style: const TextStyle(
+          fontSize: 18,
+          height: 1.25,
+          fontWeight: FontWeight.w800,
+          color: AppColors.darkText,
+        ),
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _form,

@@ -329,6 +329,30 @@ void main() {
     expect(result, isTrue);
   });
 
+  testWidgets('each section heading sits above its own cards', (
+    tester,
+  ) async {
+    await pumpManageScreen(
+      tester,
+      loadActive: () async => <LocalKhata>[personal, business],
+      loadArchived: () async => <LocalKhata>[],
+    );
+
+    final Finder activeHeading = find.text('Active Khatas');
+    final Finder personalCard = find.text('Personal');
+    final Finder archivedHeading = find.text('Archived Khatas');
+    final Finder emptyArchive = find.byKey(const Key('empty-archived-khatas'));
+
+    final double activeTop = tester.getTopLeft(activeHeading).dy;
+    final double personalTop = tester.getTopLeft(personalCard).dy;
+    final double archivedTop = tester.getTopLeft(archivedHeading).dy;
+    final double emptyTop = tester.getTopLeft(emptyArchive).dy;
+
+    expect(activeTop, lessThan(personalTop));
+    expect(personalTop, lessThan(archivedTop));
+    expect(archivedTop, lessThan(emptyTop));
+  });
+
   testWidgets('renders cleanly at 320dp width and 200% text scale', (
     tester,
   ) async {

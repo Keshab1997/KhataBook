@@ -7,6 +7,11 @@ import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
 import 'data/local_ledger.dart';
 
+/// Geometry shared by this screen, so the combined card and every khata card
+/// sit on one radius with one hairline border.
+const double _cardRadius = 20;
+const double _edge = 0.85;
+
 /// S8 - My Wallet Summary. See docs/spec/screens.md (Wallet Summary).
 ///
 /// Reads every active khata from the existing native [LocalLedger] and shows
@@ -177,7 +182,11 @@ class _LoadingPanel extends StatelessWidget {
             Text(
               strings.text(AppString.readingKhatas),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppColors.softText),
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: AppColors.softText,
+              ),
             ),
           ],
         ),
@@ -207,9 +216,11 @@ class _ErrorPanel extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppColors.warmIvory,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.outline),
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(_cardRadius),
+            border: Border.all(
+              color: AppColors.outline.withValues(alpha: _edge),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,9 +287,44 @@ class _SummaryList extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          Text(
-            strings.text(AppString.noLocalKhatas),
-            style: const TextStyle(fontSize: 14, color: AppColors.softText),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(_cardRadius),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _edge),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: AppColors.primaryGreen,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    strings.text(AppString.noLocalKhatas),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      color: AppColors.softText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       );
@@ -328,8 +374,19 @@ class _CombinedCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.primaryGreen,
-          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+          ),
+          borderRadius: BorderRadius.circular(_cardRadius + 2),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: AppColors.darkText.withValues(alpha: 0.16),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,25 +394,35 @@ class _CombinedCard extends StatelessWidget {
             Text(
               strings.text(AppString.combinedRemaining),
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
+                letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
                 color: AppColors.onPrimary.withValues(alpha: 0.85),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              strings.money(combined),
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onPrimary,
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                strings.money(combined),
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(
+                  fontSize: 30,
+                  height: 1.1,
+                  letterSpacing: -0.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               caption,
               style: TextStyle(
                 fontSize: 12,
+                height: 1.3,
                 color: AppColors.onPrimary.withValues(alpha: 0.85),
               ),
             ),
@@ -380,9 +447,16 @@ class _KhataCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.darkText.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,6 +467,8 @@ class _KhataCard extends StatelessWidget {
               totals.khata.name,
               style: const TextStyle(
                 fontSize: 16,
+                height: 1.25,
+                letterSpacing: -0.2,
                 fontWeight: FontWeight.w700,
                 color: AppColors.darkText,
               ),
@@ -401,7 +477,12 @@ class _KhataCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             strings.entryCount(summary.entries.length),
-            style: const TextStyle(fontSize: 12, color: AppColors.softText),
+            style: const TextStyle(
+              fontSize: 12,
+              height: 1.3,
+              letterSpacing: 0.2,
+              color: AppColors.softText,
+            ),
           ),
           const SizedBox(height: 12),
           _StatRow(
@@ -421,8 +502,8 @@ class _KhataCard extends StatelessWidget {
             color: AppColors.expenseRed,
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1, color: AppColors.outline),
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, thickness: 1, color: AppColors.outline),
           ),
           _StatRow(
             label: strings.text(AppString.remaining),
@@ -461,7 +542,11 @@ class _StatRow extends StatelessWidget {
             flex: 3,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AppColors.softText),
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.3,
+                color: AppColors.softText,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -471,8 +556,10 @@ class _StatRow extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: emphasized ? 16 : 14,
-                fontWeight: emphasized ? FontWeight.w700 : FontWeight.w600,
+                fontSize: emphasized ? 17 : 14,
+                height: 1.25,
+                letterSpacing: emphasized ? -0.2 : 0,
+                fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
                 color: color,
               ),
             ),
