@@ -73,6 +73,11 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   late final TextEditingController _amount;
   late final TextEditingController _description;
 
+  /// The frame around a field - not the field itself - carries the focus
+  /// ring, so the node lives here, matching Add Entry.
+  final FocusNode _amountFocus = FocusNode();
+  final FocusNode _descriptionFocus = FocusNode();
+
   late EntryFormKind _kind;
   late String _category;
   late DateTime _date;
@@ -100,10 +105,19 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       initial.occurredAt.month,
       initial.occurredAt.day,
     );
+    _amountFocus.addListener(_handleFocusChange);
+    _descriptionFocus.addListener(_handleFocusChange);
+  }
+
+  /// Repaints the frame of whichever field gained or lost focus.
+  void _handleFocusChange() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _amountFocus.dispose();
+    _descriptionFocus.dispose();
     _amount.dispose();
     _description.dispose();
     super.dispose();
@@ -369,26 +383,26 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   _kindSelector(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                   _SectionLabel(_strings.text(AppString.amount)),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   _amountField(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   _SectionLabel(_strings.text(AppString.date)),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   _dateField(),
                   if (future) _inlineNote(_strings.text(AppString.futureDate)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   _SectionLabel(_strings.text(AppString.category)),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   _categoryChips(),
                   if (_showCategoryError)
                     _inlineWarning(_strings.text(AppString.pickCategory)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   _SectionLabel(_strings.text(AppString.description)),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   _descriptionField(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   if (_pendingLabel != null)
                     _pendingCard(_strings.text(_pendingLabel!)),
                   if (_error != null) _errorCard(_strings.text(_error!)),
@@ -405,13 +419,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                     style: OutlinedButton.styleFrom(
                       // Red text at this size would fall under AA on the cream
                       // canvas (theme.md), so the label stays darkText and the
-                      // red is carried by the icon and the border.
+                      // red is carried by the icon and the border. Size and
+                      // shape come from the theme, like the Update button.
                       foregroundColor: AppColors.darkText,
-                      minimumSize: const Size.fromHeight(48),
                       side: const BorderSide(color: AppColors.expenseRed),
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(16)),
-                      ),
                     ),
                     icon: const Icon(
                       Icons.delete_outline,
@@ -477,8 +488,14 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       excludeSemantics: true,
       onTap: () => _selectKind(kind),
       child: Material(
-        color: selected ? AppColors.primaryGreen : AppColors.lightGreen,
-        borderRadius: BorderRadius.circular(14),
+        color: selected ? AppColors.primaryGreen : AppColors.warmIvory,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          side: BorderSide(
+            color: selected ? AppColors.primaryGreen : AppColors.beige,
+            width: 1.2,
+          ),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _selectKind(kind),
@@ -516,14 +533,29 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     );
   }
 
-  /// Warm-ivory framed input row, matching Add Entry's fields.
-  Widget _framed({required Widget child}) {
-    return Container(
+  /// Warm-ivory framed input row, matching Add Entry's fields - including
+  /// the green frame that follows focus.
+  Widget _framed({required Widget child, bool focused = false}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.warmIvory,
+        color: focused ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.beige, width: 1.4),
+        border: Border.all(
+          color: focused ? AppColors.primaryGreen : AppColors.beige,
+          width: focused ? 1.6 : 1.4,
+        ),
+        boxShadow: focused
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.10),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: child,
     );
@@ -531,17 +563,20 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
 
   Widget _amountField() {
     return _framed(
+      focused: _amountFocus.hasFocus,
       child: Semantics(
         label: _strings.text(AppString.amount),
         child: TextFormField(
           key: const Key('editor-amount-field'),
           controller: _amount,
+          focusNode: _amountFocus,
           enabled: !_busy,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textInputAction: TextInputAction.next,
           style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
             color: AppColors.darkText,
           ),
           decoration: InputDecoration(
@@ -550,14 +585,16 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
             contentPadding: EdgeInsets.zero,
             prefixText: '₹ ',
             prefixStyle: const TextStyle(
-              fontSize: 24,
+              fontSize: 30,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
               color: AppColors.primaryGreen,
             ),
             hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
             hintStyle: const TextStyle(
-              fontSize: 24,
+              fontSize: 30,
               fontWeight: FontWeight.w500,
+              letterSpacing: -0.4,
               color: AppColors.softText,
             ),
             errorMaxLines: 4,
@@ -642,9 +679,11 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
 
   Widget _categoryChip(String category) {
     final bool selected = _category == category;
+    // Chosen chips invert to solid green; the rest sit on ivory like the
+    // framed fields, so a category is never mistaken for a text control.
     final Color background = selected
         ? AppColors.primaryGreen
-        : AppColors.lightGreen;
+        : AppColors.warmIvory;
     final Color foreground = selected
         ? AppColors.onPrimary
         : AppColors.primaryGreen;
@@ -661,7 +700,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
           shape: StadiumBorder(
             side: BorderSide(
               color: selected ? AppColors.primaryGreen : AppColors.beige,
-              width: 1.4,
+              width: selected ? 1.6 : 1.2,
             ),
           ),
           child: InkWell(
@@ -703,6 +742,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
 
   Widget _descriptionField() {
     return _framed(
+      focused: _descriptionFocus.hasFocus,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -717,6 +757,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
               child: TextFormField(
                 key: const Key('editor-description-field'),
                 controller: _description,
+                focusNode: _descriptionFocus,
                 enabled: !_busy,
                 maxLines: 3,
                 textCapitalization: TextCapitalization.sentences,
@@ -859,7 +900,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   }
 }
 
-/// The small bold caption the design puts above every field.
+/// The small bold caption the design puts above every field - the same one
+/// Add Entry draws, so the two forms share a caption/field rhythm.
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
 
@@ -870,10 +912,10 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-        color: AppColors.darkText,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.4,
+        color: AppColors.softText,
       ),
     );
   }

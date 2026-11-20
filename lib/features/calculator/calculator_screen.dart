@@ -161,9 +161,10 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             final bool compact = constraints.maxHeight < 640;
             final double keyGap = compact ? 10 : 14;
             final double verticalPadding = compact ? 12 : 16;
-            // Tallest compact display: 8 + 8 padding, 26 expression, 6 gap and
-            // 56 result = 104. A smaller estimate overflowed the keypad by 4 px.
-            final double minDisplayHeight = compact ? 104 : 150;
+            // Tallest compact display: the card's 26 px padding, 26 expression,
+            // 6 gap, the rule under it and 56 result = 123; the wider layout
+            // needs 147. The estimates below leave a few px of slack.
+            final double minDisplayHeight = compact ? 132 : 176;
             // The "Use in entry" control, when shown, sits between the
             // display and the keypad.
             final double useInEntryExtra = widget.onUseInEntry == null
@@ -649,8 +650,21 @@ class _CalculatorDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    final bool hasExpression = expression.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+      decoration: BoxDecoration(
+        color: AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.beige, width: 1.2),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.primaryGreen.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -659,9 +673,14 @@ class _CalculatorDisplay extends StatelessWidget {
             strings: strings,
             compact: compact,
             expression: expression,
-            isEmpty: expression.isEmpty,
+            isEmpty: !hasExpression,
           ),
-          if (expression.isNotEmpty) SizedBox(height: compact ? 6 : 10),
+          if (hasExpression) ...<Widget>[
+            SizedBox(height: compact ? 6 : 10),
+            // A hairline separates what is being typed from what it comes to.
+            const Divider(height: 7, thickness: 1, color: AppColors.beige),
+            SizedBox(height: compact ? 2 : 4),
+          ],
           // Result line - fixed height, larger font.
           _ResultLine(
             compact: compact,
@@ -868,7 +887,7 @@ class _Keypad extends StatelessWidget {
       tooltip: strings.text(AppString.clearCalculation),
       background: AppColors.lightGreen,
       foreground: AppColors.primaryGreen,
-      outline: AppColors.lightGreen,
+      outline: AppColors.beige,
       child: const Text(
         'AC',
         style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
@@ -884,22 +903,24 @@ class _Keypad extends StatelessWidget {
       tooltip: strings.text(AppString.calculatorHistory),
       background: AppColors.lightGreen,
       foreground: AppColors.primaryGreen,
-      outline: AppColors.lightGreen,
+      outline: AppColors.beige,
       child: const Icon(Icons.history, size: 25),
     );
   }
 
+  /// An operator: solid green so the arithmetic reads as the loudest thing
+  /// on the keypad, the way the calculator reference draws it.
   Widget _greenKey(String label, VoidCallback onPressed) {
     return _CalcKey(
       key: Key('calc-key-$label'),
       size: keySize,
       onPressed: onPressed,
-      background: AppColors.lightGreen,
-      foreground: AppColors.primaryGreen,
-      outline: AppColors.lightGreen,
+      background: AppColors.primaryGreen,
+      foreground: AppColors.onPrimary,
+      outline: AppColors.primaryGreen,
       child: Text(
         label,
-        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
+        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -911,7 +932,7 @@ class _Keypad extends StatelessWidget {
       onPressed: onBackspace,
       background: AppColors.lightGreen,
       foreground: AppColors.primaryGreen,
-      outline: AppColors.lightGreen,
+      outline: AppColors.beige,
       tooltip: strings.text(AppString.backspace),
       child: const Icon(Icons.backspace_outlined, size: 25),
     );
@@ -928,7 +949,7 @@ class _Keypad extends StatelessWidget {
       tooltip: strings.text(AppString.equals),
       child: const Text(
         '=',
-        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -1000,14 +1021,6 @@ class _UseInEntryButton extends StatelessWidget {
     return OutlinedButton.icon(
       key: const Key('calculator-use-in-entry'),
       onPressed: enabled ? onPressed : null,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(44),
-        foregroundColor: AppColors.primaryGreen,
-        side: const BorderSide(color: AppColors.primaryGreen),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-      ),
       icon: const Icon(Icons.north_east, size: 18),
       label: Text(
         copy.useInEntry,

@@ -142,22 +142,50 @@ class CustomCategoryChoices extends StatelessWidget {
         for (final category in categories.where((c) => !c.archived))
           ActionChip(
             key: Key('custom-category-${category.id}'),
-            avatar: Icon(category.icon, color: category.color),
+            avatar: Icon(category.icon, color: category.color, size: 18),
             label: Text(category.name),
             backgroundColor: category.id == selected
                 ? AppColors.lightGreen
                 : AppColors.surface,
+            labelStyle: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: category.id == selected
+                  ? AppColors.primaryGreen
+                  : AppColors.darkText,
+            ),
+            side: BorderSide(
+              color: category.id == selected
+                  ? AppColors.primaryGreen
+                  : AppColors.beige,
+            ),
+            shape: const StadiumBorder(),
             onPressed: () => onSelected(category.id),
           ),
         ActionChip(
           key: const Key('category-more'),
-          avatar: const Icon(Icons.more_horiz),
+          avatar: const Icon(Icons.more_horiz, size: 18),
           label: Text(language == AppLanguage.bn ? 'আরও' : 'More'),
+          labelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.darkText,
+          ),
+          backgroundColor: AppColors.surface,
+          side: const BorderSide(color: AppColors.beige),
+          shape: const StadiumBorder(),
           onPressed: () async {
             final id = await showModalBottomSheet<String>(
               context: context,
               isScrollControlled: true,
-              builder: (_) => _CategorySheet(store: store, language: language),
+              // Ivory, not the ambient surface tone: the sheet belongs to the
+              // warm paper palette every other card on these screens uses.
+              backgroundColor: AppColors.surface,
+              builder: (_) => _CategorySheet(
+                store: store,
+                language: language,
+                selected: selected,
+              ),
             );
             if (id != null && context.mounted) onSelected(id);
           },
@@ -168,9 +196,14 @@ class CustomCategoryChoices extends StatelessWidget {
 }
 
 class _CategorySheet extends StatelessWidget {
-  const _CategorySheet({required this.store, required this.language});
+  const _CategorySheet({
+    required this.store,
+    required this.language,
+    this.selected,
+  });
   final CategoryStore store;
   final AppLanguage language;
+  final String? selected;
   String t(String en, String bn) => language == AppLanguage.bn ? bn : en;
 
   Future<void> _edit(BuildContext context, [CustomCategory? category]) async {
@@ -245,52 +278,300 @@ class _CategorySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    child: CategoryCatalog(
-      store: store,
-      builder: (context, categories) => ListView(
-        shrinkWrap: true,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        children: [
-          ListTile(title: Text(t('Categories', 'বিভাগসমূহ'))),
-          for (final id in starterCategories)
-            ListTile(
-              leading: CategoryArtwork(category: id, size: 32),
-              title: Text(categoryDisplayName(language, id, categories)),
-              onTap: () => Navigator.pop(context, id),
-            ),
-          for (final category in categories.where((c) => !c.archived))
-            ListTile(
-              key: Key('category-sheet-${category.id}'),
-              leading: Icon(category.icon, color: category.color),
-              title: Text(category.name),
-              onTap: () => Navigator.pop(context, category.id),
-              trailing: Wrap(
-                children: [
-                  IconButton(
-                    tooltip: t('Rename', 'নাম বদলান'),
-                    icon: const Icon(Icons.edit),
-                    onPressed: () => _edit(context, category),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        // Drag handle + a header that stays put while the choices scroll:
+        // the sheet is a picker, so its title should not scroll away.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 12, 0),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  t('Categories', 'বিভাগসমূহ'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.darkText,
                   ),
-                  IconButton(
-                    tooltip: t('Archive', 'আর্কাইভ'),
-                    icon: const Icon(Icons.archive_outlined),
-                    onPressed: () => _archive(context, category),
+                ),
+              ),
+              IconButton(
+                key: const Key('category-sheet-close'),
+                tooltip: t('Close', 'বন্ধ করুন'),
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close, color: AppColors.softText),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: AppColors.beige),
+        Flexible(
+          child: CategoryCatalog(
+            store: store,
+            builder: (context, categories) {
+              final List<CustomCategory> custom = categories
+                  .where((c) => !c.archived)
+                  .toList(growable: false);
+              return ListView(
+                shrinkWrap: true,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  16,
+                  20,
+                  16 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                children: <Widget>[
+                  _starterGrid(context, categories),
+                  if (custom.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 18),
+                    _SheetCaption(
+                      t('Your categories', 'আপনার বিভাগ'),
+                    ),
+                    const SizedBox(height: 4),
+                    for (final category in custom)
+                      ListTile(
+                        key: Key('category-sheet-${category.id}'),
+                        contentPadding: EdgeInsets.zero,
+                        selected: category.id == selected,
+                        leading: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: category.color.withValues(
+                            alpha: 0.16,
+                          ),
+                          child: Icon(
+                            category.icon,
+                            size: 18,
+                            color: category.color,
+                          ),
+                        ),
+                        title: Text(
+                          category.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.darkText,
+                          ),
+                        ),
+                        onTap: () => Navigator.pop(context, category.id),
+                        trailing: Wrap(
+                          children: [
+                            IconButton(
+                              tooltip: t('Rename', 'নাম বদলান'),
+                              icon: const Icon(
+                                Icons.edit,
+                                size: 20,
+                                color: AppColors.softText,
+                              ),
+                              onPressed: () => _edit(context, category),
+                            ),
+                            IconButton(
+                              tooltip: t('Archive', 'আর্কাইভ'),
+                              icon: const Icon(
+                                Icons.archive_outlined,
+                                size: 20,
+                                color: AppColors.softText,
+                              ),
+                              onPressed: () => _archive(context, category),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 18),
+                  _NewCategoryTile(
+                    label: t('New category', 'নতুন বিভাগ'),
+                    onTap: () => _edit(context),
                   ),
                 ],
-              ),
-            ),
-          ListTile(
-            key: const Key('new-category'),
-            leading: const Icon(Icons.add),
-            title: Text(t('New category', 'নতুন বিভাগ')),
-            onTap: () => _edit(context),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
+
+  /// The five built-in categories as the same artwork tiles Add Entry uses,
+  /// laid out in as many even columns as the sheet is wide.
+  Widget _starterGrid(
+    BuildContext context,
+    List<CustomCategory> categories,
+  ) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        const double gap = 12;
+        // Three columns at phone width, more on a tablet, never so many that
+        // a tile gets narrower than its own label.
+        final int fitting = (constraints.maxWidth / 82).floor();
+        final int columns = fitting < 3
+            ? 3
+            : fitting > 6
+            ? 6
+            : fitting;
+        final double width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: 14,
+          children: <Widget>[
+            for (final String id in starterCategories)
+              SizedBox(
+                width: width,
+                child: _CategoryTile(
+                  key: Key('category-sheet-$id'),
+                  label: categoryDisplayName(language, id, categories),
+                  selected: id == selected,
+                  onTap: () => Navigator.pop(context, id),
+                  child: CategoryArtwork(category: id, size: 56),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One artwork tile in the picker: a rounded frame, the illustration and the
+/// name underneath, with the chosen category ringed and tinted.
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.child,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.lightGreen : AppColors.warmIvory,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: selected ? AppColors.primaryGreen : AppColors.beige,
+                    width: selected ? 1.8 : 1.1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(17),
+                  child: child,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? AppColors.primaryGreen : AppColors.softText,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A quiet section caption inside the sheet.
+class _SheetCaption extends StatelessWidget {
+  const _SheetCaption(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.4,
+        color: AppColors.softText,
+      ),
+    );
+  }
+}
+
+/// The "new category" row: an outlined slot rather than a list row, so it
+/// reads as an action at the end of the picker.
+class _NewCategoryTile extends StatelessWidget {
+  const _NewCategoryTile({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.warmIvory,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(16)),
+        side: BorderSide(color: AppColors.primaryGreen.withValues(alpha: 0.4)),
+      ),
+      child: InkWell(
+        key: const Key('new-category'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.add, size: 20, color: AppColors.primaryGreen),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CategoryDraft {

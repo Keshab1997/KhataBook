@@ -2,6 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/calculator/calculator_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -193,6 +194,30 @@ void main() {
       await tester.pumpAndSettle();
       await tapKeys(tester, <String>['2', '.', '5']);
       expect(resultText(tester), '2.5');
+      expectNoLayoutErrors(tester);
+    });
+  });
+
+  group('key surfaces', () {
+    testWidgets('operators are solid green, equals orange, digits ivory', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester);
+
+      Color? capOf(String label) {
+        final ElevatedButton button = tester.widget<ElevatedButton>(
+          find.descendant(
+            of: find.byKey(Key('calc-key-$label')),
+            matching: find.byType(ElevatedButton),
+          ),
+        );
+        return button.style?.backgroundColor?.resolve(const <WidgetState>{});
+      }
+
+      expect(capOf('+'), AppColors.primaryGreen);
+      expect(capOf('×'), AppColors.primaryGreen);
+      expect(capOf('='), AppColors.orange);
+      expect(capOf('7'), AppColors.warmIvory);
       expectNoLayoutErrors(tester);
     });
   });

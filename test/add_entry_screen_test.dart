@@ -2,8 +2,19 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
+
+/// The card colour around [field] - the closest [AnimatedContainer] above it,
+/// which is the frame the screen paints for that input.
+Color? frameColorOf(WidgetTester tester, Finder field) {
+  final Finder frame = find
+      .ancestor(of: field, matching: find.byType(AnimatedContainer))
+      .first;
+  final AnimatedContainer card = tester.widget<AnimatedContainer>(frame);
+  return (card.decoration! as BoxDecoration).color;
+}
 
 void main() {
   // The redesign puts a bold caption above each framed input instead of a
@@ -223,6 +234,21 @@ void main() {
       isSemantics(label: 'Expense', isSelected: false),
     );
     semantics.dispose();
+  });
+
+  testWidgets('the active field frame turns green', (tester) async {
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(tester, saved);
+
+    expect(frameColorOf(tester, find.byKey(amountField)), AppColors.warmIvory);
+
+    await enter(tester, amountField, '12');
+    await tester.pumpAndSettle();
+    expect(
+      frameColorOf(tester, find.byKey(amountField)),
+      AppColors.lightGreen,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('renders the notebook illustration and the design chrome', (

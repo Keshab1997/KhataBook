@@ -18,6 +18,11 @@ const Map<String, String> categoryIconAssets = <String, String>{
 
 /// Renders the shared AI artwork, with a Material fallback for non-expense
 /// categories such as Income or for older/unknown transaction categories.
+///
+/// Every variant is centred in whatever space the caller gives it, so a tile
+/// paints the same picture whether it is a 52 px chip in Add Entry, a 56 px
+/// tile in the picker, or a row leading icon - nothing drifts to a corner when
+/// the frame and [size] disagree by a pixel or two.
 class CategoryArtwork extends StatelessWidget {
   const CategoryArtwork({
     super.key,
@@ -39,22 +44,26 @@ class CategoryArtwork extends StatelessWidget {
     if (asset == null && customCategory != null) {
       return ColoredBox(
         color: customCategory!.color.withValues(alpha: 0.14),
-        child: Icon(
-          customCategory!.icon,
-          key: imageKey,
-          size: size * 0.65,
-          color: customCategory!.color,
+        child: Center(
+          child: Icon(
+            customCategory!.icon,
+            key: imageKey,
+            size: size * 0.65,
+            color: customCategory!.color,
+          ),
         ),
       );
     }
     if (asset == null) {
-      return Icon(
-        category == 'Income'
-            ? Icons.south_west_rounded
-            : Icons.more_horiz_rounded,
-        key: imageKey,
-        size: size,
-        color: fallbackColor,
+      return Center(
+        child: Icon(
+          category == 'Income'
+              ? Icons.south_west_rounded
+              : Icons.more_horiz_rounded,
+          key: imageKey,
+          size: size,
+          color: fallbackColor,
+        ),
       );
     }
     return Image.asset(
@@ -63,6 +72,10 @@ class CategoryArtwork extends StatelessWidget {
       width: size,
       height: size,
       fit: BoxFit.cover,
+      // The artwork is drawn far larger than the tile that shows it; medium
+      // filtering keeps the downscaled edges clean on every density.
+      filterQuality: FilterQuality.medium,
+      excludeFromSemantics: true,
     );
   }
 }
