@@ -106,7 +106,11 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(Icons.calculate_outlined, size: 22),
+              const Icon(
+                Icons.calculate_outlined,
+                size: 22,
+                color: AppColors.golden,
+              ),
               const SizedBox(width: 12),
               Text(strings.text(AppString.calculator)),
             ],
@@ -125,31 +129,44 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          // 200% text and a 320 px phone scroll instead of overflowing; every
-          // key keeps its own bounded, fitted label.
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _CalculatorDisplay(
-                expression: _expression,
-                result: _result,
-                error: _error == null ? null : strings.text(_error!),
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool compact = constraints.maxHeight < 640;
+            return SingleChildScrollView(
+              // Compact keys keep every operation reachable on short devices;
+              // the scroll view still covers large text and narrow widths.
+              padding: EdgeInsets.fromLTRB(
+                16,
+                compact ? 8 : 14,
+                16,
+                compact ? 12 : 20,
               ),
-              const SizedBox(height: 12),
-              _Keypad(
-                strings: strings,
-                onDigit: _onDigit,
-                onDecimal: _onDecimal,
-                onOperator: _onOperator,
-                onPercent: _onPercent,
-                onBackspace: _onBackspace,
-                onClear: _onClear,
-                onEquals: _onEquals,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _CalculatorDisplay(
+                    strings: strings,
+                    compact: compact,
+                    expression: _expression,
+                    result: _result,
+                    error: _error == null ? null : strings.text(_error!),
+                  ),
+                  const SizedBox(height: 12),
+                  _Keypad(
+                    strings: strings,
+                    compact: compact,
+                    onDigit: _onDigit,
+                    onDecimal: _onDecimal,
+                    onOperator: _onOperator,
+                    onPercent: _onPercent,
+                    onBackspace: _onBackspace,
+                    onClear: _onClear,
+                    onEquals: _onEquals,
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -376,14 +393,18 @@ class _ExpressionParser {
   }
 }
 
-/// Expression above, large result below; both shrink to fit at 200% text.
+/// A calm, high-contrast display: expression first, result second.
 class _CalculatorDisplay extends StatelessWidget {
   const _CalculatorDisplay({
+    required this.strings,
+    required this.compact,
     required this.expression,
     required this.result,
     required this.error,
   });
 
+  final AppStrings strings;
+  final bool compact;
   final String expression;
   final String result;
   final String? error;
@@ -391,20 +412,90 @@ class _CalculatorDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: compact ? 12 : 18,
+      ),
       decoration: BoxDecoration(
         color: AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.outline),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.darkText.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
-      // A minimum, not a fixed, height: at 200% text the two fitted lines
-      // may grow and the enclosing scroll view carries the extra pixels.
+      // A minimum, not a fixed, height: at 200% text the fitted lines can grow
+      // and the enclosing scroll view carries the extra pixels.
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 96),
+        constraints: BoxConstraints(minHeight: compact ? 104 : 146),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: compact ? 26 : 30,
+                  height: compact ? 26 : 30,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.calculate_outlined,
+                    size: compact ? 15 : 17,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    strings.text(AppString.quickCalculation).toUpperCase(),
+                    style: TextStyle(
+                      color: AppColors.softText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightGreen,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'INR',
+                    style: TextStyle(
+                      color: AppColors.primaryGreen,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: compact ? 8 : 12),
+            if (expression.isEmpty)
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  strings.text(AppString.calculatorExpressionHint),
+                  style: const TextStyle(
+                    color: AppColors.softText,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
@@ -415,26 +506,32 @@ class _CalculatorDisplay extends StatelessWidget {
                 softWrap: false,
                 style: const TextStyle(
                   color: AppColors.softText,
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
+            SizedBox(height: compact ? 3 : 4),
+            const Divider(height: 1, color: AppColors.outline),
+            SizedBox(height: compact ? 5 : 8),
+            Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                key: const Key('calculator-result'),
-                error ?? result,
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(
-                  color: error == null
-                      ? AppColors.darkText
-                      : AppColors.expenseRed,
-                  fontSize: 40,
-                  fontWeight: FontWeight.w700,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  key: const Key('calculator-result'),
+                  error ?? result,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: error == null
+                        ? AppColors.darkText
+                        : AppColors.expenseRed,
+                    fontSize: compact ? 34 : 40,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
             ),
@@ -449,6 +546,7 @@ class _CalculatorDisplay extends StatelessWidget {
 class _Keypad extends StatelessWidget {
   const _Keypad({
     required this.strings,
+    required this.compact,
     required this.onDigit,
     required this.onDecimal,
     required this.onOperator,
@@ -459,6 +557,7 @@ class _Keypad extends StatelessWidget {
   });
 
   final AppStrings strings;
+  final bool compact;
   final ValueChanged<String> onDigit;
   final VoidCallback onDecimal;
   final ValueChanged<String> onOperator;
@@ -496,7 +595,7 @@ class _Keypad extends StatelessWidget {
           _greenKey('+', () => onOperator('+')),
         ]),
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.only(bottom: compact ? 6 : 8),
           child: Row(
             children: <Widget>[
               Expanded(flex: 2, child: _numberKey('0')),
@@ -513,7 +612,7 @@ class _Keypad extends StatelessWidget {
 
   Widget _row(List<Widget> keys) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: compact ? 6 : 10),
       child: Row(
         children: <Widget>[
           for (int index = 0; index < keys.length; index++) ...<Widget>[
@@ -528,6 +627,7 @@ class _Keypad extends StatelessWidget {
   Widget _numberKey(String label) {
     return _CalcKey(
       key: Key('calc-key-$label'),
+      height: compact ? 56 : 68,
       onPressed: label == '.' ? onDecimal : () => onDigit(label),
       background: AppColors.creamBackground,
       foreground: AppColors.darkText,
@@ -542,6 +642,7 @@ class _Keypad extends StatelessWidget {
   Widget _greenKey(String label, VoidCallback onPressed) {
     return _CalcKey(
       key: Key('calc-key-$label'),
+      height: compact ? 56 : 68,
       onPressed: onPressed,
       tooltip: label == 'C' ? strings.text(AppString.clearCalculation) : null,
       background: AppColors.buttonGreen,
@@ -557,6 +658,7 @@ class _Keypad extends StatelessWidget {
   Widget _backspaceKey() {
     return _CalcKey(
       key: const Key('calc-key-backspace'),
+      height: compact ? 56 : 68,
       onPressed: onBackspace,
       background: AppColors.buttonGreen,
       foreground: AppColors.onPrimary,
@@ -569,6 +671,7 @@ class _Keypad extends StatelessWidget {
   Widget _equalsKey() {
     return _CalcKey(
       key: const Key('calc-key-='),
+      height: compact ? 56 : 68,
       onPressed: onEquals,
       background: AppColors.orange,
       foreground: AppColors.onPrimary,
@@ -588,6 +691,7 @@ class _Keypad extends StatelessWidget {
 class _CalcKey extends StatelessWidget {
   const _CalcKey({
     super.key,
+    required this.height,
     required this.child,
     required this.onPressed,
     required this.background,
@@ -596,6 +700,7 @@ class _CalcKey extends StatelessWidget {
     this.tooltip,
   });
 
+  final double height;
   final Widget child;
   final VoidCallback onPressed;
   final Color background;
@@ -606,17 +711,17 @@ class _CalcKey extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget button = SizedBox(
-      height: 56,
+      height: height,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
           side: BorderSide(color: outline),
-          elevation: 1,
+          elevation: 0,
           padding: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
           ),
         ),
         child: FittedBox(fit: BoxFit.scaleDown, child: child),

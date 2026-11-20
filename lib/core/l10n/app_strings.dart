@@ -29,11 +29,13 @@ enum AppString {
   appName('KhataBook', 'খাতাবুক'),
   tagline('Plan · Track · Save', 'পরিকল্পনা · হিসাব · সঞ্চয়'),
   personalKhata('Personal Khata', 'ব্যক্তিগত খাতা'),
+  activeKhata('Active Khata', 'সক্রিয় খাতা'),
+  tapToSwitch('Tap to switch', 'বদলাতে চাপুন'),
   recentTransactions('Recent Transactions', 'সাম্প্রতিক লেনদেন'),
   addNewEntry('Add New Entry', 'নতুন লেনদেন যোগ করুন'),
   homePreview(
-    'Preview data - local ledger arrives in B2',
-    'নমুনা তথ্য — ডিভাইসে খাতা রাখার সুবিধা বি২ সংস্করণে আসবে',
+    'Sample ledger · preview data only',
+    'নমুনা খাতা · শুধু প্রিভিউয়ের তথ্য',
   ),
   settings('Settings', 'সেটিংস'),
   totalIncome('Total Income', 'মোট আয়'),
@@ -94,6 +96,10 @@ enum AppString {
     'খোলা হিসাবের খাতা ও কলম',
   ),
   everyExpenseCounts('Every expense counts…', 'প্রতিটি খরচের হিসাব রাখুন…'),
+  oneEntryAtATime(
+    'A clearer picture starts with one entry.',
+    'একটি লেনদেনেই হিসাব আরও পরিষ্কার হয়।',
+  ),
   updating('Updating…', 'পরিবর্তন করা হচ্ছে…'),
   deleting('Deleting…', 'মুছে ফেলা হচ্ছে…'),
   editSaveFailed(
@@ -264,6 +270,11 @@ enum AppString {
 
   // Calculator and counter
   calculator('Calculator', 'ক্যালকুলেটর'),
+  quickCalculation('Quick Calculation', 'দ্রুত হিসাব'),
+  calculatorExpressionHint(
+    'Enter an amount or expression',
+    'টাকার পরিমাণ বা হিসাব লিখুন',
+  ),
   invalidExpression('Invalid expression', 'হিসাবটি সঠিক নয়'),
   valueTooLarge('Value too large', 'মানটি অতিরিক্ত বড়'),
   valueTooSmall('Value too small', 'মানটি অতিরিক্ত ছোট'),

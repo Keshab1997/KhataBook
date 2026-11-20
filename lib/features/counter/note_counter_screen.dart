@@ -238,7 +238,18 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Note Counter'),
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.payments_outlined, color: AppColors.golden, size: 22),
+              SizedBox(width: 10),
+              Text('Note Counter'),
+            ],
+          ),
+        ),
         actions: <Widget>[
           IconButton(
             onPressed: () => Navigator.of(context).push<void>(
@@ -255,18 +266,18 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             _NoteBundle(denominationPaise: _selectedDenominationPaise),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _DenominationPicker(
               denominationsPaise: _visibleDenominationsPaise,
               selectedPaise: _selectedDenominationPaise,
               onSelected: _selectDenomination,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _TwoThousandToggle(
               value: _showTwoThousand,
               onChanged: _toggleTwoThousand,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             Text(
               'Enter Quantity',
               textAlign: TextAlign.center,
@@ -285,26 +296,26 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               onDecrement: _selectedQuantity == 0 ? null : _decrement,
               onChanged: _onQuantityChanged,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _TotalCard(
               label: 'Total Amount',
               amountPaise: _selectedTotalPaise,
               background: AppColors.warmIvory,
               border: AppColors.beige,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             FilledButton.icon(
               key: const Key('note-counter-calculate'),
               onPressed: _commitTypedQuantity,
               icon: const Icon(Icons.calculate_outlined, size: 20),
               label: const Text('Calculate'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             _GrandTotalCard(
               amountPaise: _grandTotalPaise,
               hiddenTwoThousandQuantity: _hiddenQuantity,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: <Widget>[
                 Expanded(
@@ -340,12 +351,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   }
 }
 
-/// Stylised note bundle standing in for the artwork in the mockup. Built from
-/// widgets and palette tokens, so no image asset or network fetch is involved.
-///
-/// The bundle is decorative and capped to a *fraction* of the available width
-/// with a height that scales, because at 200% text scale a fixed 96 dp box
-/// cannot hold the `₹500` label.
+/// A visual cue for the selected denomination. The illustration is bundled
+/// locally, so the counter stays useful without a network connection.
 class _NoteBundle extends StatelessWidget {
   const _NoteBundle({required this.denominationPaise});
 
@@ -353,78 +360,91 @@ class _NoteBundle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 260),
-          child: AspectRatio(
-            aspectRatio: 2.6,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.lightGreen,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.beige, width: 2),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.lightGreen,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: AppColors.outline),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.darkText.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: <Widget>[
-                  Positioned(
-                    left: 8,
-                    top: 8,
-                    child: Icon(
-                      Icons.circle,
-                      size: 30,
-                      color: AppColors.golden.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Icon(
-                      Icons.auto_awesome,
-                      size: 18,
-                      color: AppColors.golden.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    // The decorative group is scaled as a whole to fit the
-                    // fixed-aspect card. Scaling only the `Text` inside a
-                    // `Column` left the Column itself over-tall at large text
-                    // scales, which is what overflowed the bottom by 12 px at
-                    // 300%. `FittedBox` constrains both axes, so the artwork
-                    // shrinks instead of overflowing.
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(
-                            Icons.payments_outlined,
-                            size: 24,
-                            color: AppColors.primaryGreen.withValues(
-                              alpha: 0.55,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _rupeeLabel(denominationPaise),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              ExcludeSemantics(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: 92,
+                    height: 76,
+                    child: Image.asset(
+                      'assets/illustrations/note_bundle.png',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const ColoredBox(
+                            color: AppColors.warmIvory,
+                            child: Icon(
+                              Icons.payments_outlined,
+                              size: 42,
                               color: AppColors.primaryGreen,
                             ),
                           ),
-                        ],
-                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      'CURRENT NOTE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.softText,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _rupeeLabel(denominationPaise),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Choose a note below',
+                      maxLines: 2,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.2,
+                        color: AppColors.softText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -737,34 +757,57 @@ class _TotalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: border),
       ),
-      child: Column(
+      child: Row(
         children: <Widget>[
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.softText,
+          Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: AppColors.lightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.payments_outlined,
+              size: 20,
+              color: AppColors.primaryGreen,
             ),
           ),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              formatPaise(amountPaise),
-              maxLines: 1,
-              softWrap: false,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: AppColors.darkText,
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.softText,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    formatPaise(amountPaise),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkText,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -790,48 +833,63 @@ class _GrandTotalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('note-counter-grand-total'),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.accentGreen),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              const Icon(
-                Icons.check_circle,
-                size: 18,
-                color: AppColors.incomeGreen,
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.warmIvory,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle,
+                  size: 21,
+                  color: AppColors.incomeGreen,
+                ),
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'Grand Total',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.darkText,
-                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      'Grand Total',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        formatPaise(amountPaise),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              formatPaise(amountPaise),
-              maxLines: 1,
-              softWrap: false,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryGreen,
-              ),
-            ),
           ),
           if (hiddenTwoThousandQuantity > 0) ...<Widget>[
             const SizedBox(height: 6),

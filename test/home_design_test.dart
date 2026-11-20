@@ -94,10 +94,7 @@ void main() {
       expect(find.text('Recent Transactions'), findsOneWidget);
       expect(find.text('View All'), findsOneWidget);
       expect(find.text('Add New Entry'), findsOneWidget);
-      expect(
-        find.text('Preview data - local ledger arrives in B2'),
-        findsOneWidget,
-      );
+      expect(find.text('Sample ledger · preview data only'), findsOneWidget);
     });
 
     testWidgets('the settings gear and CTA are present and tappable', (
@@ -246,7 +243,7 @@ void main() {
       expect(find.text('Add New Entry'), findsOneWidget);
     });
 
-    testWidgets('the page scrolls so the CTA is reachable at 200%', (
+    testWidgets('the primary CTA stays visible while content scrolls at 200%', (
       WidgetTester tester,
     ) async {
       await pumpHome(tester, size: smallPhone, scale: 2.0);
@@ -255,15 +252,17 @@ void main() {
       expect(tester.getRect(cta).top, greaterThan(0));
       expect(
         tester.getRect(cta).bottom,
-        greaterThan(smallPhone.height),
-        reason: 'with 200% text the CTA starts below the fold',
+        lessThanOrEqualTo(smallPhone.height),
+        reason: 'the primary action stays pinned above the device edge',
       );
+      expect(cta.hitTestable(), findsOneWidget);
 
       await tester.drag(
         find.byType(SingleChildScrollView),
         const Offset(0, -400),
       );
       await tester.pumpAndSettle();
+      expect(cta.hitTestable(), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
 

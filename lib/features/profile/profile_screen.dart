@@ -212,18 +212,26 @@ class _IdentityCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Container is not a const constructor; its decoration is.
-            Container(
-              width: 60,
-              height: 60,
-              decoration: const BoxDecoration(
-                color: AppColors.golden,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person_outline,
-                size: 34,
-                color: AppColors.headerGreen,
+            ExcludeSemantics(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Image.asset(
+                    'assets/illustrations/home_wallet.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const ColoredBox(
+                          color: AppColors.lightGreen,
+                          child: Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 34,
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 14),

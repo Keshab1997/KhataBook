@@ -457,12 +457,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _categoryTile(_CategoryOption option) {
     final bool selected = _category == option.id;
-    final Color tileColor = selected
-        ? AppColors.primaryGreen
-        : AppColors.lightGreen;
-    // The tile is one control: an explicit container node carries its name and
-    // its selected state, so a screen reader announces "Food, selected"
-    // instead of "Food" with the state lost on a child node.
+    final Color accent = _categoryAccent(option.id);
+    final bool warmAccent =
+        accent == AppColors.orange || accent == AppColors.golden;
+    final Color selectedIconColor = warmAccent
+        ? AppColors.darkText
+        : AppColors.onPrimary;
+    // One semantic control announces both category and selected state.
     return Semantics(
       container: true,
       button: true,
@@ -471,35 +472,41 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       excludeSemantics: true,
       onTap: () => _selectCategory(option.id),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _selectCategory(option.id),
         child: SizedBox(
-          width: 60,
+          width: 62,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Container(
-                width: 46,
-                height: 46,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 50,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: tileColor,
-                  borderRadius: BorderRadius.circular(14),
+                  color: selected ? accent : accent.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(17),
                   border: Border.all(
-                    color: selected ? AppColors.primaryGreen : AppColors.beige,
-                    width: 1.4,
+                    color: selected ? accent : AppColors.outline,
+                    width: selected ? 1.5 : 1,
                   ),
+                  boxShadow: selected
+                      ? <BoxShadow>[
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Icon(
                   option.icon,
                   size: 22,
-                  color: selected
-                      ? AppColors.onPrimary
-                      : AppColors.primaryGreen,
+                  color: selected ? selectedIconColor : accent,
                 ),
               ),
               const SizedBox(height: 6),
-              // Scaling the label down keeps a long category name inside its
-              // tile even at 200% text scale.
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
@@ -519,6 +526,21 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         ),
       ),
     );
+  }
+
+  Color _categoryAccent(String category) {
+    switch (category) {
+      case 'Food':
+        return AppColors.orange;
+      case 'Travel':
+        return AppColors.secondaryGreen;
+      case 'Bills':
+        return AppColors.golden;
+      case 'Gifts':
+        return AppColors.expenseRed;
+      default:
+        return AppColors.primaryGreen;
+    }
   }
 
   Widget _incomeCategoryPill() {
@@ -615,50 +637,92 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   Widget _afterSavePreview(int? afterSave) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.lightGreen,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          _strings.afterSave(afterSave),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 18,
             color: AppColors.primaryGreen,
           ),
-        ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              _strings.afterSave(afterSave),
+              maxLines: 2,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryGreen,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _illustration() {
-    return Column(
-      children: <Widget>[
-        SizedBox(
-          height: 168,
-          width: double.infinity,
-          child: Image.asset(
-            'assets/illustrations/entry_notebook.png',
-            fit: BoxFit.contain,
-            semanticLabel: _strings.text(AppString.notebookIllustration),
-            errorBuilder: _illustrationError,
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    _strings.text(AppString.everyExpenseCounts),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _strings.text(AppString.oneEntryAtATime),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.25,
+                      color: AppColors.softText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _strings.text(AppString.everyExpenseCounts),
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 13,
-            fontStyle: FontStyle.italic,
-            color: AppColors.softText,
+          const SizedBox(width: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              width: 132,
+              height: 98,
+              child: Image.asset(
+                'assets/illustrations/entry_notebook.png',
+                fit: BoxFit.cover,
+                semanticLabel: _strings.text(AppString.notebookIllustration),
+                errorBuilder: _illustrationError,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

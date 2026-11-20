@@ -10,20 +10,12 @@ import 'models.dart';
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
 ///
 /// A presentational seam: the parent supplies a live [summary] and the
-/// [onAddEntry] / [onViewAll] callbacks. With no [summary] the B1 preview of
-/// the supplied design (`docs/design/ui-preview.png` and
-/// `docs/design/style-guide.png`, style-guide header variant per D4) is kept
-/// exactly as it was, including the seeded figures and the notice. This
-/// screen reads no storage, navigates nowhere and holds no state; Captain
-/// wires the ledger adapter and the parent in the next step.
+/// [onAddEntry] / [onViewAll] callbacks. With no [summary] the screen shows
+/// clearly labelled sample figures. It reads no storage and holds no state.
 ///
-/// Layout, top to bottom: green header (open-book mark, wordmark,
-/// *Plan · Track · Save*, settings gear) · balance card · income/expense
-/// summary · recent transactions (at most four, D5) · full-width
-/// *Add New Entry* CTA.
-///
-/// Every text block is inside a bounded flex or a scaling box so that 200%
-/// text scale and small phone widths cannot overflow.
+/// The layout gives the active ledger and remaining balance first priority,
+/// then keeps the income/expense split, recent activity and primary action
+/// close together. Illustrations are local assets: the screen works offline.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -39,7 +31,7 @@ class HomeScreen extends StatelessWidget {
 
   AppStrings get _strings => AppStrings(language);
 
-  /// Live figures to render. `null` selects the seeded preview instead.
+  /// Live figures to render. `null` selects the seeded sample preview.
   final LedgerSummary? summary;
 
   /// CTA action; a null callback leaves the button visibly disabled.
@@ -51,11 +43,8 @@ class HomeScreen extends StatelessWidget {
   final String? khataName;
   final VoidCallback? onSwitchKhata;
 
-  /// Page padding from the 8 dp grid in docs/spec/theme.md.
   static const double _pagePadding = 16;
-
-  /// Gap between stacked cards.
-  static const double _cardGap = 12;
+  static const double _cardGap = 10;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +58,27 @@ class HomeScreen extends StatelessWidget {
     final List<LedgerEntry> recent = visibleSummary.recent();
 
     return Scaffold(
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(_pagePadding, 8, _pagePadding, 8),
+          decoration: BoxDecoration(
+            color: AppColors.creamBackground,
+            border: Border(
+              top: BorderSide(color: AppColors.outline.withValues(alpha: 0.65)),
+            ),
+          ),
+          child: FilledButton.icon(
+            key: const Key('home-add-entry'),
+            onPressed: onAddEntry,
+            icon: const Icon(Icons.add, size: 22),
+            label: Text(
+              _strings.text(AppString.addNewEntry),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -76,20 +86,21 @@ class HomeScreen extends StatelessWidget {
             _HomeHeader(_strings),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(_pagePadding),
+                padding: const EdgeInsets.fromLTRB(
+                  _pagePadding,
+                  10,
+                  _pagePadding,
+                  16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    if (onSwitchKhata != null) ...<Widget>[
-                      OutlinedButton.icon(
-                        key: const Key('switch-khata'),
-                        onPressed: onSwitchKhata,
-                        icon: const Icon(Icons.account_balance_wallet_outlined),
-                        label: Text(
-                          khataName ?? _strings.text(AppString.personalKhata),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    if (khataName != null || onSwitchKhata != null) ...<Widget>[
+                      _ActiveKhataCard(
+                        strings: _strings,
+                        name:
+                            khataName ?? _strings.text(AppString.personalKhata),
+                        onTap: onSwitchKhata,
                       ),
                       const SizedBox(height: _cardGap),
                     ],
@@ -99,7 +110,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: _cardGap),
                     _summaryRow(visibleSummary),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     _SectionHeader(
                       strings: _strings,
                       title: _strings.text(AppString.recentTransactions),
@@ -115,22 +126,9 @@ class HomeScreen extends StatelessWidget {
                           entry: entry,
                           preview: preview,
                         ),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: onAddEntry,
-                      icon: const Icon(Icons.add, size: 22),
-                      label: Text(
-                        _strings.text(AppString.addNewEntry),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    // The 8 dp gap is kept in both modes so only the notice
-                    // itself disappears once a live summary arrives.
-                    const SizedBox(height: 8),
-                    if (preview)
+                    const SizedBox(height: 4),
+                    if (preview) ...<Widget>[
+                      const SizedBox(height: 10),
                       Center(
                         child: Text(
                           _strings.text(AppString.homePreview),
@@ -141,6 +139,7 @@ class HomeScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
               ),
@@ -162,7 +161,7 @@ class HomeScreen extends StatelessWidget {
               label: _strings.text(AppString.totalIncome),
               paise: summary.totalIncomePaise,
               color: AppColors.incomeGreen,
-              icon: Icons.arrow_upward,
+              icon: Icons.south_west_rounded,
               direction: _strings.text(AppString.income).toLowerCase(),
             ),
           ),
@@ -173,7 +172,7 @@ class HomeScreen extends StatelessWidget {
               label: _strings.text(AppString.totalExpense),
               paise: summary.totalExpensePaise,
               color: AppColors.expenseRed,
-              icon: Icons.arrow_downward,
+              icon: Icons.north_east_rounded,
               direction: _strings.text(AppString.expense).toLowerCase(),
             ),
           ),
@@ -183,7 +182,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// Green header bar: open-book mark, wordmark, tagline and the settings gear.
+/// Brand header: a compact book mark, wordmark, promise and a labelled action.
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader(this.strings);
 
@@ -193,48 +192,60 @@ class _HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.headerGreen,
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 12),
       child: Row(
         children: <Widget>[
-          // Illustration stand-in for the supplied open-book + quill artwork.
-          const Icon(Icons.menu_book, color: AppColors.golden, size: 32),
-          const SizedBox(width: 10),
-          // FittedBox keeps the wordmark readable instead of clipped when the
-          // text scale grows or the phone is narrow.
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.lightGreen,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.menu_book,
+              color: AppColors.primaryGreen,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
                     strings.text(AppString.appName),
                     maxLines: 1,
                     softWrap: false,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.onPrimary,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
-                      height: 1.15,
+                      height: 1.1,
+                      letterSpacing: -0.4,
                     ),
                   ),
-                  Text(
-                    strings.text(AppString.tagline),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: const TextStyle(
-                      color: AppColors.golden,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  strings.text(AppString.tagline),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    color: AppColors.golden,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 8),
           IconButton(
             onPressed: () => Navigator.of(context).push<void>(
               MaterialPageRoute<void>(
@@ -244,6 +255,13 @@ class _HomeHeader extends StatelessWidget {
             icon: const Icon(Icons.settings),
             color: AppColors.onPrimary,
             tooltip: strings.text(AppString.settings),
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.onPrimary.withValues(alpha: 0.12),
+              minimumSize: const Size(46, 46),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
           ),
         ],
       ),
@@ -251,117 +269,221 @@ class _HomeHeader extends StatelessWidget {
   }
 }
 
-/// `primaryGreen` balance card with the wallet treatment and a leaf motif.
+/// An always-visible switcher row makes the active ledger easy to confirm.
+class _ActiveKhataCard extends StatelessWidget {
+  const _ActiveKhataCard({
+    required this.strings,
+    required this.name,
+    required this.onTap,
+  });
+
+  final AppStrings strings;
+  final String name;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: const Key('switch-khata'),
+      button: onTap != null,
+      enabled: onTap != null,
+      label:
+          '$name, ${strings.text(AppString.activeKhata)}${onTap == null ? '' : ', ${strings.text(AppString.tapToSwitch)}'}',
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.menu_book,
+                    color: AppColors.primaryGreen,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        strings.text(AppString.activeKhata).toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  onTap == null
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.primaryGreen,
+                  size: 24,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Green balance card with a bundled AI wallet illustration.
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({required this.strings, required this.remainingPaise});
 
   final AppStrings strings;
-
   final int remainingPaise;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.primaryGreen,
+        borderRadius: BorderRadius.circular(24),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.darkText.withValues(alpha: 0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: AppColors.darkText.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: ColoredBox(
-          color: AppColors.primaryGreen,
-          child: Stack(
-            children: <Widget>[
-              // Decorative leaves, echoing the artwork in the mockup. Purely
-              // ornamental: excluded from semantics.
-              Positioned(
-                right: -18,
-                bottom: -22,
-                child: ExcludeSemantics(
-                  child: Icon(
-                    Icons.eco,
-                    size: 108,
-                    color: AppColors.headerGreen.withValues(alpha: 0.55),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 34,
-                top: -26,
-                child: ExcludeSemantics(
-                  child: Icon(
-                    Icons.spa,
-                    size: 64,
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: <Widget>[
+            Positioned(
+              right: -34,
+              top: -44,
+              child: ExcludeSemantics(
+                child: Container(
+                  width: 134,
+                  height: 134,
+                  decoration: BoxDecoration(
                     color: AppColors.headerGreen.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: <Widget>[
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: AppColors.golden,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance_wallet,
-                        color: AppColors.primaryGreen,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            strings.text(AppString.remainingBalance),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            const Icon(
+                              Icons.account_balance_wallet,
+                              color: AppColors.golden,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                strings.text(AppString.remainingBalance),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.onPrimary.withValues(
+                                    alpha: 0.9,
+                                  ),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            strings.money(remainingPaise),
                             maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.onPrimary.withValues(
-                                alpha: 0.86,
-                              ),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                            softWrap: false,
+                            style: const TextStyle(
+                              color: AppColors.onPrimary,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              height: 1.05,
+                              letterSpacing: -0.5,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          // The hero number: scale it down rather than clip it.
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              strings.money(remainingPaise),
-                              maxLines: 1,
-                              softWrap: false,
-                              style: const TextStyle(
-                                color: AppColors.onPrimary,
-                                fontSize: 34,
-                                fontWeight: FontWeight.w800,
-                                height: 1.1,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ExcludeSemantics(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: SizedBox(
+                        width: 84,
+                        height: 84,
+                        child: Image.asset(
+                          'assets/illustrations/home_wallet.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const ColoredBox(
+                                color: AppColors.lightGreen,
+                                child: Icon(
+                                  Icons.account_balance_wallet,
+                                  size: 44,
+                                  color: AppColors.primaryGreen,
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -380,28 +502,23 @@ class _SummaryTile extends StatelessWidget {
   });
 
   final AppStrings strings;
-
   final String label;
   final int paise;
   final Color color;
   final IconData icon;
-
-  /// Semantic direction, so the tile is readable without seeing an arrow.
   final String direction;
 
   @override
   Widget build(BuildContext context) {
-    // One merged node ("Total Income, income, ₹10,000") so a screen reader
-    // announces the label, direction and amount together.
     return Semantics(
       container: true,
       label: '$label, $direction, ${strings.money(paise)}',
       child: ExcludeSemantics(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppColors.outline),
           ),
           child: Column(
@@ -409,7 +526,6 @@ class _SummaryTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Container(
                     width: 26,
@@ -420,27 +536,22 @@ class _SummaryTile extends StatelessWidget {
                     ),
                     child: Icon(icon, size: 16, color: color),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        label,
-                        maxLines: 2,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.15,
-                          color: AppColors.softText,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.15,
+                        color: AppColors.softText,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              // 20 dp w800 clears the "large text" threshold in theme.md, so
-              // the red/green amounts keep AA contrast on warm ivory.
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -449,7 +560,7 @@ class _SummaryTile extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 19,
                     fontWeight: FontWeight.w800,
                     color: color,
                   ),
@@ -463,7 +574,7 @@ class _SummaryTile extends StatelessWidget {
   }
 }
 
-/// Friendly stand-in for the recent list when the supplied ledger is empty.
+/// Empty ledger state, kept plain and actionable.
 class _EmptyTransactions extends StatelessWidget {
   const _EmptyTransactions(this.strings);
 
@@ -471,14 +582,27 @@ class _EmptyTransactions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Center(
-        child: Text(
-          strings.text(AppString.homeEmpty),
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.softText, fontSize: 13),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        children: <Widget>[
+          const Icon(
+            Icons.receipt_long_rounded,
+            color: AppColors.primaryGreen,
+            size: 28,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strings.text(AppString.homeEmpty),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.softText, fontSize: 13),
+          ),
+        ],
       ),
     );
   }
@@ -493,15 +617,12 @@ class _SectionHeader extends StatelessWidget {
   });
 
   final AppStrings strings;
-
   final String title;
   final VoidCallback? onViewAll;
 
   @override
   Widget build(BuildContext context) {
     final bool enabled = onViewAll != null;
-    // A missing callback must not look like a working affordance: grey it out
-    // and let TextButton's button semantics advertise the disabled state.
     final Color tint = enabled
         ? AppColors.primaryGreen
         : AppColors.navigationGrey;
@@ -514,9 +635,10 @@ class _SectionHeader extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
               color: AppColors.darkText,
+              letterSpacing: -0.2,
             ),
           ),
         ),
@@ -528,9 +650,10 @@ class _SectionHeader extends StatelessWidget {
             child: TextButton(
               onPressed: onViewAll,
               style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(44, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: tint,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -539,11 +662,11 @@ class _SectionHeader extends StatelessWidget {
                     strings.text(AppString.viewAll),
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: tint,
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 18, color: tint),
+                  Icon(Icons.chevron_right_rounded, size: 18, color: tint),
                 ],
               ),
             ),
@@ -554,7 +677,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// One recent transaction: tinted category icon, title, timestamp, amount.
+/// One recent transaction: category cue, clear description and signed amount.
 class _RecentTransactionRow extends StatelessWidget {
   const _RecentTransactionRow({
     required this.strings,
@@ -562,11 +685,9 @@ class _RecentTransactionRow extends StatelessWidget {
     required this.preview,
   });
 
-  final bool preview;
-
   final AppStrings strings;
-
   final LedgerEntry entry;
+  final bool preview;
 
   @override
   Widget build(BuildContext context) {
@@ -576,11 +697,12 @@ class _RecentTransactionRow extends StatelessWidget {
         : AppColors.expenseRed;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outline.withValues(alpha: 0.72)),
       ),
       child: Row(
         children: <Widget>[
@@ -589,8 +711,8 @@ class _RecentTransactionRow extends StatelessWidget {
               _categoryLabel(strings, entry.category),
             ),
             child: Container(
-              width: 40,
-              height: 40,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 color: _categoryTint(entry.category),
                 shape: BoxShape.circle,
@@ -615,16 +737,17 @@ class _RecentTransactionRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.darkText,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   strings.dateTime(entry.at),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: AppColors.softText,
                   ),
                 ),
@@ -646,7 +769,7 @@ class _RecentTransactionRow extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 19,
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: amountColor,
                   ),
@@ -662,9 +785,7 @@ class _RecentTransactionRow extends StatelessWidget {
   Color _categoryTint(String category) =>
       _categoryColor(category).withValues(alpha: 0.14);
 
-  /// Category icon tints from the mockup, mapped onto palette tokens only
-  /// (theme.md lists a blue for Travel that the palette does not define, so
-  /// Travel reuses the green family).
+  /// Category colours come from theme tokens only.
   Color _categoryColor(String category) {
     switch (category) {
       case 'Shopping':
@@ -695,7 +816,7 @@ class _RecentTransactionRow extends StatelessWidget {
       case 'Gifts':
         return Icons.card_giftcard;
       default:
-        return Icons.more_horiz;
+        return Icons.more_horiz_rounded;
     }
   }
 }

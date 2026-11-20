@@ -143,10 +143,7 @@ void main() {
         // The fifth entry and every seeded preview entry stay out of the list.
         expect(find.text('Live Electricity'), findsNothing);
         expect(find.text('Grocery Shopping'), findsNothing);
-        expect(
-          find.text('Preview data - local ledger arrives in B2'),
-          findsNothing,
-        );
+        expect(find.text('Sample ledger · preview data only'), findsNothing);
         expectNoLayoutErrors(tester);
       },
     );
