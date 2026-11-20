@@ -39,6 +39,10 @@ void main() {
       khataCount: 2,
       transactionCount: 4,
       deletedTransactionCount: 1,
+      profileIncluded: true,
+      customCategoryCount: 2,
+      khatasWithSavedCount: 1,
+      savedSessionCount: 3,
     );
     final exporting = Completer<BackupExportResult>();
     var restores = 0;
@@ -92,6 +96,15 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text(AppString.exportCancelled.bn), findsOneWidget);
     await tap(AppString.pickBackup);
+    // The side areas of a version 2 backup are reported, in Bengali.
+    expect(
+      find.text(
+        'অন্তর্ভুক্ত: প্রোফাইল, ২টি কাস্টম ক্যাটাগরি, ১টি খাতায় '
+        'সংরক্ষিত গণনা, ৩টি সংরক্ষিত সেশন।',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('ব্যাকআপে যা থাকে:'), findsOneWidget);
     await tap(AppString.confirmReplaceAll);
     expect(find.text(AppString.restoreWarning.bn), findsOneWidget);
     expect(find.textContaining(preview.payload), findsNothing);

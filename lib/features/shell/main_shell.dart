@@ -155,6 +155,10 @@ class _MainShellState extends State<MainShell> {
               khataCount: counts.khataCount,
               transactionCount: counts.transactionCount,
               deletedTransactionCount: counts.deletedTransactionCount,
+              profileIncluded: counts.profileIncluded,
+              customCategoryCount: counts.customCategoryCount,
+              khatasWithSavedCount: counts.khatasWithSavedCount,
+              savedSessionCount: counts.savedSessionCount,
             );
           },
           onRestore: (preview) async {

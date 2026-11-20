@@ -40,8 +40,8 @@ import 'saved_sessions_sheet.dart';
 /// opening balance. `Save` keeps a timestamped snapshot of a non-empty count
 /// as a per-khata saved session; saved sessions are listed, restored and
 /// deleted from the sessions sheet. Counter data lives only in the counter
-/// tables - it is **not** part of the JSON backup yet, and the screen says
-/// so rather than implying it travels with one.
+/// tables, and a format version 2 backup carries all of them - the screen
+/// says so rather than disclaiming the backup.
 class NoteCounterScreen extends StatefulWidget {
   const NoteCounterScreen({
     super.key,
@@ -85,8 +85,8 @@ class _Copy {
       _bn ? 'নিচ থেকে নোট বেছে নিন' : 'Choose a note below';
 
   String get savedHint => _bn
-      ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়, এখনো ব্যাকআপে আসে না'
-      : 'Saved on this device for this khata - not a ledger entry and not in a backup yet';
+      ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়; ব্যাকআপ ফাইলের সাথে যায়'
+      : 'Saved on this device for this khata - not a ledger entry; it travels in the backup file';
 
   String get loading => _bn
       ? 'এই খাতার সংরক্ষিত গণনা লোড হচ্ছে…'

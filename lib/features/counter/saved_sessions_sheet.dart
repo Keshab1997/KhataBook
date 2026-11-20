@@ -48,8 +48,8 @@ class _Copy {
       : 'Could not delete the saved count. Try again.';
 
   String get backupNote => _bn
-      ? 'সংরক্ষিত গণনা এই ডিভাইসেই থাকে — এখনো ব্যাকআপে আসে না'
-      : 'Saved counts stay on this device - not in a backup yet';
+      ? 'সংরক্ষিত গণনা ব্যাকআপ ফাইলের সাথে যায়'
+      : 'Saved counts travel in the backup file';
 }
 
 /// The saved sessions of one khata, newest first.

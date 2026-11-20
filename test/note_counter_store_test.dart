@@ -35,6 +35,44 @@ void main() {
     await dir.delete(recursive: true);
   });
 
+  test('ensureTables creates the counter tables on a fresh database', () async {
+    final LocalLedger ledger = open();
+    await ledger.initialize();
+    // No store call has happened yet: the tables do not exist.
+    for (final String table in <String>[
+      'note_counter_quantities',
+      'note_counter_state',
+      'note_counter_saved_sessions',
+    ]) {
+      final List<QueryRow> rows = await ledger
+          .customSelect(
+            'SELECT name FROM sqlite_master '
+            "WHERE type = 'table' AND name = ?",
+            variables: <Variable<Object>>[Variable<String>(table)],
+          )
+          .get();
+      expect(rows, isEmpty, reason: '$table should not exist yet');
+    }
+    final NoteCounterStore store = NoteCounterStore(ledger);
+    await store.ensureTables();
+    await store.ensureTables();
+    for (final String table in <String>[
+      'note_counter_quantities',
+      'note_counter_state',
+      'note_counter_saved_sessions',
+    ]) {
+      final List<QueryRow> rows = await ledger
+          .customSelect(
+            'SELECT name FROM sqlite_master '
+            "WHERE type = 'table' AND name = ?",
+            variables: <Variable<Object>>[Variable<String>(table)],
+          )
+          .get();
+      expect(rows.length, 1, reason: '$table should exist now');
+    }
+    await ledger.close();
+  });
+
   group('snapshot', () {
     test('fills in every denomination and stays immutable', () {
       final NoteCounterSnapshot snapshot = _snapshot(

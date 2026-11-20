@@ -1157,14 +1157,14 @@ void main() {
       expect(find.byKey(const Key('saved-sessions-empty')), findsOneWidget);
     });
 
-    testWidgets('the screen never claims counter data is in a backup', (
+    testWidgets('the screen says counter data travels in the backup', (
       WidgetTester tester,
     ) async {
       final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      expect(find.textContaining('not in a backup yet'), findsOneWidget);
+      expect(find.textContaining('travels in the backup file'), findsOneWidget);
       expect(
         find.text('In-memory session - nothing is saved or added to a khata'),
         findsNothing,

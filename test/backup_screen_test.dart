@@ -11,6 +11,17 @@ const preview = BackupPreview(
   khataCount: 2,
   transactionCount: 3,
   deletedTransactionCount: 1,
+  profileIncluded: true,
+  customCategoryCount: 2,
+  khatasWithSavedCount: 1,
+  savedSessionCount: 4,
+);
+
+const previewWithoutSideFacts = BackupPreview(
+  payload: 'SECRET_PAYLOAD',
+  khataCount: 2,
+  transactionCount: 3,
+  deletedTransactionCount: 1,
 );
 Future<void> open(WidgetTester t, BackupScreen screen) async {
   await t.pumpWidget(
@@ -59,6 +70,8 @@ void main() {
         onRestore: (_) async => false,
       ),
     );
+    expect(find.text('A backup file contains:'), findsOneWidget);
+    expect(find.textContaining('custom categories'), findsWidgets);
     await t.tap(find.text('Export Backup'));
     await t.pumpAndSettle();
     expect(find.text('Export cancelled.'), findsOneWidget);
@@ -70,6 +83,24 @@ void main() {
     await t.tap(find.text('Export Backup'));
     await t.pumpAndSettle();
     expect(find.text('Export failed.'), findsOneWidget);
+  });
+  testWidgets('a preview without the side facts hides the details line', (
+    t,
+  ) async {
+    await open(
+      t,
+      BackupScreen(
+        onExport: () async => BackupExportResult.saved,
+        onPickBackup: () async => previewWithoutSideFacts,
+        onRestore: (_) async => false,
+      ),
+    );
+    await pick(t);
+    expect(
+      find.text('Preview: 2 khatas, 3 transactions, 1 deleted.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Includes:'), findsNothing);
   });
   testWidgets('pick cancel and exception with sensitive text', (t) async {
     var fail = false;
@@ -110,6 +141,14 @@ void main() {
       await pick(t);
       expect(
         find.text('Preview: 2 khatas, 3 transactions, 1 deleted.'),
+        findsOneWidget,
+      );
+      // The version 2 side areas are reported with the counts.
+      expect(
+        find.text(
+          'Includes: profile, 2 custom categories, 1 khata with a saved '
+          'count, 4 saved sessions.',
+        ),
         findsOneWidget,
       );
       expect(find.textContaining('SECRET_PAYLOAD'), findsNothing);

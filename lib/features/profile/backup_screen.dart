@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
+import '../../core/theme/app_colors.dart';
 
 enum BackupExportResult { saved, cancelled, failed }
 
@@ -11,6 +12,10 @@ class BackupPreview {
     required this.khataCount,
     required this.transactionCount,
     required this.deletedTransactionCount,
+    this.profileIncluded,
+    this.customCategoryCount,
+    this.khatasWithSavedCount,
+    this.savedSessionCount,
   });
 
   // payload opaque private string, never rendered or logged
@@ -18,6 +23,15 @@ class BackupPreview {
   final int khataCount;
   final int transactionCount;
   final int deletedTransactionCount;
+
+  // The side areas a version 2 backup carries. Null when the caller did not
+  // report them (an earlier wiring passes only the three counts above); the
+  // screen shows the details line only when all four are present, so it
+  // never invents counts it does not have.
+  final bool? profileIncluded;
+  final int? customCategoryCount;
+  final int? khatasWithSavedCount;
+  final int? savedSessionCount;
 }
 
 class BackupScreen extends StatefulWidget {
@@ -48,6 +62,81 @@ class _BackupScreenContentState extends State<BackupScreen> {
     deleted: _preview!.deletedTransactionCount,
     loaded: loaded,
   );
+
+  /// True when the preview carries all four side-area facts.
+  bool _hasDetails(BackupPreview preview) =>
+      preview.profileIncluded != null &&
+      preview.customCategoryCount != null &&
+      preview.khatasWithSavedCount != null &&
+      preview.savedSessionCount != null;
+
+  /// The side-area line under the counts summary, en+bn as a local pair.
+  String _detailsLine(BackupPreview preview) {
+    final bool bn = widget.language == AppLanguage.bn;
+    final bool profile = preview.profileIncluded!;
+    final int categories = preview.customCategoryCount!;
+    final int khatas = preview.khatasWithSavedCount!;
+    final int sessions = preview.savedSessionCount!;
+    final String Function(int) n = _strings.number;
+    if (bn) {
+      return 'অন্তর্ভুক্ত: ${profile ? 'প্রোফাইল' : 'প্রোফাইল নেই'}, '
+          '${n(categories)}টি কাস্টম ক্যাটাগরি, '
+          '${n(khatas)}টি খাতায় সংরক্ষিত গণনা, '
+          '${n(sessions)}টি সংরক্ষিত সেশন।';
+    }
+    return 'Includes: ${profile ? 'profile' : 'no profile'}, '
+        '$categories custom ${categories == 1 ? 'category' : 'categories'}, '
+        '$khatas ${khatas == 1 ? 'khata' : 'khatas'} with a saved count, '
+        '$sessions saved ${sessions == 1 ? 'session' : 'sessions'}.';
+  }
+
+  /// The always-on list of what a backup carries, en+bn as local pairs.
+  List<(String, String)> get _contents => const <(String, String)>[
+    (
+      'Every khata and every transaction, deleted entries included',
+      'প্রতিটি খাতা ও প্রতিটি লেনদেন, মোছা এন্ট্রিগুলোসহ',
+    ),
+    (
+      'Your offline profile (name and optional photo)',
+      'আপনার অফলাইন প্রোফাইল (নাম ও ঐচ্ছিক ছবি)',
+    ),
+    (
+      'Your custom categories (archived ones included)',
+      'আপনার কাস্টম ক্যাটাগরি (আর্কাইভ করাগুলোসহ)',
+    ),
+    (
+      'Note counter counts and saved sessions, for every khata',
+      'প্রতিটি খাতার নোট কাউন্টারের গণনা ও সংরক্ষিত সেশন',
+    ),
+  ];
+
+  Widget _contentsList() {
+    final bool bn = widget.language == AppLanguage.bn;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            bn ? 'ব্যাকআপে যা থাকে:' : 'A backup file contains:',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          for (final (String en, String bng) in _contents)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text('\u2022  ${bn ? bng : en}'),
+            ),
+        ],
+      ),
+    );
+  }
+
   BackupPreview? _preview;
 
   Future<void> _handleExport() async {
@@ -112,6 +201,7 @@ class _BackupScreenContentState extends State<BackupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(_summary()),
+              if (_hasDetails(_preview!)) Text(_detailsLine(_preview!)),
               const SizedBox(height: 10),
               Text(
                 widget.language == AppLanguage.en
@@ -193,6 +283,8 @@ class _BackupScreenContentState extends State<BackupScreen> {
                   _strings.text(AppString.backupPrivacy),
                   style: const TextStyle(color: Colors.orange, fontSize: 14),
                 ),
+                const SizedBox(height: 16),
+                _contentsList(),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: _isPending ? null : _handleExport,
@@ -213,6 +305,11 @@ class _BackupScreenContentState extends State<BackupScreen> {
                 if (_preview != null) ...[
                   const Divider(),
                   Text(_summary()),
+                  if (_hasDetails(_preview!))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(_detailsLine(_preview!)),
+                    ),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: _isPending ? null : _handleRestore,

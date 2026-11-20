@@ -21,9 +21,9 @@
 // stay and [NoteCounterStore.load] still reads them); writes reject an archived
 // khata instead of quietly filing the count under the personal khata.
 //
-// The JSON backup codec (lib/features/ledger/data/ledger_backup.dart) does not
-// carry these rows. The counter screen says so rather than implying the counts
-// travel with a backup.
+// The JSON backup codec (lib/features/ledger/data/ledger_backup.dart) carries
+// these rows in format version 2, so a backup restored on another phone brings
+// the counts and the saved sessions along with the ledger.
 
 import 'dart:async';
 import 'dart:convert';
@@ -737,6 +737,13 @@ class NoteCounterStore {
       rethrow;
     }
   }
+
+  /// Creates the three note counter tables if they do not exist yet.
+  ///
+  /// Public for the backup restore, which must be able to land the counter
+  /// section on a phone whose counter was never opened (the tables are
+  /// otherwise created lazily on first use). Creates nothing else.
+  Future<void> ensureTables() => _ensureSchema();
 
   Future<void> _createSchema() async {
     await _ledger.customStatement(_createQuantitiesTable);
