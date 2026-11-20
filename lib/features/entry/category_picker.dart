@@ -329,9 +329,7 @@ class _CategorySheet extends StatelessWidget {
                   _starterGrid(context, categories),
                   if (custom.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 18),
-                    _SheetCaption(
-                      t('Your categories', 'আপনার বিভাগ'),
-                    ),
+                    _SheetCaption(t('Your categories', 'আপনার বিভাগ')),
                     const SizedBox(height: 4),
                     for (final category in custom)
                       ListTile(
@@ -400,10 +398,7 @@ class _CategorySheet extends StatelessWidget {
 
   /// The five built-in categories as the same artwork tiles Add Entry uses,
   /// laid out in as many even columns as the sheet is wide.
-  Widget _starterGrid(
-    BuildContext context,
-    List<CustomCategory> categories,
-  ) {
+  Widget _starterGrid(BuildContext context, List<CustomCategory> categories) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         const double gap = 12;

@@ -772,8 +772,9 @@ void main() {
 
     test('round trips a blank profile name and its avatar', () async {
       final LocalLedger source = await _seededLedger();
-      await ProfileStore(source)
-          .save(LocalProfile(name: '   ', avatarBytes: _pngBytes));
+      await ProfileStore(
+        source,
+      ).save(LocalProfile(name: '   ', avatarBytes: _pngBytes));
       final String json = await LedgerBackup(source).exportJson();
       await source.close();
 
@@ -914,127 +915,134 @@ void main() {
         await target.close();
       },
     );
-    test('a legacy v2 file carrying the retired ₹2,000 note is repaired away on restore', () async {
-      final LocalLedger source = await _seededLedger();
-      await _seedSideData(source);
-      final String json = await LedgerBackup(source).exportJson();
-      await source.close();
+    test(
+      'a legacy v2 file carrying the retired ₹2,000 note is repaired away on restore',
+      () async {
+        final LocalLedger source = await _seededLedger();
+        await _seedSideData(source);
+        final String json = await LedgerBackup(source).exportJson();
+        await source.close();
 
-      // Rewrite the file to what a pre-withdrawal phone would have
-      // written: a ₹2,000 quantity, a ₹2,000 selection, the old
-      // show_two_thousand flag, and a saved session carrying the note.
-      final Map<String, Object?> root =
-          jsonDecode(json) as Map<String, Object?>;
-      final Map<String, Object?> counter =
-          root['noteCounter']! as Map<String, Object?>;
-      final List<Object?> quantities = counter['quantities']! as List<Object?>;
-      final Map<String, Object?> first =
-          quantities.first! as Map<String, Object?>;
-      quantities.add(<String, Object?>{
-        ...first,
-        'denomination_paise': 200000,
-        'quantity': 2,
-      });
-      final List<Object?> state = counter['state']! as List<Object?>;
-      for (int i = 0; i < state.length; i++) {
-        final Map<String, Object?> row = state[i]! as Map<String, Object?>;
-        state[i] = <String, Object?>{
-          ...row,
-          'selected_denomination_paise': 200000,
-          'show_two_thousand': true,
-        };
-      }
-      final List<Object?> sessions =
-          counter['saved_sessions']! as List<Object?>;
-      for (int i = 0; i < sessions.length; i++) {
-        final Map<String, Object?> session =
-            sessions[i]! as Map<String, Object?>;
-        final Map<String, Object?> qty = Map<String, Object?>.from(
-          session['quantities']! as Map<Object?, Object?>,
-        );
-        qty['200000'] = 1;
-        sessions[i] = <String, Object?>{
-          ...session,
-          'quantities': qty,
-          'selected_denomination_paise': 200000,
-          'show_two_thousand': true,
-        };
-      }
+        // Rewrite the file to what a pre-withdrawal phone would have
+        // written: a ₹2,000 quantity, a ₹2,000 selection, the old
+        // show_two_thousand flag, and a saved session carrying the note.
+        final Map<String, Object?> root =
+            jsonDecode(json) as Map<String, Object?>;
+        final Map<String, Object?> counter =
+            root['noteCounter']! as Map<String, Object?>;
+        final List<Object?> quantities =
+            counter['quantities']! as List<Object?>;
+        final Map<String, Object?> first =
+            quantities.first! as Map<String, Object?>;
+        quantities.add(<String, Object?>{
+          ...first,
+          'denomination_paise': 200000,
+          'quantity': 2,
+        });
+        final List<Object?> state = counter['state']! as List<Object?>;
+        for (int i = 0; i < state.length; i++) {
+          final Map<String, Object?> row = state[i]! as Map<String, Object?>;
+          state[i] = <String, Object?>{
+            ...row,
+            'selected_denomination_paise': 200000,
+            'show_two_thousand': true,
+          };
+        }
+        final List<Object?> sessions =
+            counter['saved_sessions']! as List<Object?>;
+        for (int i = 0; i < sessions.length; i++) {
+          final Map<String, Object?> session =
+              sessions[i]! as Map<String, Object?>;
+          final Map<String, Object?> qty = Map<String, Object?>.from(
+            session['quantities']! as Map<Object?, Object?>,
+          );
+          qty['200000'] = 1;
+          sessions[i] = <String, Object?>{
+            ...session,
+            'quantities': qty,
+            'selected_denomination_paise': 200000,
+            'show_two_thousand': true,
+          };
+        }
 
-      final LocalLedger target = LocalLedger(NativeDatabase.memory());
-      await target.initialize();
-      await LedgerBackup(target).restoreReplacing(jsonEncode(root));
+        final LocalLedger target = LocalLedger(NativeDatabase.memory());
+        await target.initialize();
+        await LedgerBackup(target).restoreReplacing(jsonEncode(root));
 
-      // No ₹2,000 quantity anywhere on the restored phone.
-      final List<QueryRow> quantityRows = await target
-          .customSelect(
-            'SELECT denomination_paise FROM note_counter_quantities '
-            'WHERE denomination_paise = 200000',
-          )
-          .get();
-      expect(quantityRows, isEmpty);
+        // No ₹2,000 quantity anywhere on the restored phone.
+        final List<QueryRow> quantityRows = await target
+            .customSelect(
+              'SELECT denomination_paise FROM note_counter_quantities '
+              'WHERE denomination_paise = 200000',
+            )
+            .get();
+        expect(quantityRows, isEmpty);
 
-      // State and sessions are repaired, not kept and not silently ignored.
-      final List<QueryRow> stateRows = await target
-          .customSelect(
-            'SELECT selected_denomination_paise, show_two_thousand '
-            'FROM note_counter_state',
-          )
-          .get();
-      expect(stateRows, isNotEmpty);
-      for (final QueryRow row in stateRows) {
-        expect(
-          row.read<int>('selected_denomination_paise'),
-          kDefaultDenominationPaise,
-        );
-        expect(row.read<int>('show_two_thousand'), 0);
-      }
-      final List<QueryRow> sessionRows = await target
-          .customSelect(
-            'SELECT quantities_json, selected_denomination_paise, '
-            'show_two_thousand FROM note_counter_saved_sessions',
-          )
-          .get();
-      expect(sessionRows, isNotEmpty);
-      for (final QueryRow row in sessionRows) {
-        expect(row.read<String>('quantities_json'), isNot(contains('200000')));
-        expect(
-          row.read<int>('selected_denomination_paise'),
-          kDefaultDenominationPaise,
-        );
-        expect(row.read<int>('show_two_thousand'), 0);
-      }
+        // State and sessions are repaired, not kept and not silently ignored.
+        final List<QueryRow> stateRows = await target
+            .customSelect(
+              'SELECT selected_denomination_paise, show_two_thousand '
+              'FROM note_counter_state',
+            )
+            .get();
+        expect(stateRows, isNotEmpty);
+        for (final QueryRow row in stateRows) {
+          expect(
+            row.read<int>('selected_denomination_paise'),
+            kDefaultDenominationPaise,
+          );
+          expect(row.read<int>('show_two_thousand'), 0);
+        }
+        final List<QueryRow> sessionRows = await target
+            .customSelect(
+              'SELECT quantities_json, selected_denomination_paise, '
+              'show_two_thousand FROM note_counter_saved_sessions',
+            )
+            .get();
+        expect(sessionRows, isNotEmpty);
+        for (final QueryRow row in sessionRows) {
+          expect(
+            row.read<String>('quantities_json'),
+            isNot(contains('200000')),
+          );
+          expect(
+            row.read<int>('selected_denomination_paise'),
+            kDefaultDenominationPaise,
+          );
+          expect(row.read<int>('show_two_thousand'), 0);
+        }
 
-      // A re-export of the restored phone carries none of the retired
-      // note either, and it is deterministic.
-      final String reExported = await LedgerBackup(target).exportJson();
-      final Map<String, Object?> reRoot =
-          jsonDecode(reExported) as Map<String, Object?>;
-      final Map<String, Object?> reCounter =
-          reRoot['noteCounter']! as Map<String, Object?>;
-      for (final Object? row in reCounter['quantities']! as List<Object?>) {
-        expect(
-          (row! as Map<String, Object?>)['denomination_paise'],
-          isNot(200000),
-        );
-      }
-      for (final Object? item
-          in reCounter['saved_sessions']! as List<Object?>) {
-        final Map<String, Object?> session = item! as Map<String, Object?>;
-        expect(
-          (session['quantities']! as Map<String, Object?>).containsKey(
-            '200000',
-          ),
-          isFalse,
-        );
-        expect(
-          session['selected_denomination_paise'],
-          kDefaultDenominationPaise,
-        );
-        expect(session['show_two_thousand'], isFalse);
-      }
-      await target.close();
-    });
+        // A re-export of the restored phone carries none of the retired
+        // note either, and it is deterministic.
+        final String reExported = await LedgerBackup(target).exportJson();
+        final Map<String, Object?> reRoot =
+            jsonDecode(reExported) as Map<String, Object?>;
+        final Map<String, Object?> reCounter =
+            reRoot['noteCounter']! as Map<String, Object?>;
+        for (final Object? row in reCounter['quantities']! as List<Object?>) {
+          expect(
+            (row! as Map<String, Object?>)['denomination_paise'],
+            isNot(200000),
+          );
+        }
+        for (final Object? item
+            in reCounter['saved_sessions']! as List<Object?>) {
+          final Map<String, Object?> session = item! as Map<String, Object?>;
+          expect(
+            (session['quantities']! as Map<String, Object?>).containsKey(
+              '200000',
+            ),
+            isFalse,
+          );
+          expect(
+            session['selected_denomination_paise'],
+            kDefaultDenominationPaise,
+          );
+          expect(session['show_two_thousand'], isFalse);
+        }
+        await target.close();
+      },
+    );
   });
 
   group('version 2 rejects bad sections and changes nothing', () {

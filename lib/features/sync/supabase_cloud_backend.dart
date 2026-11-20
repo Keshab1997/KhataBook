@@ -16,10 +16,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cloud_backend.dart';
 
-typedef OAuthLauncher = Future<bool> Function({
-  required String? redirectTo,
-  required LaunchMode launchMode,
-});
+typedef OAuthLauncher =
+    Future<bool> Function({
+      required String? redirectTo,
+      required LaunchMode launchMode,
+    });
 
 /// Sanitized remote backend failure containing no tokens, API keys, or query
 /// credentials.

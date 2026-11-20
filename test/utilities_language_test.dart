@@ -60,8 +60,9 @@ void main() {
     await t.pumpWidget(
       MaterialApp(
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(2)),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(2)),
           child: child!,
         ),
         home: Builder(
@@ -69,8 +70,9 @@ void main() {
             body: TextButton(
               child: const Text('Open'),
               onPressed: () async {
-                restored = await Navigator.of(context)
-                    .push<bool>(MaterialPageRoute(builder: (_) => screen));
+                restored = await Navigator.of(
+                  context,
+                ).push<bool>(MaterialPageRoute(builder: (_) => screen));
               },
             ),
           ),

@@ -483,8 +483,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
       ClipboardData(text: _summaryLines(copy).join('\n')),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(copy.summaryCopied)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(copy.summaryCopied)));
   }
 
   Future<void> _saveSession() async {
@@ -495,12 +496,14 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     try {
       await store.saveSession(khataId, _snapshot());
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaved)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(copy.sessionSaved)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaveFailed)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(copy.sessionSaveFailed)));
     }
   }
 
@@ -558,8 +561,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           if (!mounted) return;
           setState(() => _applySnapshot(session.snapshot));
           _schedulePersist();
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(copy.sessionRestored)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(copy.sessionRestored)));
         },
       ),
     );
