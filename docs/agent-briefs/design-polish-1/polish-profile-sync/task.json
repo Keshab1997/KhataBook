@@ -1,0 +1,27 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "polish-profile-sync",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "lib/features/profile/backup_screen.dart",
+    "lib/features/profile/profile_photo_picker.dart",
+    "lib/features/sync/account_card.dart",
+    "lib/features/sync/cloud_backup_screen.dart",
+    "lib/features/sync/sign_in_screen.dart",
+    "test/profile_settings_test.dart",
+    "test/backup_screen_test.dart",
+    "test/cloud_backup_screen_test.dart",
+    "test/account_card_test.dart",
+    "test/sign_in_screen_test.dart"
+  ],
+  "commit": "style(profile,sync): polish profile, settings, backup, and sync UI",
+  "check": {
+    "kind": "preflight"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "953c0c7923cf4051f5c341d16894ca29be879f8a"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "polish-entry-utilities",
+  "allowed": [
+    "lib/features/entry/add_entry_screen.dart",
+    "lib/features/entry/transaction_editor_screen.dart",
+    "lib/features/entry/category_picker.dart",
+    "lib/features/entry/category_artwork.dart",
+    "lib/features/calculator/calculator_screen.dart",
+    "lib/features/counter/note_counter_screen.dart",
+    "lib/features/counter/saved_sessions_sheet.dart",
+    "test/add_entry_screen_test.dart",
+    "test/transaction_editor_test.dart",
+    "test/calculator_test.dart",
+    "test/note_counter_test.dart"
+  ],
+  "commit": "style(entry,utilities): polish entry forms, category picker, calculator, and note counter UI",
+  "check": {
+    "kind": "preflight"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "953c0c7923cf4051f5c341d16894ca29be879f8a"
+  }
+}
