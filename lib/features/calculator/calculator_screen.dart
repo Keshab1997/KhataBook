@@ -1,11 +1,13 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/format/money.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
-import '../profile/settings_screen.dart';
 
 /// Operator glyphs are kept distinct from the ASCII '-' used inside a
 /// negative number token, so a leading minus can be edited like a digit.
@@ -92,6 +94,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   final List<String> _tokens = <String>[];
   String _result = '0';
   AppString? _error;
+  final _CalcHistory _history = _CalcHistory();
 
   String get _expression => _tokens.join(' ');
 
@@ -99,62 +102,78 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   Widget build(BuildContext context) {
     final strings = AppStrings(widget.language);
     return Scaffold(
-      appBar: AppBar(
-        title: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(
-                Icons.calculate_outlined,
-                size: 22,
-                color: AppColors.golden,
-              ),
-              const SizedBox(width: 12),
-              Text(strings.text(AppString.calculator)),
-            ],
-          ),
-        ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (_) => SettingsScreen(language: widget.language),
-              ),
-            ),
-            icon: const Icon(Icons.settings),
-            tooltip: strings.text(AppString.settings),
-          ),
-        ],
-      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final bool compact = constraints.maxHeight < 640;
-            return SingleChildScrollView(
-              // Compact keys keep every operation reachable on short devices;
-              // the scroll view still covers large text and narrow widths.
-              padding: EdgeInsets.fromLTRB(
-                16,
-                compact ? 8 : 14,
-                16,
-                compact ? 12 : 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  _CalculatorDisplay(
-                    strings: strings,
-                    compact: compact,
-                    expression: _expression,
-                    result: _result,
-                    error: _error == null ? null : strings.text(_error!),
-                  ),
-                  const SizedBox(height: 12),
+            final double keyGap = compact ? 10 : 14;
+            final double verticalPadding = compact ? 12 : 16;
+            final double minDisplayHeight = compact ? 100 : 150;
+            final double maxKeySize = compact ? 110 : 140;
+            final double keySizeByWidth =
+                (constraints.maxWidth - 32 - keyGap * 3) / 4;
+            final double keySizeByHeight =
+                (constraints.maxHeight -
+                    verticalPadding * 2 -
+                    minDisplayHeight -
+                    keyGap * 5) /
+                5;
+            final double availableKeySize = keySizeByWidth < keySizeByHeight
+                ? keySizeByWidth
+                : keySizeByHeight;
+            final double minimumKeySize = availableKeySize < 44
+                ? 44
+                : availableKeySize;
+            final double keySize = minimumKeySize < maxKeySize
+                ? minimumKeySize
+                : maxKeySize;
+            final double keypadHeight = keySize * 5 + keyGap * 4;
+            final double minContentHeight =
+                minDisplayHeight + keyGap + keypadHeight;
+            final double availableHeight =
+                constraints.maxHeight - verticalPadding * 2;
+            final double textScale = MediaQuery.of(context).textScaler
+                .scale(1.0);
+            // Fill the screen when there is room at normal text scale; at
+            // larger scales the rendered content can exceed the estimate, so
+            // keep scrolling available instead.
+            final bool fillKeypad =
+                availableHeight >= minContentHeight && textScale == 1.0;
+
+            Widget columnContent = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _CalculatorDisplay(
+                  strings: strings,
+                  compact: compact,
+                  expression: _expression,
+                  result: _result,
+                  error: _error == null ? null : strings.text(_error!),
+                ),
+                SizedBox(height: keyGap),
+                if (fillKeypad)
+                  Expanded(
+                    child: _Keypad(
+                      strings: strings,
+                      keySize: keySize,
+                      gap: keyGap,
+                      fillHeight: true,
+                      onDigit: _onDigit,
+                      onDecimal: _onDecimal,
+                      onOperator: _onOperator,
+                      onPercent: _onPercent,
+                      onBackspace: _onBackspace,
+                      onClear: _onClear,
+                      onEquals: _onEquals,
+                      onHistoryPressed: _showHistory,
+                    ),
+                  )
+                else
                   _Keypad(
                     strings: strings,
-                    compact: compact,
+                    keySize: keySize,
+                    gap: keyGap,
+                    fillHeight: false,
                     onDigit: _onDigit,
                     onDecimal: _onDecimal,
                     onOperator: _onOperator,
@@ -162,9 +181,20 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     onBackspace: _onBackspace,
                     onClear: _onClear,
                     onEquals: _onEquals,
+                    onHistoryPressed: _showHistory,
                   ),
-                ],
+              ],
+            );
+
+            if (fillKeypad) {
+              return SizedBox(height: availableHeight, child: columnContent);
+            }
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: verticalPadding,
               ),
+              child: columnContent,
             );
           },
         ),
@@ -275,8 +305,83 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   /// The expression stays on screen and editable; the result is always a
   /// live preview, so `=` simply re-evaluates without locking the input.
+  /// A completed calculation is persisted to history so nothing is lost
+  /// when the user navigates away and comes back.
   void _onEquals() {
     setState(_evaluate);
+    _history.save(_expression, _result);
+  }
+
+  /// Shows the persisted calculation history. Tapping an entry restores its
+  /// expression and result to the display.
+  Future<void> _showHistory() async {
+    final strings = AppStrings(widget.language);
+    final entries = await _history.load();
+    if (!mounted) return;
+    final String? picked = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(strings.text(AppString.calculatorHistory)),
+          content: entries.isEmpty
+              ? Text(
+                  strings.text(AppString.calculatorHistoryEmpty),
+                  style: TextStyle(color: AppColors.softText),
+                )
+              : SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: entries.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final entry = entries[index];
+                      return ListTile(
+                        title: Text(entry['expression'] ?? ''),
+                        subtitle: Text(
+                          entry['result'] ?? '',
+                          style: TextStyle(
+                            color: AppColors.primaryGreen,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        onTap: () =>
+                            Navigator.of(dialogContext).pop(index.toString()),
+                      );
+                    },
+                  ),
+                ),
+          actions: <Widget>[
+            if (entries.isNotEmpty)
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop('clear'),
+                child: Text(
+                  strings.text(AppString.clearHistory),
+                  style: TextStyle(color: AppColors.expenseRed),
+                ),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(strings.text(AppString.close)),
+            ),
+          ],
+        );
+      },
+    );
+    if (!mounted) return;
+    if (picked == 'clear') {
+      await _history.clear();
+      return;
+    }
+    if (picked == null) return;
+    final int index = int.tryParse(picked) ?? -1;
+    if (index < 0 || index >= entries.length) return;
+    final entry = entries[index];
+    setState(() {
+      _tokens.clear();
+      _tokens.addAll(entry['expression']!.split(' '));
+      _result = entry['result'] ?? '0';
+      _error = null;
+    });
   }
 
   /// Recomputes from the token list. A genuinely unfinished expression (a
@@ -393,7 +498,59 @@ class _ExpressionParser {
   }
 }
 
-/// A calm, high-contrast display: expression first, result second.
+/// Persisted calculation history, kept as a JSON list under a single key.
+/// Entries are newest-first, capped at 50.
+class _CalcHistory {
+  static const _key = 'calculator_history';
+  static const _maxEntries = 50;
+  SharedPreferences? _prefs;
+
+  Future<SharedPreferences> _getPrefs() async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
+
+  /// Saves a completed calculation. Silently no-ops when there is nothing
+  /// worth keeping (empty expression or a plain zero result).
+  Future<void> save(String expression, String result) async {
+    if (expression.isEmpty || result == '0') return;
+    final prefs = await _getPrefs();
+    final List<String> existing = prefs.getStringList(_key) ?? <String>[];
+    final entry = jsonEncode(<String, String>{
+      'expression': expression,
+      'result': result,
+    });
+    existing.insert(0, entry);
+    if (existing.length > _maxEntries) existing.length = _maxEntries;
+    await prefs.setStringList(_key, existing);
+  }
+
+  Future<List<Map<String, String>>> load() async {
+    final prefs = await _getPrefs();
+    final List<String> raw = prefs.getStringList(_key) ?? <String>[];
+    return raw
+        .map((e) {
+          try {
+            final Map<String, dynamic> decoded = jsonDecode(e);
+            return <String, String>{
+              'expression': decoded['expression'] as String,
+              'result': decoded['result'] as String,
+            };
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<Map<String, String>>()
+        .toList();
+  }
+
+  Future<void> clear() async {
+    final prefs = await _getPrefs();
+    await prefs.remove(_key);
+  }
+}
+
+/// A spacious, unobstructed display, with the expression above the result.
 class _CalculatorDisplay extends StatelessWidget {
   const _CalculatorDisplay({
     required this.strings,
@@ -411,142 +568,72 @@ class _CalculatorDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: compact ? 12 : 18,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.outline),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.darkText.withValues(alpha: 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      // A minimum, not a fixed, height: at 200% text the fitted lines can grow
-      // and the enclosing scroll view carries the extra pixels.
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: compact ? 104 : 146),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(
-                  width: compact ? 26 : 30,
-                  height: compact ? 26 : 30,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.calculate_outlined,
-                    size: compact ? 15 : 17,
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    strings.text(AppString.quickCalculation).toUpperCase(),
-                    style: TextStyle(
-                      color: AppColors.softText,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightGreen,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Text(
-                    'INR',
-                    style: TextStyle(
-                      color: AppColors.primaryGreen,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: compact ? 8 : 12),
-            if (expression.isEmpty)
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  strings.text(AppString.calculatorExpressionHint),
-                  style: const TextStyle(
-                    color: AppColors.softText,
-                    fontSize: 13,
-                  ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (expression.isEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                strings.text(AppString.calculatorExpressionHint),
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: AppColors.softText.withValues(alpha: 0.8),
+                  fontSize: compact ? 12 : 14,
                 ),
               ),
-            FittedBox(
+            ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              key: const Key('calculator-expression'),
+              expression,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                color: AppColors.softText,
+                fontSize: compact ? 20 : 24,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (expression.isNotEmpty) SizedBox(height: compact ? 4 : 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                key: const Key('calculator-expression'),
-                expression,
+                key: const Key('calculator-result'),
+                error ?? result,
                 maxLines: 1,
                 softWrap: false,
-                style: const TextStyle(
-                  color: AppColors.softText,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  color: error == null
+                      ? AppColors.darkText
+                      : AppColors.expenseRed,
+                  fontSize: compact ? 40 : 54,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.5,
                 ),
               ),
             ),
-            SizedBox(height: compact ? 3 : 4),
-            const Divider(height: 1, color: AppColors.outline),
-            SizedBox(height: compact ? 5 : 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  key: const Key('calculator-result'),
-                  error ?? result,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: TextStyle(
-                    color: error == null
-                        ? AppColors.darkText
-                        : AppColors.expenseRed,
-                    fontSize: compact ? 34 : 40,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// The five keypad rows from docs/spec/screens.md#s3--calculator.
+/// The five rows of round keys from the calculator reference.
 class _Keypad extends StatelessWidget {
   const _Keypad({
     required this.strings,
-    required this.compact,
+    required this.keySize,
+    required this.gap,
     required this.onDigit,
     required this.onDecimal,
     required this.onOperator,
@@ -554,10 +641,13 @@ class _Keypad extends StatelessWidget {
     required this.onBackspace,
     required this.onClear,
     required this.onEquals,
+    required this.onHistoryPressed,
+    this.fillHeight = false,
   });
 
   final AppStrings strings;
-  final bool compact;
+  final double keySize;
+  final double gap;
   final ValueChanged<String> onDigit;
   final VoidCallback onDecimal;
   final ValueChanged<String> onOperator;
@@ -565,15 +655,22 @@ class _Keypad extends StatelessWidget {
   final VoidCallback onBackspace;
   final VoidCallback onClear;
   final VoidCallback onEquals;
+  final VoidCallback onHistoryPressed;
+  final bool fillHeight;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: fillHeight ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: fillHeight
+          ? MainAxisAlignment.spaceEvenly
+          : MainAxisAlignment.start,
       children: <Widget>[
         _row(<Widget>[
-          _greenKey('C', onClear),
-          _backspaceKey(),
+          _clearKey(),
+          _historyKey(),
           _greenKey('%', onPercent),
+          _backspaceKey(),
           _greenKey('÷', () => onOperator('÷')),
         ]),
         _row(<Widget>[
@@ -594,30 +691,24 @@ class _Keypad extends StatelessWidget {
           _numberKey('3'),
           _greenKey('+', () => onOperator('+')),
         ]),
-        Padding(
-          padding: EdgeInsets.only(bottom: compact ? 6 : 8),
-          child: Row(
-            children: <Widget>[
-              Expanded(flex: 2, child: _numberKey('0')),
-              const SizedBox(width: 8),
-              Expanded(child: _numberKey('.')),
-              const SizedBox(width: 8),
-              Expanded(child: _equalsKey()),
-            ],
-          ),
-        ),
+        _row(<Widget>[
+          _numberKey('00'),
+          _numberKey('0'),
+          _numberKey('.'),
+          _equalsKey(),
+        ], bottomGap: false),
       ],
     );
   }
 
-  Widget _row(List<Widget> keys) {
+  Widget _row(List<Widget> keys, {bool bottomGap = true}) {
     return Padding(
-      padding: EdgeInsets.only(bottom: compact ? 6 : 10),
+      padding: EdgeInsets.only(bottom: bottomGap ? gap : 0),
       child: Row(
         children: <Widget>[
           for (int index = 0; index < keys.length; index++) ...<Widget>[
-            if (index > 0) const SizedBox(width: 8),
-            Expanded(child: keys[index]),
+            if (index > 0) SizedBox(width: gap),
+            Expanded(child: Center(child: keys[index])),
           ],
         ],
       ),
@@ -627,30 +718,61 @@ class _Keypad extends StatelessWidget {
   Widget _numberKey(String label) {
     return _CalcKey(
       key: Key('calc-key-$label'),
-      height: compact ? 56 : 68,
+      size: keySize,
       onPressed: label == '.' ? onDecimal : () => onDigit(label),
-      background: AppColors.creamBackground,
+      background: AppColors.warmIvory,
       foreground: AppColors.darkText,
       outline: AppColors.outline,
       child: Text(
         label,
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontSize: label.length > 1 ? 23 : 29,
+          fontWeight: FontWeight.w600,
+        ),
       ),
+    );
+  }
+
+  Widget _clearKey() {
+    return _CalcKey(
+      key: const Key('calc-key-C'),
+      size: keySize,
+      onPressed: onClear,
+      tooltip: strings.text(AppString.clearCalculation),
+      background: AppColors.lightGreen,
+      foreground: AppColors.primaryGreen,
+      outline: AppColors.lightGreen,
+      child: const Text(
+        'AC',
+        style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _historyKey() {
+    return _CalcKey(
+      key: const Key('calc-key-history'),
+      size: keySize,
+      onPressed: onHistoryPressed,
+      tooltip: strings.text(AppString.calculatorHistory),
+      background: AppColors.lightGreen,
+      foreground: AppColors.primaryGreen,
+      outline: AppColors.lightGreen,
+      child: const Icon(Icons.history, size: 25),
     );
   }
 
   Widget _greenKey(String label, VoidCallback onPressed) {
     return _CalcKey(
       key: Key('calc-key-$label'),
-      height: compact ? 56 : 68,
+      size: keySize,
       onPressed: onPressed,
-      tooltip: label == 'C' ? strings.text(AppString.clearCalculation) : null,
-      background: AppColors.buttonGreen,
-      foreground: AppColors.onPrimary,
-      outline: Colors.transparent,
+      background: AppColors.lightGreen,
+      foreground: AppColors.primaryGreen,
+      outline: AppColors.lightGreen,
       child: Text(
         label,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -658,40 +780,39 @@ class _Keypad extends StatelessWidget {
   Widget _backspaceKey() {
     return _CalcKey(
       key: const Key('calc-key-backspace'),
-      height: compact ? 56 : 68,
+      size: keySize,
       onPressed: onBackspace,
-      background: AppColors.buttonGreen,
-      foreground: AppColors.onPrimary,
-      outline: Colors.transparent,
+      background: AppColors.lightGreen,
+      foreground: AppColors.primaryGreen,
+      outline: AppColors.lightGreen,
       tooltip: strings.text(AppString.backspace),
-      child: const Icon(Icons.backspace_outlined, size: 22),
+      child: const Icon(Icons.backspace_outlined, size: 25),
     );
   }
 
   Widget _equalsKey() {
     return _CalcKey(
       key: const Key('calc-key-='),
-      height: compact ? 56 : 68,
+      size: keySize,
       onPressed: onEquals,
       background: AppColors.orange,
       foreground: AppColors.onPrimary,
-      outline: Colors.transparent,
+      outline: AppColors.orange,
       tooltip: strings.text(AppString.equals),
       child: const Text(
         '=',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w600),
       ),
     );
   }
 }
 
-/// One fixed-height key. FittedBox keeps glyphs readable and bounded when the
-/// ambient text scale doubles, and the tooltip supplies a semantic label for
-/// icon-only keys.
+/// One circular key with a soft shadow. FittedBox keeps glyphs bounded at
+/// larger text scales; tooltips label icon-only actions for accessibility.
 class _CalcKey extends StatelessWidget {
   const _CalcKey({
     super.key,
-    required this.height,
+    required this.size,
     required this.child,
     required this.onPressed,
     required this.background,
@@ -700,7 +821,7 @@ class _CalcKey extends StatelessWidget {
     this.tooltip,
   });
 
-  final double height;
+  final double size;
   final Widget child;
   final VoidCallback onPressed;
   final Color background;
@@ -710,19 +831,20 @@ class _CalcKey extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget button = SizedBox(
-      height: height,
+    final Widget button = SizedBox.square(
+      dimension: size,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
           side: BorderSide(color: outline),
-          elevation: 0,
+          elevation: 2,
+          shadowColor: AppColors.primaryGreen.withValues(alpha: 0.12),
           padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: const CircleBorder(),
         ),
         child: FittedBox(fit: BoxFit.scaleDown, child: child),
       ),

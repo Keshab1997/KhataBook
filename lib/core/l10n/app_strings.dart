@@ -283,6 +283,10 @@ enum AppString {
   clearCalculation('Clear', 'হিসাব মুছুন'),
   backspace('Backspace', 'শেষ অক্ষর মুছুন'),
   equals('Equals', 'সমান'),
+  calculatorHistory('History', 'ইতিহাস'),
+  calculatorHistoryEmpty('No history yet', 'এখনও কোনো ইতিহাস নেই'),
+  clearHistory('Clear history', 'ইতিহাস মুছুন'),
+  close('Close', 'বंद করুন'),
   counter('Counter', 'গণনা'),
   noteCounter('Note Counter', 'নোট গণনা'),
   negativeQuantity(

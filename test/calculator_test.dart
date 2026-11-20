@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/calculator/calculator_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The calculator is always exercised at a small phone width; the layout test
 /// raises text scale to 200% on top of that.
@@ -15,6 +16,7 @@ Future<void> pumpCalculator(
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  SharedPreferences.setMockInitialValues({});
 
   await tester.pumpWidget(
     MaterialApp(
@@ -318,6 +320,7 @@ void main() {
         '2',
         '3',
         '+',
+        '00',
         '0',
         '.',
         '=',
@@ -329,7 +332,6 @@ void main() {
         );
       }
       expect(find.byTooltip('Backspace'), findsOneWidget);
-      expect(find.byTooltip('Settings'), findsOneWidget);
 
       await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
       expect(resultText(tester), '1,000');
