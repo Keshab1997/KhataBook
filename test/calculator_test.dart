@@ -12,6 +12,7 @@ Future<void> pumpCalculator(
   WidgetTester tester, {
   double scale = 1.0,
   Size size = const Size(320, 568),
+  ValueChanged<int>? onUseInEntry,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -28,7 +29,7 @@ Future<void> pumpCalculator(
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const CalculatorScreen(),
+      home: CalculatorScreen(onUseInEntry: onUseInEntry),
     ),
   );
   await tester.pumpAndSettle();
@@ -345,6 +346,131 @@ void main() {
         reason: 'the display must scale inside a 320 px phone',
       );
       expectNoLayoutErrors(tester);
+    });
+  });
+
+  group('use in entry', () {
+    testWidgets('hidden without the callback', (WidgetTester tester) async {
+      await pumpCalculator(tester);
+      await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
+
+      expect(find.byKey(const Key('calculator-use-in-entry')), findsNothing);
+      expect(resultText(tester), '1,000');
+    });
+
+    testWidgets('sends the current result as integer paise', (
+      WidgetTester tester,
+    ) async {
+      int? captured;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => captured = paise,
+      );
+      await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
+      await tester.tap(find.byKey(const Key('calculator-use-in-entry')));
+      await tester.pumpAndSettle();
+
+      expect(captured, 100000);
+    });
+
+    testWidgets('sends fractional results rounded half away from zero', (
+      WidgetTester tester,
+    ) async {
+      int? captured;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => captured = paise,
+      );
+      await tapKeys(tester, <String>['7', '÷', '2']); // 3.5
+      await tester.tap(find.byKey(const Key('calculator-use-in-entry')));
+      await tester.pumpAndSettle();
+      expect(captured, 350);
+
+      // 2.5 is an exactly representable half -> away from zero -> 250.
+      captured = null;
+      await tester.tap(find.byKey(const Key('calc-key-C')));
+      await tester.pumpAndSettle();
+      await tapKeys(tester, <String>['5', '÷', '2']); // 2.5
+      await tester.tap(find.byKey(const Key('calculator-use-in-entry')));
+      await tester.pumpAndSettle();
+      expect(captured, 250);
+    });
+
+    testWidgets('disabled for an empty expression', (
+      WidgetTester tester,
+    ) async {
+      int calls = 0;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => calls += 1,
+      );
+      final OutlinedButton button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('calculator-use-in-entry')),
+      );
+      expect(button.onPressed, isNull);
+      await tester.tap(
+        find.byKey(const Key('calculator-use-in-entry')),
+        warnIfMissed: false,
+      );
+      expect(calls, 0);
+    });
+
+    testWidgets('disabled on an evaluation error', (WidgetTester tester) async {
+      int calls = 0;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => calls += 1,
+      );
+      await tapKeys(tester, <String>['5', '÷', '0']);
+      expect(resultText(tester), isNotEmpty);
+
+      final OutlinedButton button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('calculator-use-in-entry')),
+      );
+      expect(button.onPressed, isNull);
+      expect(calls, 0);
+    });
+
+    testWidgets('disabled for a zero result', (WidgetTester tester) async {
+      int calls = 0;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => calls += 1,
+      );
+      await tapKeys(tester, <String>['0', '×', '5']);
+
+      final OutlinedButton button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('calculator-use-in-entry')),
+      );
+      expect(button.onPressed, isNull);
+      expect(calls, 0);
+    });
+
+    testWidgets('disabled for a negative result', (WidgetTester tester) async {
+      int calls = 0;
+      await pumpCalculator(
+        tester,
+        onUseInEntry: (int paise) => calls += 1,
+      );
+      await tapKeys(tester, <String>['−', '5']);
+
+      final OutlinedButton button = tester.widget<OutlinedButton>(
+        find.byKey(const Key('calculator-use-in-entry')),
+      );
+      expect(button.onPressed, isNull);
+      expect(calls, 0);
+    });
+
+    testWidgets('existing behaviour stays identical', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester);
+      await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
+      expect(resultText(tester), '1,000');
+      await tester.tap(find.byKey(const Key('calc-key-C')));
+      await tester.pumpAndSettle();
+      expect(resultText(tester), '0');
+      expect(expressionText(tester), '');
     });
   });
 }
