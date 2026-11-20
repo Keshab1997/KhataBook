@@ -882,4 +882,27 @@ void main() {
       expect(find.text('Showing 8 transactions'), findsOneWidget);
     });
   });
+
+  group('visual hierarchy', () {
+    testWidgets('summary, search, filters and rows stack in reading order', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      final Finder card = find.byKey(const Key('transactions-summary'));
+      final Finder field = find.byKey(const Key('search-field'));
+      final Finder dates = find.byKey(const Key('date-filter-from'));
+      final Finder row = find.text('Grocery Shopping');
+
+      final double summaryTop = tester.getTopLeft(card).dy;
+      final double searchTop = tester.getTopLeft(field).dy;
+      final double datesTop = tester.getTopLeft(dates).dy;
+      final double rowTop = tester.getTopLeft(row).dy;
+
+      expect(summaryTop, lessThan(searchTop));
+      expect(searchTop, lessThan(datesTop));
+      expect(datesTop, lessThan(rowTop));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

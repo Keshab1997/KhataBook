@@ -9,6 +9,13 @@ import '../entry/category_picker.dart';
 import '../entry/category_store.dart';
 import 'models.dart';
 
+/// Geometry shared by every card on this screen: one card radius, one row
+/// radius and one hairline keep the hero, the tiles and the recent rows
+/// reading as a single system.
+const double _cardRadius = 20;
+const double _rowRadius = 16;
+const double _hairline = 0.72;
+
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
 ///
 /// A presentational seam: the parent supplies a live [summary] and the
@@ -48,7 +55,7 @@ class HomeScreen extends StatelessWidget {
   final VoidCallback? onSwitchKhata;
 
   static const double _pagePadding = 16;
-  static const double _cardGap = 10;
+  static const double _cardGap = 12;
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +72,24 @@ class HomeScreen extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(_pagePadding, 8, _pagePadding, 8),
+          padding: const EdgeInsets.fromLTRB(
+            _pagePadding,
+            10,
+            _pagePadding,
+            10,
+          ),
           decoration: BoxDecoration(
             color: AppColors.creamBackground,
             border: Border(
-              top: BorderSide(color: AppColors.outline.withValues(alpha: 0.65)),
+              top: BorderSide(color: AppColors.outline.withValues(alpha: 0.55)),
             ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.darkText.withValues(alpha: 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
           child: FilledButton.icon(
             key: const Key('home-add-entry'),
@@ -91,9 +110,9 @@ class HomeScreen extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   _pagePadding,
-                  10,
+                  12,
                   _pagePadding,
-                  16,
+                  20,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -113,7 +132,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: _cardGap),
                     _summaryRow(visibleSummary),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     _SectionHeader(
                       strings: _strings,
                       title: _strings.text(AppString.recentTransactions),
@@ -151,6 +170,7 @@ class HomeScreen extends StatelessWidget {
                           style: const TextStyle(
                             color: AppColors.softText,
                             fontSize: 11,
+                            letterSpacing: 0.2,
                           ),
                         ),
                       ),
@@ -221,22 +241,24 @@ class _ActiveKhataCard extends StatelessWidget {
       excludeSemantics: true,
       child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(_cardRadius),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(_cardRadius),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 56),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: const BoxConstraints(minHeight: 60),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.outline),
+              borderRadius: BorderRadius.circular(_cardRadius),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _hairline + 0.13),
+              ),
             ),
             child: Row(
               children: <Widget>[
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: const BoxDecoration(
                     color: AppColors.lightGreen,
                     shape: BoxShape.circle,
@@ -244,7 +266,7 @@ class _ActiveKhataCard extends StatelessWidget {
                   child: const Icon(
                     Icons.menu_book,
                     color: AppColors.primaryGreen,
-                    size: 21,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -255,20 +277,21 @@ class _ActiveKhataCard extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         strings.text(AppString.activeKhata).toUpperCase(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 10,
-                          letterSpacing: 0.8,
-                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.softText,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 15.5,
+                          height: 1.2,
                           fontWeight: FontWeight.w700,
                           color: AppColors.darkText,
                         ),
@@ -304,18 +327,22 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.primaryGreen,
-        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+        ),
+        borderRadius: BorderRadius.circular(_cardRadius + 2),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.darkText.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: AppColors.darkText.withValues(alpha: 0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(_cardRadius + 2),
         child: Stack(
           children: <Widget>[
             Positioned(
@@ -333,7 +360,7 @@ class _BalanceCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
               child: Row(
                 children: <Widget>[
                   Expanded(
@@ -356,9 +383,10 @@ class _BalanceCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: AppColors.onPrimary.withValues(
-                                    alpha: 0.9,
+                                    alpha: 0.88,
                                   ),
-                                  fontSize: 13,
+                                  fontSize: 12.5,
+                                  letterSpacing: 0.3,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -378,7 +406,7 @@ class _BalanceCard extends StatelessWidget {
                               fontSize: 34,
                               fontWeight: FontWeight.w800,
                               height: 1.05,
-                              letterSpacing: -0.5,
+                              letterSpacing: -0.6,
                             ),
                           ),
                         ),
@@ -388,7 +416,7 @@ class _BalanceCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   ExcludeSemantics(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       child: SizedBox(
                         width: 84,
                         height: 84,
@@ -443,11 +471,20 @@ class _SummaryTile extends StatelessWidget {
       label: '$label, $direction, ${strings.money(paise)}',
       child: ExcludeSemantics(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.outline),
+            borderRadius: BorderRadius.circular(_rowRadius + 2),
+            border: Border.all(
+              color: AppColors.outline.withValues(alpha: _hairline + 0.13),
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.darkText.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,22 +493,23 @@ class _SummaryTile extends StatelessWidget {
               Row(
                 children: <Widget>[
                   Container(
-                    width: 26,
-                    height: 26,
+                    width: 28,
+                    height: 28,
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.14),
+                      color: color.withValues(alpha: 0.13),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(icon, size: 16, color: color),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 7),
                   Expanded(
                     child: Text(
                       label,
                       maxLines: 2,
                       style: const TextStyle(
                         fontSize: 12,
-                        height: 1.15,
+                        height: 1.2,
+                        letterSpacing: 0.1,
                         color: AppColors.softText,
                         fontWeight: FontWeight.w600,
                       ),
@@ -479,7 +517,7 @@ class _SummaryTile extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -488,7 +526,9 @@ class _SummaryTile extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 19,
+                    fontSize: 20,
+                    height: 1.1,
+                    letterSpacing: -0.3,
                     fontWeight: FontWeight.w800,
                     color: color,
                   ),
@@ -511,24 +551,38 @@ class _EmptyTransactions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(
+          color: AppColors.outline.withValues(alpha: _hairline + 0.13),
+        ),
       ),
       child: Column(
         children: <Widget>[
-          const Icon(
-            Icons.receipt_long_rounded,
-            color: AppColors.primaryGreen,
-            size: 28,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: AppColors.lightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              color: AppColors.primaryGreen,
+              size: 26,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             strings.text(AppString.homeEmpty),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.softText, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.softText,
+              fontSize: 13,
+              height: 1.4,
+            ),
           ),
         ],
       ),
@@ -557,6 +611,17 @@ class _SectionHeader extends StatelessWidget {
 
     return Row(
       children: <Widget>[
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: enabled
+                ? AppColors.primaryGreen
+                : AppColors.navigationGrey.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             title,
@@ -626,29 +691,41 @@ class _RecentTransactionRow extends StatelessWidget {
         ? AppColors.incomeGreen
         : AppColors.expenseRed;
 
+    // The stored category is translated for display only; the title is the
+    // user's own text and is never touched.
+    final String categoryName = categories == null
+        ? _categoryLabel(strings, entry.category)
+        : categoryDisplayName(strings.language, entry.category, categories!);
+    final String title = preview
+        ? _previewTitle(strings, entry.title)
+        : (categories != null && entry.title == entry.category
+              ? categoryName
+              : entry.title);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline.withValues(alpha: 0.72)),
+        borderRadius: BorderRadius.circular(_rowRadius),
+        border: Border.all(
+          color: AppColors.outline.withValues(alpha: _hairline),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.darkText.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: <Widget>[
           Semantics(
-            label: strings.categoryLabel(
-              categories == null
-                  ? _categoryLabel(strings, entry.category)
-                  : categoryDisplayName(
-                      strings.language,
-                      entry.category,
-                      categories!,
-                    ),
-            ),
+            label: strings.categoryLabel(categoryName),
             child: Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: _categoryTint(entry.category),
                 shape: BoxShape.circle,
@@ -656,7 +733,7 @@ class _RecentTransactionRow extends StatelessWidget {
               child: ClipOval(
                 child: CategoryArtwork(
                   category: entry.category,
-                  size: 38,
+                  size: 40,
                   fallbackColor: _categoryColor(entry.category),
                   customCategory: categories == null
                       ? null
@@ -673,31 +750,32 @@ class _RecentTransactionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  preview
-                      ? _previewTitle(strings, entry.title)
-                      : (categories != null && entry.title == entry.category
-                            ? categoryDisplayName(
-                                strings.language,
-                                entry.category,
-                                categories!,
-                              )
-                            : entry.title),
+                  title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 14,
+                    height: 1.2,
                     fontWeight: FontWeight.w700,
                     color: AppColors.darkText,
                   ),
                 ),
-                if (categories != null)
+                // The category is only repeated when it adds information, so
+                // a row never shows the same words twice.
+                if (categories != null && categoryName != title) ...<Widget>[
+                  const SizedBox(height: 1),
                   Text(
-                    categoryDisplayName(
-                      strings.language,
-                      entry.category,
-                      categories!,
+                    categoryName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      height: 1.2,
+                      color: AppColors.softText,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                ],
                 const SizedBox(height: 2),
                 Text(
                   strings.dateTime(entry.at),
@@ -705,6 +783,7 @@ class _RecentTransactionRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 11.5,
+                    height: 1.2,
                     color: AppColors.softText,
                   ),
                 ),
@@ -727,6 +806,8 @@ class _RecentTransactionRow extends StatelessWidget {
                   softWrap: false,
                   style: TextStyle(
                     fontSize: 18,
+                    height: 1.15,
+                    letterSpacing: -0.2,
                     fontWeight: FontWeight.w800,
                     color: amountColor,
                   ),

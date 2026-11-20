@@ -12,6 +12,13 @@ import '../entry/category_store.dart';
 import '../entry/transaction_editor_screen.dart';
 import 'data/local_ledger.dart';
 
+/// Geometry shared by this screen: one card radius, one row radius and one
+/// hairline keep the summary, the filters and the rows reading as one system.
+const double _cardRadius = 20;
+const double _rowRadius = 16;
+const double _hairline = 0.72;
+const double _edge = 0.85;
+
 /// The device-local calendar day of [instant].
 ///
 /// Storage keeps UTC instants (see docs/spec/data-model.md), so every date
@@ -487,15 +494,33 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       return Scaffold(
         appBar: AppBar(title: Text(strings.text(AppString.allTransactions))),
         body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(strings.text(AppString.refreshTransactionsFailed)),
-              FilledButton(
-                onPressed: _refresh,
-                child: Text(strings.text(AppString.retry)),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.expenseRed,
+                  size: 28,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  strings.text(AppString.refreshTransactionsFailed),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppColors.softText,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: _refresh,
+                  child: Text(strings.text(AppString.retry)),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -567,19 +592,28 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 hintText: strings.text(AppString.searchHint),
                 prefixIcon: const Icon(Icons.search, color: AppColors.softText),
                 suffixIcon: _query.isEmpty ? null : _clearSearchButton(),
+                filled: true,
+                fillColor: AppColors.surface,
+                hintStyle: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.softText,
+                ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 14,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(_rowRadius),
                   borderSide: const BorderSide(color: AppColors.outline),
                 ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(_rowRadius),
+                  borderSide: BorderSide(
+                    color: AppColors.outline.withValues(alpha: _edge),
+                  ),
+                ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(_rowRadius),
                   borderSide: const BorderSide(
                     color: AppColors.primaryGreen,
                     width: 2,
@@ -761,11 +795,24 @@ class _SummaryCard extends StatelessWidget {
       child: ExcludeSemantics(
         child: Container(
           key: const Key('transactions-summary'),
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.lightGreen,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.outline),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[AppColors.lightGreen, AppColors.surface],
+            ),
+            borderRadius: BorderRadius.circular(_cardRadius),
+            border: Border.all(
+              color: AppColors.outline.withValues(alpha: _edge),
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.darkText.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -773,12 +820,14 @@ class _SummaryCard extends StatelessWidget {
               Text(
                 countText,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 14.5,
+                  height: 1.2,
+                  letterSpacing: -0.1,
                   fontWeight: FontWeight.w800,
                   color: AppColors.darkText,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -799,12 +848,12 @@ class _SummaryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Text(
                 strings.text(AppString.filteredTotalsExplanation),
                 style: const TextStyle(
-                  fontSize: 12,
-                  height: 1.35,
+                  fontSize: 11.5,
+                  height: 1.4,
                   color: AppColors.softText,
                 ),
               ),
@@ -839,9 +888,14 @@ class _TotalTile extends StatelessWidget {
       children: <Widget>[
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: AppColors.softText),
+          style: const TextStyle(
+            fontSize: 11.5,
+            height: 1.2,
+            letterSpacing: 0.2,
+            color: AppColors.softText,
+          ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 3),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -851,6 +905,8 @@ class _TotalTile extends StatelessWidget {
             softWrap: false,
             style: TextStyle(
               fontSize: 20,
+              height: 1.15,
+              letterSpacing: -0.3,
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -872,7 +928,9 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 14,
+        fontSize: 13,
+        height: 1.2,
+        letterSpacing: 0.4,
         fontWeight: FontWeight.w800,
         color: AppColors.darkText,
       ),
@@ -921,9 +979,13 @@ class _FilterChip extends StatelessWidget {
           child: Material(
             color: background,
             clipBehavior: Clip.antiAlias,
+            elevation: selected ? 2 : 0,
+            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.35),
             shape: StadiumBorder(
               side: BorderSide(
-                color: selected ? AppColors.primaryGreen : AppColors.outline,
+                color: selected
+                    ? AppColors.primaryGreen
+                    : AppColors.outline.withValues(alpha: _edge),
               ),
             ),
             child: InkWell(
@@ -953,6 +1015,7 @@ class _FilterChip extends StatelessWidget {
                         label,
                         style: TextStyle(
                           fontSize: 13.5,
+                          height: 1.15,
                           fontWeight: FontWeight.w700,
                           color: foreground,
                         ),
@@ -991,11 +1054,17 @@ class _MonthHeader extends StatelessWidget {
         child: ExcludeSemantics(
           child: Container(
             key: Key(_monthKey(group.month)),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.lightGreen,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.outline),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[AppColors.lightGreen, AppColors.surface],
+              ),
+              borderRadius: BorderRadius.circular(_cardRadius),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _edge),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1003,12 +1072,14 @@ class _MonthHeader extends StatelessWidget {
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 15.5,
+                    height: 1.2,
+                    letterSpacing: -0.2,
                     fontWeight: FontWeight.w800,
                     color: AppColors.darkText,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -1048,11 +1119,13 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      padding: const EdgeInsets.only(top: 8, bottom: 6),
       child: Text(
         strings.day(day),
         style: const TextStyle(
-          fontSize: 13,
+          fontSize: 12,
+          height: 1.2,
+          letterSpacing: 0.5,
           fontWeight: FontWeight.w700,
           color: AppColors.softText,
         ),
@@ -1117,11 +1190,20 @@ class _EntryRow extends StatelessWidget {
           onTap: onTap,
           child: Container(
             margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline),
+              borderRadius: BorderRadius.circular(_rowRadius),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _hairline),
+              ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.darkText.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1157,11 +1239,12 @@ class _EntryRow extends StatelessWidget {
                         title,
                         style: const TextStyle(
                           fontSize: 14,
+                          height: 1.2,
                           fontWeight: FontWeight.w600,
                           color: AppColors.darkText,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         '$category · ${strings.dateTime(entry.at.toLocal())}',
                         style: const TextStyle(
@@ -1170,7 +1253,7 @@ class _EntryRow extends StatelessWidget {
                           color: AppColors.softText,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       // The amount gets its own line, so 200% text scale never
                       // squeezes it against the title.
                       FittedBox(
@@ -1274,31 +1357,40 @@ class _MessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
+        borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, size: 30, color: AppColors.primaryGreen),
-          const SizedBox(height: 10),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppColors.lightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 26, color: AppColors.primaryGreen),
+          ),
+          const SizedBox(height: 14),
           Text(
             title,
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 15.5,
+              height: 1.2,
               fontWeight: FontWeight.w800,
               color: AppColors.darkText,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             message,
             style: const TextStyle(
               fontSize: 13,
-              height: 1.35,
+              height: 1.4,
               color: AppColors.softText,
             ),
           ),

@@ -108,6 +108,24 @@ void main() {
       await ledger.close();
     });
 
+    testWidgets('the combined card sits above every khata card', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(ledger));
+      await tester.pumpAndSettle();
+
+      final Finder combinedCard = find.text('Combined remaining');
+      final Finder personalCard = find.text('Personal Khata');
+      final Finder businessCard = find.text('Business Khata');
+
+      final double combinedTop = tester.getTopLeft(combinedCard).dy;
+      final double personalTop = tester.getTopLeft(personalCard).dy;
+      final double businessTop = tester.getTopLeft(businessCard).dy;
+
+      expect(combinedTop, lessThan(personalTop));
+      expect(personalTop, lessThan(businessTop));
+    });
+
     testWidgets('shows every per-khata figure and the combined remaining', (
       WidgetTester tester,
     ) async {

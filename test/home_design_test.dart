@@ -116,6 +116,43 @@ void main() {
     });
   });
 
+  group('visual hierarchy', () {
+    testWidgets('hero, totals, section header and rows read top-down', (
+      WidgetTester tester,
+    ) async {
+      await pumpHome(tester);
+
+      final List<double> tops = <double>[
+        tester.getTopLeft(find.text('Remaining Balance')).dy,
+        tester.getTopLeft(find.text('Total Income')).dy,
+        tester.getTopLeft(find.text('Recent Transactions')).dy,
+        tester.getTopLeft(find.text('Grocery Shopping')).dy,
+      ];
+      for (int index = 1; index < tops.length; index++) {
+        expect(
+          tops[index],
+          greaterThan(tops[index - 1]),
+          reason: 'block $index must sit below block ${index - 1}',
+        );
+      }
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('the pinned CTA stays reachable below every recent row', (
+      WidgetTester tester,
+    ) async {
+      await pumpHome(tester);
+
+      final Finder cta = find.text('Add New Entry');
+      await tester.ensureVisible(find.text('Gift for Mom'));
+      await tester.pumpAndSettle();
+
+      expect(cta.hitTestable(), findsOneWidget);
+      expect(tester.getRect(cta).bottom, lessThanOrEqualTo(midPhone.height));
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('recent transactions', () {
     testWidgets('renders exactly the four newest seeded entries', (
       WidgetTester tester,
