@@ -28,6 +28,7 @@ void main() {
     int balance = 100000,
     double textScale = 1,
     Size? size,
+    EdgeInsets? systemInsets,
   }) async {
     if (size != null) {
       tester.view.physicalSize = size;
@@ -38,8 +39,11 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         builder: (BuildContext context, Widget? child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(textScale),
+            padding: systemInsets,
+            viewPadding: systemInsets,
+          ),
           child: child ?? const SizedBox.shrink(),
         ),
         home: AddEntryScreen(openingBalancePaise: balance, onSave: saved.add),
@@ -304,6 +308,43 @@ void main() {
     expect(saved, hasLength(1));
     expect(saved.single.amountPaise, 1205);
     expect(saved.single.category, 'Food');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('save entry is visible without scrolling on a standard phone', (
+    tester,
+  ) async {
+    final saved = <EntryFormResult>[];
+    await showForm(
+      tester,
+      saved,
+      size: const Size(360, 640),
+      systemInsets: const EdgeInsets.only(top: 24, bottom: 24),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Save Entry').hitTestable(), findsOneWidget);
+    final scrollable = tester.widget<SingleChildScrollView>(
+      find.byType(SingleChildScrollView).first,
+    );
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byWidget(scrollable),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    expect(position.pixels, 0);
+    expect(position.maxScrollExtent, 0);
+    final dateTapTarget = find
+        .ancestor(
+          of: find.byIcon(Icons.calendar_today),
+          matching: find.byType(InkWell),
+        )
+        .first;
+    expect(tester.getSize(dateTapTarget).height, greaterThanOrEqualTo(44));
     expect(tester.takeException(), isNull);
   });
 

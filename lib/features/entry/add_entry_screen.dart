@@ -99,6 +99,14 @@ class AddEntryScreen extends StatefulWidget {
 class _AddEntryScreenState extends State<AddEntryScreen> {
   AppStrings get _strings => AppStrings(widget.language);
 
+  // Keep the whole form visible on ordinary-height phones. Large accessibility
+  // text and the keyboard retain the naturally scrollable layout.
+  bool get _compact =>
+      (MediaQuery.sizeOf(context).height -
+              MediaQuery.viewPaddingOf(context).vertical) <
+          800 &&
+      MediaQuery.textScalerOf(context).scale(1) <= 1.2;
+
   static const List<_CategoryOption> _categories = <_CategoryOption>[
     _CategoryOption('Shopping', AppString.shopping),
     _CategoryOption('Food', AppString.food),
@@ -242,10 +250,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         systemOverlayStyle: SystemUiOverlayStyle.light,
-        toolbarHeight: 76,
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(14),
-          child: SizedBox(height: 14),
+        toolbarHeight: _compact ? 56 : 76,
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(_compact ? 8 : 14),
+          child: SizedBox(height: _compact ? 8 : 14),
         ),
         flexibleSpace: Stack(
           fit: StackFit.expand,
@@ -347,44 +355,49 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
               key: _formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  _compact ? 4 : 12,
+                  20,
+                  _compact ? 1 : 28,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     _kindSelector(),
-                    const SizedBox(height: 14),
+                    SizedBox(height: _compact ? 4 : 14),
                     _SectionLabel(
                       _strings.text(AppString.amount),
                       Icons.account_balance_wallet,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: _compact ? 3 : 8),
                     _amountField(),
-                    const SizedBox(height: 12),
+                    SizedBox(height: _compact ? 4 : 12),
                     _SectionLabel(_strings.text(AppString.date), Icons.event),
-                    const SizedBox(height: 8),
+                    SizedBox(height: _compact ? 3 : 8),
                     _dateField(),
                     if (future)
                       _inlineWarning(_strings.text(AppString.futureDate)),
-                    const SizedBox(height: 12),
+                    SizedBox(height: _compact ? 4 : 12),
                     _SectionLabel(
                       _strings.text(AppString.category),
                       Icons.sell,
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: _compact ? 4 : 12),
                     if (_kind == EntryFormKind.expense) ...<Widget>[
                       _categoryChips(),
                       if (_showCategoryError)
                         _inlineWarning(_strings.text(AppString.pickCategory)),
                     ] else
                       _incomeCategoryPill(),
-                    const SizedBox(height: 12),
+                    SizedBox(height: _compact ? 4 : 12),
                     _SectionLabel(
                       _strings.text(AppString.description),
                       Icons.edit_note,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: _compact ? 3 : 8),
                     _descriptionField(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: _compact ? 6 : 16),
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(40),
@@ -404,7 +417,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                         onPressed: _save,
                         style: FilledButton.styleFrom(
                           shape: const StadiumBorder(),
-                          minimumSize: const Size.fromHeight(58),
+                          minimumSize: Size.fromHeight(_compact ? 48 : 58),
                           backgroundColor: AppColors.primaryGreen,
                         ),
                         icon: const Icon(Icons.save),
@@ -428,7 +441,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       borderRadius: BorderRadius.circular(32),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(5),
+        padding: EdgeInsets.all(_compact ? 2 : 5),
         child: Row(
           children: <Widget>[
             Expanded(child: _kindSegment(EntryFormKind.expense)),
@@ -474,7 +487,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         child: InkWell(
           onTap: () => _selectKind(kind),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
+            padding: EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: _compact ? 9 : 11,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
@@ -515,7 +531,11 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      constraints: const BoxConstraints(minHeight: 44),
+      padding: EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: _compact ? 4 : 14,
+      ),
       decoration: BoxDecoration(
         color: focused ? AppColors.lightGreen : AppColors.warmIvory,
         borderRadius: BorderRadius.circular(16),
@@ -656,7 +676,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         final double tileWidth = (constraints.maxWidth - 36) / 4;
         return Wrap(
           spacing: 12,
-          runSpacing: 12,
+          runSpacing: _compact ? 5 : 12,
           children: <Widget>[
             ..._categories.map((option) => _categoryTile(option, tileWidth)),
             if (widget.categoryStore != null)
@@ -690,7 +710,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           onTap: () => _selectCategory(option.id),
           child: Container(
             width: width,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            padding: EdgeInsets.symmetric(
+              vertical: _compact ? 4 : 8,
+              horizontal: 4,
+            ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
@@ -713,13 +736,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                   child: Image.asset(
                     'assets/illustrations/entry_category_${option.id.toLowerCase()}.png',
                     key: Key('category-artwork-${option.id}'),
-                    width: 48,
-                    height: 48,
+                    width: _compact ? 28 : 48,
+                    height: _compact ? 28 : 48,
                     fit: BoxFit.cover,
                     excludeFromSemantics: true,
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: _compact ? 2 : 5),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
