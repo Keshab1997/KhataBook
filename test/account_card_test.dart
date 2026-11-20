@@ -337,4 +337,129 @@ void main() {
       },
     );
   });
+
+  group('AccountCard design polish', () {
+    testWidgets('signed-in idle carries a crisp green up-to-date indicator', (
+      WidgetTester tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: SyncStatus.idle(
+            userEmail: 'keshab@example.com',
+            lastSyncedAt: DateTime.utc(2026, 11, 19, 15, 0),
+            pendingCount: 0,
+          ),
+          onBackupNow: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+      );
+
+      expect(find.text('Up to date'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.text('Up to date')).style?.color,
+        AppColors.greenSuccess,
+      );
+
+      // One warm-ivory card with the beige edge and a single soft shadow.
+      final Container card = tester.widget<Container>(
+        find.byKey(const Key('account-card')),
+      );
+      final BoxDecoration decoration = card.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.surface);
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+      expect((decoration.border! as Border).top.color, AppColors.outline);
+      expect(decoration.boxShadow, hasLength(1));
+    });
+
+    testWidgets('a local-only card never claims to be up to date', (
+      WidgetTester tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: const SyncStatus.signedOut(),
+          onSignIn: () {},
+        ),
+      );
+
+      expect(find.text('Up to date'), findsNothing);
+      expect(find.text('Not signed in'), findsOneWidget);
+      // The value copy is unchanged by the polish: same words, same numbers.
+      expect(find.text('Local-only mode'), findsOneWidget);
+      expect(find.text('Sign in to enable cloud backup'), findsOneWidget);
+    });
+
+    testWidgets('waiting state is named when entries are still pending', (
+      WidgetTester tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: SyncStatus.idle(
+            userEmail: 'keshab@example.com',
+            pendingCount: 2,
+          ),
+          onBackupNow: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+      );
+
+      expect(find.text('Waiting to sync'), findsOneWidget);
+      expect(find.text('Up to date'), findsNothing);
+      expect(find.text('2 pending'), findsOneWidget);
+      expect(find.text('Last synced: Never'), findsOneWidget);
+    });
+
+    testWidgets('local-only and error states show their own state pill', (
+      WidgetTester tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: const SyncStatus.signedOut(),
+          onSignIn: () {},
+        ),
+      );
+      expect(find.text('Not signed in'), findsOneWidget);
+      expect(find.text('Local-only mode'), findsOneWidget);
+
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: SyncStatus.error(
+            reason: 'Server temporarily unavailable',
+            userEmail: 'keshab@example.com',
+            pendingCount: 2,
+          ),
+          onRetry: () async => SyncOutcome.synced,
+          onSignOut: () async {},
+        ),
+      );
+      final Text failed = tester.widget<Text>(find.text('Sync failed'));
+      expect(failed.style?.color, AppColors.expenseRed);
+      expect(find.text('Server temporarily unavailable'), findsOneWidget);
+    });
+
+    testWidgets(
+      'syncing state stays inline at 320dp / 200% with no progress dialog',
+      (WidgetTester tester) async {
+        await _pumpCard(
+          tester,
+          AccountCard(
+            status: SyncStatus.syncing(
+              userEmail: 'keshab@example.com',
+              pendingCount: 4,
+            ),
+          ),
+          size: const Size(320, 640),
+          textScale: 2.0,
+        );
+        expect(find.text('Syncing'), findsOneWidget);
+        expect(find.text('Syncing with cloud backup…'), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
 }

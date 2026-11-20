@@ -8,19 +8,29 @@ import '../../core/theme/app_colors.dart';
 import 'sync_engine.dart';
 import 'sync_status.dart';
 
+/// The single soft card shadow from `theme.md` (blur 14, offset 0/4).
+List<BoxShadow> _cardShadow() => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: 0.05),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
 /// Self-contained Cloud Account & Backup card for Profile (S5, B5).
 ///
 /// Renders all four S5 sync states without ever showing a blocking modal
 /// progress dialog:
-/// * **local-only** (`SyncStateKind.signedOut`) — hint *"Sign in to enable
-///   cloud backup"* and a **Sign in** button;
-/// * **signed in** (`SyncStateKind.idle`) — email, `Last synced …`,
-///   `N pending`, **Back up now**, and **Log out** in [AppColors.expenseRed]
-///   behind a confirmation dialog;
-/// * **syncing** (`SyncStateKind.syncing`) — non-blocking progress text inline
-///   on the card;
-/// * **error** (`SyncStateKind.error`) — failure reason, `N pending`, **Retry**
-///   and **Log out**.
+/// * **local-only** (`SyncStateKind.signedOut`) — `Not signed in` status pill,
+///   hint *"Sign in to enable cloud backup"* and a **Sign in** button;
+/// * **signed in** (`SyncStateKind.idle`) — email, a crisp green status pill
+///   (`Up to date` / `Waiting to sync`), `Last synced …`, `N pending`,
+///   **Back up now**, and **Log out** in [AppColors.expenseRed] behind a
+///   confirmation dialog;
+/// * **syncing** (`SyncStateKind.syncing`) — non-blocking thin progress bar and
+///   inline status text on the card;
+/// * **error** (`SyncStateKind.error`) — red status pill, failure reason,
+///   `N pending`, **Retry** and **Log out**.
 ///
 /// Backing up while offline is a no-op that shows a clear inline message.
 /// Logging out never deletes local data. Every colour comes from [AppColors].
@@ -171,12 +181,20 @@ class _AccountCardState extends State<AccountCard> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: AppColors.surface,
-          title: Text(
-            _pair('Log out?', 'লগ আউট করবেন?'),
-            style: const TextStyle(
-              color: AppColors.darkText,
-              fontWeight: FontWeight.w800,
-            ),
+          title: Row(
+            children: <Widget>[
+              const Icon(Icons.logout, size: 22, color: AppColors.expenseRed),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _pair('Log out?', 'লগ আউট করবেন?'),
+                  style: const TextStyle(
+                    color: AppColors.darkText,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           content: SingleChildScrollView(
             child: Text(
@@ -184,7 +202,7 @@ class _AccountCardState extends State<AccountCard> {
                 'You will stop syncing to the cloud. Your local khatas and transactions on this device will NOT be deleted.',
                 'ক্লাউডে সিঙ্ক বন্ধ হয়ে যাবে। এই ফোনে থাকা আপনার খাতা ও লেনদেন মুছে যাবে না।',
               ),
-              style: const TextStyle(color: AppColors.darkText, height: 1.35),
+              style: const TextStyle(color: AppColors.darkText, height: 1.4),
             ),
           ),
           actions: <Widget>[
@@ -236,15 +254,27 @@ class _AccountCardState extends State<AccountCard> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           backgroundColor: AppColors.surface,
-          title: Text(
-            _pair(
-              'Sync with this Google account?',
-              'এই Google অ্যাকাউন্টে সিঙ্ক করবেন?',
-            ),
-            style: const TextStyle(
-              color: AppColors.darkText,
-              fontWeight: FontWeight.w800,
-            ),
+          title: Row(
+            children: <Widget>[
+              const Icon(
+                Icons.swap_horiz_outlined,
+                size: 22,
+                color: AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _pair(
+                    'Sync with this Google account?',
+                    'এই Google অ্যাকাউন্টে সিঙ্ক করবেন?',
+                  ),
+                  style: const TextStyle(
+                    color: AppColors.darkText,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
           ),
           content: SingleChildScrollView(
             child: Text(
@@ -252,7 +282,7 @@ class _AccountCardState extends State<AccountCard> {
                 'This device previously synced with a different account. Confirming will sync all local khatas and entries on this phone with the new account.',
                 'এই ফোনটি আগে অন্য একটি অ্যাকাউন্টের সাথে সিঙ্ক করা হয়েছিল। নিশ্চিত করলে ফোনের সব খাতা ও লেনদেন নতুন অ্যাকাউন্টের সাথে সিঙ্ক হবে।',
               ),
-              style: const TextStyle(color: AppColors.darkText, height: 1.35),
+              style: const TextStyle(color: AppColors.darkText, height: 1.4),
             ),
           ),
           actions: <Widget>[
@@ -301,9 +331,10 @@ class _AccountCardState extends State<AccountCard> {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.outline),
+        boxShadow: _cardShadow(),
       ),
       child: switch (current.kind) {
-        SyncStateKind.signedOut => _buildSignedOut(current),
+        SyncStateKind.signedOut => _buildSignedOut(),
         SyncStateKind.syncing => _buildSyncing(current),
         SyncStateKind.error => _buildError(current, showOffline: showOffline),
         SyncStateKind.idle => _buildSignedInIdle(
@@ -314,48 +345,34 @@ class _AccountCardState extends State<AccountCard> {
     );
   }
 
-  Widget _buildSignedOut(SyncStatus current) {
+  Widget _buildSignedOut() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _LeadingBadge(
-              icon: Icons.cloud_off_outlined,
-              iconColor: AppColors.primaryGreen,
-              backgroundColor: AppColors.lightGreen,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    _pair('Local-only mode', 'শুধু ফোনে সংরক্ষিত'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.darkText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _pair(
-                      'Sign in to enable cloud backup',
-                      'ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন',
-                    ),
-                    key: const Key('account-card-signin-hint'),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.35,
-                      color: AppColors.softText,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        _CardHeader(
+          badge: const _LeadingBadge(
+            icon: Icons.cloud_off_outlined,
+            iconColor: AppColors.primaryGreen,
+            backgroundColor: AppColors.lightGreen,
+          ),
+          title: _pair('Local-only mode', 'শুধু ফোনে সংরক্ষিত'),
+          pill: _StatusPill(
+            label: _pair('Not signed in', 'সাইন ইন করা হয়নি'),
+            color: AppColors.softText,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          _pair(
+            'Sign in to enable cloud backup',
+            'ক্লাউড ব্যাকআপ চালু করতে সাইন ইন করুন',
+          ),
+          key: const Key('account-card-signin-hint'),
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: AppColors.softText,
+          ),
         ),
         const SizedBox(height: 14),
         FilledButton.icon(
@@ -371,47 +388,35 @@ class _AccountCardState extends State<AccountCard> {
   Widget _buildSignedInIdle(SyncStatus current, {required bool showOffline}) {
     final String email =
         current.userEmail ?? _pair('Signed in', 'সাইন ইন করা আছে');
+    final bool upToDate = current.pendingCount == 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _LeadingBadge(
-              icon: Icons.cloud_done_outlined,
-              iconColor: AppColors.primaryGreen,
-              backgroundColor: AppColors.lightGreen,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    email,
-                    key: const Key('account-card-email'),
-                    style: const TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.darkText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _lastSyncedLabel(current.lastSyncedAt),
-                    key: const Key('account-card-last-synced'),
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.35,
-                      color: AppColors.softText,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _PendingChip(label: _pendingLabel(current.pendingCount)),
-                ],
-              ),
-            ),
-          ],
+        _CardHeader(
+          badge: const _LeadingBadge(
+            icon: Icons.cloud_done_outlined,
+            iconColor: AppColors.primaryGreen,
+            backgroundColor: AppColors.lightGreen,
+          ),
+          title: email,
+          titleKey: const Key('account-card-email'),
+          pill: _StatusPill(
+            label: upToDate
+                ? _pair('Up to date', 'সিঙ্ক সম্পন্ন')
+                : _pair('Waiting to sync', 'সিঙ্ক বাকি'),
+            color: upToDate ? AppColors.greenSuccess : AppColors.softText,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _MetaRow(
+          icon: Icons.history,
+          text: _lastSyncedLabel(current.lastSyncedAt),
+          textKey: const Key('account-card-last-synced'),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: _PendingChip(label: _pendingLabel(current.pendingCount)),
         ),
         if (current.requiresAccountSwitchConfirmation) ...<Widget>[
           const SizedBox(height: 12),
@@ -425,10 +430,11 @@ class _AccountCardState extends State<AccountCard> {
             ),
           ),
           const SizedBox(height: 10),
-          FilledButton(
+          FilledButton.icon(
             key: const Key('account-card-confirm-switch-button'),
             onPressed: _busyAction ? null : _confirmAccountSwitch,
-            child: Text(
+            icon: const Icon(Icons.swap_horiz_outlined),
+            label: Text(
               _pair('Confirm & Back up now', 'নিশ্চিত করুন ও এখন ব্যাকআপ নিন'),
             ),
           ),
@@ -455,7 +461,7 @@ class _AccountCardState extends State<AccountCard> {
             label: Text(_pair('Back up now', 'এখন ব্যাকআপ নিন')),
           ),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         _buildLogoutButton(),
       ],
     );
@@ -468,65 +474,52 @@ class _AccountCardState extends State<AccountCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const _LeadingBadge(
-                icon: Icons.sync,
-                iconColor: AppColors.primaryGreen,
-                backgroundColor: AppColors.lightGreen,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    if (email != null) ...<Widget>[
-                      Text(
-                        email,
-                        key: const Key('account-card-email'),
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.darkText,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    Text(
-                      _pair(
-                        'Syncing with cloud backup…',
-                        'ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…',
-                      ),
-                      key: const Key('account-card-syncing-text'),
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _pair(
-                        'You can continue using KhataBook normally.',
-                        'আপনি স্বাভাবিকভাবেই খাতাবুক ব্যবহার চালিয়ে যেতে পারেন।',
-                      ),
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        height: 1.35,
-                        color: AppColors.softText,
-                      ),
-                    ),
-                    if (current.pendingCount > 0) ...<Widget>[
-                      const SizedBox(height: 8),
-                      _PendingChip(label: _pendingLabel(current.pendingCount)),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+          _CardHeader(
+            badge: const _LeadingBadge(
+              icon: Icons.sync,
+              iconColor: AppColors.primaryGreen,
+              backgroundColor: AppColors.lightGreen,
+            ),
+            title: email,
+            titleKey: email == null ? null : const Key('account-card-email'),
+            pill: _StatusPill(
+              label: _pair('Syncing', 'সিঙ্ক হচ্ছে'),
+              color: AppColors.primaryGreen,
+            ),
           ),
+          const SizedBox(height: 12),
+          Text(
+            _pair(
+              'Syncing with cloud backup…',
+              'ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…',
+            ),
+            key: const Key('account-card-syncing-text'),
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+              color: AppColors.primaryGreen,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _pair(
+              'You can continue using KhataBook normally.',
+              'আপনি স্বাভাবিকভাবেই খাতাবুক ব্যবহার চালিয়ে যেতে পারেন।',
+            ),
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.4,
+              color: AppColors.softText,
+            ),
+          ),
+          if (current.pendingCount > 0) ...<Widget>[
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _PendingChip(label: _pendingLabel(current.pendingCount)),
+            ),
+          ],
         ],
       ),
     );
@@ -541,56 +534,35 @@ class _AccountCardState extends State<AccountCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const _LeadingBadge(
-              icon: Icons.error_outline,
-              iconColor: AppColors.expenseRed,
-              backgroundColor: AppColors.warmIvory,
-              borderColor: AppColors.expenseRed,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  if (email != null) ...<Widget>[
-                    Text(
-                      email,
-                      key: const Key('account-card-email'),
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.darkText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    _pair('Sync failed', 'সিঙ্ক ব্যর্থ হয়েছে'),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.expenseRed,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    reason,
-                    key: const Key('account-card-error-reason'),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      height: 1.35,
-                      color: AppColors.darkText,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _PendingChip(label: _pendingLabel(current.pendingCount)),
-                ],
-              ),
-            ),
-          ],
+        _CardHeader(
+          badge: const _LeadingBadge(
+            icon: Icons.error_outline,
+            iconColor: AppColors.expenseRed,
+            backgroundColor: AppColors.creamBackground,
+            borderColor: AppColors.expenseRed,
+          ),
+          title: email,
+          titleKey: email == null ? null : const Key('account-card-email'),
+          pill: _StatusPill(
+            label: _pair('Sync failed', 'সিঙ্ক ব্যর্থ হয়েছে'),
+            color: AppColors.expenseRed,
+            filled: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          reason,
+          key: const Key('account-card-error-reason'),
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: AppColors.darkText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: _PendingChip(label: _pendingLabel(current.pendingCount)),
         ),
         if (showOffline) ...<Widget>[
           const SizedBox(height: 12),
@@ -613,7 +585,7 @@ class _AccountCardState extends State<AccountCard> {
           icon: const Icon(Icons.refresh),
           label: Text(_pair('Retry', 'আবার চেষ্টা করুন')),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         _buildLogoutButton(),
       ],
     );
@@ -645,6 +617,92 @@ class _AccountCardState extends State<AccountCard> {
   }
 }
 
+/// Badge + title + state pill, the shared top line of every state.
+///
+/// The title is omitted when there is nothing true to say (a failed sync with
+/// no account e-mail): the pill already names the state, so an empty text node
+/// would only add noise.
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({
+    required this.badge,
+    required this.title,
+    required this.pill,
+    this.titleKey,
+  });
+
+  final Widget badge;
+  final String? title;
+  final Key? titleKey;
+  final Widget pill;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? heading = title;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        badge,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (heading != null) ...<Widget>[
+                Text(
+                  heading,
+                  key: titleKey,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.darkText,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+              pill,
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One read-only meta line: small octicon-style glyph plus text.
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({required this.icon, required this.text, this.textKey});
+
+  final IconData icon;
+  final String text;
+  final Key? textKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 15, color: AppColors.softText),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            key: textKey,
+            style: const TextStyle(
+              fontSize: 12.5,
+              height: 1.4,
+              color: AppColors.softText,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LeadingBadge extends StatelessWidget {
   const _LeadingBadge({
     required this.icon,
@@ -662,14 +720,66 @@ class _LeadingBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color? stroke = borderColor;
     return Container(
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: backgroundColor,
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(14),
         border: stroke == null ? null : Border.all(color: stroke),
       ),
       child: Icon(icon, size: 22, color: iconColor),
+    );
+  }
+}
+
+/// The crisp sync indicator: a coloured dot plus a short state word.
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    this.filled = false,
+  });
+
+  final String label;
+  final Color color;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: filled
+            ? AppColors.creamBackground
+            : color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: filled ? color : color.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -683,19 +793,30 @@ class _PendingChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('account-card-pending-chip'),
+      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.outline),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primaryGreen,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(Icons.sync, size: 13, color: AppColors.primaryGreen),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryGreen,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -734,7 +855,7 @@ class _InlineNotice extends StatelessWidget {
                 message,
                 style: const TextStyle(
                   fontSize: 12.5,
-                  height: 1.35,
+                  height: 1.4,
                   color: AppColors.darkText,
                 ),
               ),

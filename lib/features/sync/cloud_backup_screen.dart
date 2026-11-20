@@ -9,6 +9,15 @@ import 'cloud_backend.dart';
 import 'cloud_sync.dart';
 import 'sign_in_screen.dart';
 
+/// The single soft card shadow from `theme.md` (blur 14, offset 0/4).
+List<BoxShadow> _cardShadow() => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: 0.05),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
 /// Dedicated Cloud Backup screen combining [AccountCard] (S5) and
 /// [SignInScreen] (S11) navigation over [CloudSync].
 ///
@@ -20,6 +29,9 @@ import 'sign_in_screen.dart';
 ///   stay saved on this phone.
 /// * Never shows a blocking progress dialog and wraps cleanly at 320 dp width
 ///   and 200 % text scale.
+///
+/// Cards share one look: warm ivory, radius 20, 1 dp beige border and the single
+/// soft shadow, so the account card and the notes below it read as one system.
 class CloudBackupScreen extends StatelessWidget {
   const CloudBackupScreen({
     super.key,
@@ -65,11 +77,13 @@ class CloudBackupScreen extends StatelessWidget {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
           children: <Widget>[
-            if (service == null)
-              _UnconfiguredCard(bn: _bn)
-            else ...<Widget>[
+            if (service == null) ...<Widget>[
+              _UnconfiguredCard(bn: _bn),
+              const SizedBox(height: 16),
+              _LocalFirstNoteCard(bn: _bn),
+            ] else ...<Widget>[
               AccountCard(
                 language: language,
                 status: service.currentStatus,
@@ -91,22 +105,30 @@ class CloudBackupScreen extends StatelessWidget {
   }
 }
 
-class _UnconfiguredCard extends StatelessWidget {
-  const _UnconfiguredCard({required this.bn});
+/// A card with a rounded-square leading badge, a heading and body copy.
+class _NoteCard extends StatelessWidget {
+  const _NoteCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.footer,
+  });
 
-  final bool bn;
-
-  String _pair(String en, String bnText) => bn ? bnText : en;
+  final IconData icon;
+  final String title;
+  final String body;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: const Key('cloud-backup-unconfigured-card'),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.outline),
+        boxShadow: _cardShadow(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,80 +139,101 @@ class _UnconfiguredCard extends StatelessWidget {
               Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.lightGreen,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
-                  Icons.phonelink_lock_outlined,
-                  size: 24,
-                  color: AppColors.primaryGreen,
-                ),
+                child: Icon(icon, size: 22, color: AppColors.primaryGreen),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      _pair(
-                        'Cloud backup is not set up in this build',
-                        'এই সংস্করণে ক্লাউড ব্যাকআপ সেট আপ করা নেই',
-                      ),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.darkText,
-                        height: 1.3,
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.darkText,
+                      height: 1.3,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _pair(
-                        'All of your khatas and entries stay safely saved on this phone and work completely offline.',
-                        'আপনার সব খাতা ও লেনদেন এই ফোনেই নিরাপদে সংরক্ষিত থাকে এবং সম্পূর্ণ অফলাইনে কাজ করে।',
-                      ),
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        height: 1.4,
-                        color: AppColors.softText,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.lightGreen,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Icon(
-                  Icons.check_circle_outline,
-                  size: 16,
-                  color: AppColors.primaryGreen,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _pair('Saved on this phone', 'এই ফোনে সংরক্ষিত'),
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryGreen,
-                    ),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            body,
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: AppColors.softText,
             ),
           ),
+          if (footer != null) ...<Widget>[
+            const SizedBox(height: 14),
+            footer!,
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _UnconfiguredCard extends StatelessWidget {
+  const _UnconfiguredCard({required this.bn});
+
+  final bool bn;
+
+  String _pair(String en, String bnText) => bn ? bnText : en;
+
+  @override
+  Widget build(BuildContext context) {
+    return _NoteCard(
+      key: const Key('cloud-backup-unconfigured-card'),
+      icon: Icons.cloud_off_outlined,
+      title: _pair(
+        'Cloud backup is not set up in this build',
+        'এই সংস্করণে ক্লাউড ব্যাকআপ সেট আপ করা নেই',
+      ),
+      body: _pair(
+        'All of your khatas and entries stay safely saved on this phone and work completely offline.',
+        'আপনার সব খাতা ও লেনদেন এই ফোনেই নিরাপদে সংরক্ষিত থাকে এবং সম্পূর্ণ অফলাইনে কাজ করে।',
+      ),
+      footer: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 260),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: AppColors.lightGreen,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Icons.check_circle_outline,
+                size: 15,
+                color: AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  _pair('Saved on this phone', 'এই ফোনে সংরক্ষিত'),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -205,37 +248,13 @@ class _LocalFirstNoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return _NoteCard(
       key: const Key('cloud-backup-local-note'),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Icon(
-            Icons.shield_outlined,
-            size: 20,
-            color: AppColors.primaryGreen,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _pair(
-                'Your phone is always the primary copy. Entries work offline first and sync automatically when connected. Logging out never deletes local data.',
-                'আপনার ফোনই সবসময় মূল কপি। লেনদেন আগে অফলাইনে সংরক্ষিত হয় এবং ইন্টারনেট পেলে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়। লগ আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
-              ),
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.softText,
-              ),
-            ),
-          ),
-        ],
+      icon: Icons.shield_outlined,
+      title: _pair('Your phone is the primary copy', 'আপনার ফোনই মূল কপি'),
+      body: _pair(
+        'Entries work offline first and sync automatically when connected. Logging out never deletes local data.',
+        'লেনদেন আগে অফলাইনে সংরক্ষিত হয় এবং ইন্টারনেট পেলে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়। লগ আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
       ),
     );
   }

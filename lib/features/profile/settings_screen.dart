@@ -6,9 +6,24 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 
+/// The single soft card shadow from `theme.md` (blur 14, offset 0/4), kept
+/// here so every card on this screen looks identical.
+List<BoxShadow> _cardShadow() => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: 0.05),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
 /// The caller owns the committed language. Return true only once the change
 /// succeeds, false on cancellation, or throw on failure. Update [SettingsScreen.language]
 /// from the caller after success; this screen does not write to storage.
+///
+/// Layout: grouped preference cards (radius 20, 1 dp beige border, one soft
+/// shadow), each row led by the same 36 dp rounded-square icon container, then
+/// a title, a plain-language detail and wrapped value/status pills. Section
+/// titles carry a 4 dp green rule so the groups read at a glance.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -34,14 +49,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final AppLanguage? choice = await showDialog<AppLanguage>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
+        backgroundColor: AppColors.surface,
         title: Text(strings.text(AppString.changeLanguage)),
         children: [
           for (final AppLanguage language in AppLanguage.values)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(dialogContext, language),
-              child: Semantics(
-                selected: widget.language == language,
-                child: Text(language.endonym),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    widget.language == language
+                        ? Icons.check_circle
+                        : Icons.circle,
+                    size: 20,
+                    color: AppColors.primaryGreen,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Semantics(
+                      selected: widget.language == language,
+                      child: Text(language.endonym),
+                    ),
+                  ),
+                ],
               ),
             ),
           SimpleDialogOption(
@@ -87,10 +117,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Text(text(AppString.webSettings)),
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: _Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const _IconBadge(
+                        icon: Icons.info_outline,
+                        size: 52,
+                        radius: 16,
+                        iconSize: 26,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        text(AppString.webSettings),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -109,12 +167,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
           children: <Widget>[
-            if (!canChoose) _ReadOnlyNotice(strings),
-            const SizedBox(height: 20),
+            if (!canChoose) ...<Widget>[
+              _ReadOnlyNotice(strings),
+              const SizedBox(height: 24),
+            ],
             _SectionTitle(text(AppString.preferences)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             _SettingsCard(
               children: <Widget>[
                 _SettingRow(
@@ -147,33 +207,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: widget.language.endonym,
                   status: canChoose ? null : text(AppString.notAvailable),
                 ),
-                if (canChoose)
+                if (canChoose) ...<Widget>[
+                  const _CardDivider(),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        OutlinedButton(
+                      children: <Widget>[
+                        OutlinedButton.icon(
                           key: const Key('settings-change-language'),
                           onPressed: _busy
                               ? null
                               : () => _chooseLanguage(strings),
-                          child: Text(text(AppString.changeLanguage)),
+                          icon: const Icon(Icons.translate_outlined, size: 18),
+                          label: Text(text(AppString.changeLanguage)),
                         ),
                         if (_busy || _failed)
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              text(
-                                _busy
-                                    ? AppString.languagePending
-                                    : AppString.languageFailed,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Icon(
+                                    _busy
+                                        ? Icons.sync
+                                        : Icons.error_outline,
+                                    size: 16,
+                                    color: _busy
+                                        ? AppColors.primaryGreen
+                                        : AppColors.expenseRed,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      text(
+                                        _busy
+                                            ? AppString.languagePending
+                                            : AppString.languageFailed,
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        height: 1.35,
+                                        color: AppColors.darkText,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                       ],
                     ),
                   ),
+                ],
                 const _CardDivider(),
                 _SettingRow(
                   key: const Key('settings-backup-row'),
@@ -185,9 +273,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _SectionTitle(text(AppString.storage)),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             _SettingsCard(
               children: <Widget>[
                 _SettingRow(
@@ -208,9 +296,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _SettingsCard(
-              children: [
+              children: <Widget>[
                 _SettingRow(
                   key: const Key('settings-offline-backup-row'),
                   icon: Icons.save_alt,
@@ -220,13 +308,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              strings.buildLabel('1.0.0', 1),
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.softText,
+            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.outline),
+                ),
+                child: Text(
+                  strings.buildLabel('1.0.0', 1),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.softText,
+                  ),
+                ),
               ),
             ),
           ],
@@ -261,10 +362,12 @@ class _ReadOnlyNotice extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Icon(
-                Icons.info_outline,
-                size: 26,
-                color: AppColors.primaryGreen,
+              const _IconBadge(
+                icon: Icons.info_outline,
+                size: 40,
+                radius: 12,
+                iconSize: 21,
+                background: AppColors.surface,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -277,14 +380,15 @@ class _ReadOnlyNotice extends StatelessWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: AppColors.darkText,
+                        height: 1.3,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       strings.text(AppString.readOnlyDetail),
                       style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.35,
+                        fontSize: 12.5,
+                        height: 1.4,
                         color: AppColors.softText,
                       ),
                     ),
@@ -299,6 +403,7 @@ class _ReadOnlyNotice extends StatelessWidget {
   }
 }
 
+/// Section heading: a 4 dp green rule, then the group name.
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
 
@@ -306,13 +411,29 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w800,
-        color: AppColors.darkText,
-      ),
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.darkText,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -325,12 +446,7 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
-      ),
+    return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: children,
@@ -344,7 +460,63 @@ class _CardDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, thickness: 1, color: AppColors.outline);
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      indent: 62,
+      endIndent: 14,
+      color: AppColors.outline,
+    );
+  }
+}
+
+/// Rounded warm-ivory surface with the 1 dp beige border and one soft shadow.
+class _Card extends StatelessWidget {
+  const _Card({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.outline),
+        boxShadow: _cardShadow(),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// The 36 dp rounded-square icon container shared by every row.
+class _IconBadge extends StatelessWidget {
+  const _IconBadge({
+    required this.icon,
+    this.size = 36,
+    this.radius = 10,
+    this.iconSize = 18,
+    this.background,
+  });
+
+  final IconData icon;
+  final double size;
+  final double radius;
+  final double iconSize;
+  final Color? background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: background ?? AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+      child: Icon(icon, size: iconSize, color: AppColors.primaryGreen),
+    );
   }
 }
 
@@ -379,14 +551,9 @@ class _SettingRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 20, color: AppColors.primaryGreen),
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: _IconBadge(icon: icon),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -399,6 +566,7 @@ class _SettingRow extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.darkText,
+                          height: 1.25,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -406,7 +574,7 @@ class _SettingRow extends StatelessWidget {
                         detail,
                         style: const TextStyle(
                           fontSize: 12.5,
-                          height: 1.35,
+                          height: 1.4,
                           color: AppColors.softText,
                         ),
                       ),
@@ -444,7 +612,7 @@ class _ValueChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: highlighted ? AppColors.lightGreen : AppColors.warmIvory,
+        color: highlighted ? AppColors.lightGreen : AppColors.creamBackground,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: AppColors.outline),
       ),
@@ -452,6 +620,7 @@ class _ValueChip extends StatelessWidget {
         label,
         style: TextStyle(
           fontSize: 12,
+          height: 1.2,
           fontWeight: FontWeight.w700,
           color: highlighted ? AppColors.primaryGreen : AppColors.softText,
         ),

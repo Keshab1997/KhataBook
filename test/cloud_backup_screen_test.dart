@@ -149,7 +149,13 @@ void main() {
 
         expect(find.byKey(const Key('cloud-backup-screen')), findsOneWidget);
         expect(find.text('alice@example.com'), findsOneWidget);
-        expect(find.text('0 pending'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('account-card')),
+            matching: find.text('0 pending'),
+          ),
+          findsOneWidget,
+        );
         expect(find.byType(AlertDialog), findsNothing);
         expect(backend.storedTransactionsFor(alice.id), hasLength(1));
 
@@ -214,6 +220,32 @@ void main() {
     );
 
     testWidgets(
+      'the unconfigured layout stacks the state card above the local note', (
+        WidgetTester tester,
+      ) async {
+        // Unconfigured: the note sits under the "not set up" card.
+        await _pumpScreen(tester, const CloudBackupScreen());
+        expect(
+          find.byKey(const Key('cloud-backup-local-note')),
+          findsOneWidget,
+        );
+        expect(find.text('Your phone is the primary copy'), findsOneWidget);
+        // The note is below the state card, not beside it.
+        final double stateBottom = tester
+            .getBottomLeft(
+              find.byKey(const Key('cloud-backup-unconfigured-card')),
+            )
+            .dy;
+        final double noteTop = tester
+            .getTopLeft(find.byKey(const Key('cloud-backup-local-note')))
+            .dy;
+        expect(noteTop, greaterThan(stateBottom));
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
       'renders Bengali copy cleanly across unconfigured and configured states at 320dp / 200%',
       (WidgetTester tester) async {
         // 1. Unconfigured Bengali at 320dp / 200%.
@@ -255,7 +287,13 @@ void main() {
 
         expect(find.text('ক্লাউড ব্যাকআপ'), findsOneWidget);
         expect(find.text('bn@example.com'), findsOneWidget);
-        expect(find.text('০টি অপেক্ষমাণ'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('account-card')),
+            matching: find.text('০টি অপেক্ষমাণ'),
+          ),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
 
         await _tearDownService(

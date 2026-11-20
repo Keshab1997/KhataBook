@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
 import 'package:khatabook/features/profile/settings_screen.dart';
@@ -252,6 +253,98 @@ void main() {
     });
   });
 
+  group('Profile design polish', () {
+    testWidgets('identity card is dark on warm ivory with one soft shadow', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
+
+      // The local identity reads as a heading, not as body text.
+      final Text name = tester.widget<Text>(find.text('Local profile'));
+      expect(name.style?.fontWeight, FontWeight.w800);
+      expect(name.style?.color, AppColors.darkText);
+
+      // The offline notice is a real card: light-green fill, beige 1 dp edge.
+      final Iterable<BoxDecoration> decorations = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byKey(const Key('profile-offline-status')),
+              matching: find.byType(Container),
+            ),
+          )
+          .map((Container c) => c.decoration)
+          .whereType<BoxDecoration>();
+      final BoxDecoration notice = decorations.firstWhere(
+        (BoxDecoration d) => d.color == AppColors.lightGreen,
+        orElse: () => const BoxDecoration(),
+      );
+      expect(notice.color, AppColors.lightGreen);
+      expect(notice.borderRadius, BorderRadius.circular(20));
+      expect((notice.border! as Border).top.color, AppColors.outline);
+    });
+
+    testWidgets('section titles and rows use the shared visual system', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
+
+      // Both section titles are headings, in dark text.
+      for (final String title in <String>[
+        'Account & backup',
+        'About KhataBook',
+      ]) {
+        final Text heading = tester.widget<Text>(find.text(title));
+        expect(heading.style?.fontWeight, FontWeight.w800);
+        expect(heading.style?.color, AppColors.darkText);
+      }
+
+      // Every menu row keeps its 40 dp rounded-square icon container.
+      final Finder iconBox = find.descendant(
+        of: find.byKey(const Key('profile-app-settings-row')),
+        matching: find.byType(Container),
+      );
+      final Size rowIcon = tester.getSize(iconBox.first);
+      expect(rowIcon.width, 40);
+      expect(rowIcon.height, 40);
+
+      // The About rows gained a leading icon each: they are real tiles now.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('profile-version')),
+          matching: find.byIcon(Icons.info_outline),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Icons.currency_rupee), findsOneWidget);
+
+      // The status pills stay neutral and readable.
+      final Text pill = tester.widget<Text>(
+        find
+            .descendant(
+              of: find.byKey(const Key('profile-wallet-row')),
+              matching: find.text('Not available yet'),
+            )
+            .first,
+      );
+      expect(pill.style?.color, AppColors.softText);
+    });
+
+    testWidgets('the About card keeps every static fact after the polish', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
+
+      expect(find.text(ProfileScreen.versionLabel), findsOneWidget);
+      expect(find.text('This device only'), findsOneWidget);
+      expect(find.text('Light only'), findsOneWidget);
+      expect(
+        find.text('Indian rupees (INR), Indian digit grouping'),
+        findsOneWidget,
+      );
+      expect(find.text('KhataBook · Plan · Track · Save'), findsOneWidget);
+    });
+  });
+
   group('SettingsScreen', () {
     testWidgets(
       'reports INR and light theme as fixed, English as unavailable',
@@ -279,6 +372,49 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets('preference groups are cards with icon containers and pills', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, const SettingsScreen(), size: tallPhone);
+
+      // Each group title is a heading with a green rule beside it.
+      for (final String title in <String>['Preferences', 'Storage']) {
+        final Text heading = tester.widget<Text>(find.text(title));
+        expect(heading.style?.fontWeight, FontWeight.w800);
+        expect(heading.style?.color, AppColors.darkText);
+      }
+
+      // Rows are led by the shared icon container and keep a value pill plus,
+      // where the setting is fixed, its reason.
+      final Finder currency = find.byKey(const Key('settings-currency-row'));
+      expect(
+        find.descendant(
+          of: currency,
+          matching: find.byIcon(Icons.currency_rupee),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: currency, matching: find.text('INR (₹)')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: currency, matching: find.text('Fixed in v1')),
+        findsOneWidget,
+      );
+
+      // The read-only banner keeps its green fill and card radius.
+      final Container banner = tester.widget<Container>(
+        find.byKey(const Key('settings-readonly-notice')),
+      );
+      final BoxDecoration decoration = banner.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.lightGreen);
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+
+      // The build label is a quiet pill under the last card, not a bare line.
+      expect(find.text('KhataBook 1.0.0 (build 1)'), findsOneWidget);
+    });
 
     testWidgets('every row is read-only, with no toggles or dead buttons', (
       WidgetTester tester,
