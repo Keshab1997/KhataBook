@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
+import '../../core/l10n/app_strings.dart';
+import '../../core/l10n/language_preference.dart';
 import '../calculator/calculator_screen.dart';
 import '../counter/note_counter_screen.dart';
 import '../entry/add_entry_screen.dart';
@@ -18,12 +20,21 @@ import '../ledger/khata_manage_screen.dart';
 import '../ledger/all_transactions_screen.dart';
 import '../ledger/wallet_summary_screen.dart';
 import '../profile/profile_screen.dart';
+import '../profile/profile_store.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, this.ledger});
+  const MainShell({
+    super.key,
+    this.ledger,
+    this.initialLanguage = AppLanguage.en,
+  });
 
   /// An injected database is useful for isolated tests. The shell owns it.
   final LocalLedger? ledger;
+
+  /// The UI language to start in; Settings changes it through the shell, which
+  /// saves it and passes it to every screen.
+  final AppLanguage initialLanguage;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -42,7 +53,10 @@ class _MainShellState extends State<MainShell> {
   );
   bool _switching = false;
   int _openRequest = 0;
+  late AppLanguage _language = widget.initialLanguage;
+  ProfileStore? _profileStore;
   bool get _webPreview => kIsWeb && widget.ledger == null;
+  AppStrings get _strings => AppStrings(_language);
 
   @override
   void initState() {
@@ -62,6 +76,7 @@ class _MainShellState extends State<MainShell> {
       _ledger ??= widget.ledger ?? LocalLedger.device();
       final LocalLedger ledger = _ledger!;
       await ledger.initialize();
+      _profileStore ??= ProfileStore(ledger);
       final String activeId = await ledger.readActiveKhataId();
       final List<LocalKhata> khatas = await ledger.listKhatas();
       final LocalKhata active = khatas.firstWhere(
@@ -82,6 +97,17 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  /// Saves the language first and only then shows it everywhere. The pushed
+  /// Settings route was built with the old language, so it closes and the
+  /// user lands back on Profile, already in the new language.
+  Future<bool> _changeLanguage(AppLanguage language) async {
+    if (!await saveLanguagePreference(language)) return false;
+    if (!mounted) return true;
+    setState(() => _language = language);
+    Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+    return true;
+  }
+
   @override
   void dispose() {
     _openRequest++;
@@ -97,6 +123,7 @@ class _MainShellState extends State<MainShell> {
     final restored = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => BackupScreen(
+          language: _language,
           onExport: () async {
             final json = await backup.exportJson();
             return await files.save(json)
@@ -124,8 +151,9 @@ class _MainShellState extends State<MainShell> {
     if (restored == true && mounted) {
       await _open();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Backup restored.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_strings.text(AppString.backupRestored))),
+        );
       }
     }
   }
@@ -136,6 +164,7 @@ class _MainShellState extends State<MainShell> {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => KhataManageScreen(
+          language: _language,
           loadActive: ledger.listKhatas,
           loadArchived: ledger.listArchivedKhatas,
           onRename: (id, name) async {
@@ -160,6 +189,7 @@ class _MainShellState extends State<MainShell> {
         _ledger!,
         khatas,
         _activeKhata.id,
+        language: _language,
         onManage: _manageKhatas,
       );
       if (selected == null || !mounted) return;
@@ -177,9 +207,7 @@ class _MainShellState extends State<MainShell> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open khata. Please try again.'),
-          ),
+          SnackBar(content: Text(_strings.text(AppString.openKhataFailed))),
         );
       }
     } finally {
@@ -194,6 +222,7 @@ class _MainShellState extends State<MainShell> {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext routeContext) => AddEntryScreen(
+          language: _language,
           openingBalancePaise: current.remainingPaise,
           onSave: (EntryFormResult entry) async {
             if (_saving) return;
@@ -204,8 +233,8 @@ class _MainShellState extends State<MainShell> {
               _saving = false;
               if (routeContext.mounted) {
                 ScaffoldMessenger.of(routeContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('Could not save locally. Please try again.'),
+                  SnackBar(
+                    content: Text(_strings.text(AppString.localSaveFailed)),
                   ),
                 );
               }
@@ -241,6 +270,7 @@ class _MainShellState extends State<MainShell> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => AllTransactionsScreen(
+          language: _language,
           summary: current,
           ledger: _ledger,
           khataId: khataId,
@@ -272,24 +302,24 @@ class _MainShellState extends State<MainShell> {
     if (ledger == null || _summary == null) return;
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => WalletSummaryScreen(ledger: ledger),
+        builder: (_) =>
+            WalletSummaryScreen(ledger: ledger, language: _language),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final AppStrings strings = _strings;
     final Widget home;
     if (_webPreview) {
-      home = const Column(
+      home = Column(
         children: <Widget>[
           MaterialBanner(
-            content: Text(
-              'Web preview only: offline storage is not available here yet.',
-            ),
-            actions: <Widget>[SizedBox.shrink()],
+            content: Text(strings.text(AppString.webLedgerUnavailable)),
+            actions: const <Widget>[SizedBox.shrink()],
           ),
-          Expanded(child: HomeScreen()),
+          Expanded(child: HomeScreen(language: _language)),
         ],
       );
     } else if (_error != null) {
@@ -297,9 +327,12 @@ class _MainShellState extends State<MainShell> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Text('Could not open local ledger.'),
+            Text(strings.text(AppString.openLedgerFailed)),
             const SizedBox(height: 12),
-            FilledButton(onPressed: _open, child: const Text('Retry')),
+            FilledButton(
+              onPressed: _open,
+              child: Text(strings.text(AppString.retry)),
+            ),
           ],
         ),
       );
@@ -307,6 +340,7 @@ class _MainShellState extends State<MainShell> {
       home = const Center(child: CircularProgressIndicator());
     } else {
       home = HomeScreen(
+        language: _language,
         summary: _summary,
         onAddEntry: _addEntry,
         onViewAll: _viewAll,
@@ -319,9 +353,12 @@ class _MainShellState extends State<MainShell> {
         index: _index,
         children: <Widget>[
           home,
-          const CalculatorScreen(),
+          CalculatorScreen(language: _language),
           const NoteCounterScreen(),
           ProfileScreen(
+            language: _language,
+            onLanguageChanged: _webPreview ? null : _changeLanguage,
+            profileStore: _profileStore,
             onBackup:
                 !_webPreview &&
                     defaultTargetPlatform == TargetPlatform.android &&
@@ -337,26 +374,26 @@ class _MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (int value) => setState(() => _index = value),
-        destinations: const <NavigationDestination>[
+        destinations: <NavigationDestination>[
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            icon: const Icon(Icons.home_outlined),
+            selectedIcon: const Icon(Icons.home),
+            label: strings.text(AppString.home),
           ),
           NavigationDestination(
-            icon: Icon(Icons.calculate_outlined),
-            selectedIcon: Icon(Icons.calculate),
-            label: 'Calculator',
+            icon: const Icon(Icons.calculate_outlined),
+            selectedIcon: const Icon(Icons.calculate),
+            label: strings.text(AppString.calculator),
           ),
           NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view_rounded),
-            label: 'Counter',
+            icon: const Icon(Icons.grid_view_outlined),
+            selectedIcon: const Icon(Icons.grid_view_rounded),
+            label: strings.text(AppString.counter),
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+            icon: const Icon(Icons.person_outline),
+            selectedIcon: const Icon(Icons.person),
+            label: strings.text(AppString.profile),
           ),
         ],
       ),
