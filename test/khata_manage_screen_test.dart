@@ -329,9 +329,7 @@ void main() {
     expect(result, isTrue);
   });
 
-  testWidgets('each section heading sits above its own cards', (
-    tester,
-  ) async {
+  testWidgets('each section heading sits above its own cards', (tester) async {
     await pumpManageScreen(
       tester,
       loadActive: () async => <LocalKhata>[personal, business],

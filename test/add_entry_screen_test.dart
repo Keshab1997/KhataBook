@@ -244,10 +244,7 @@ void main() {
 
     await enter(tester, amountField, '12');
     await tester.pumpAndSettle();
-    expect(
-      frameColorOf(tester, find.byKey(amountField)),
-      AppColors.lightGreen,
-    );
+    expect(frameColorOf(tester, find.byKey(amountField)), AppColors.lightGreen);
     expect(tester.takeException(), isNull);
   });
 
