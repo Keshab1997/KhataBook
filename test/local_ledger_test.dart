@@ -171,16 +171,16 @@ void main() {
   test(
     'v2 on-disk migration adds sync_metadata without touching data',
     () async {
-    final Directory dir = await Directory.systemTemp.createTemp(
-      'khata_v2_migration_',
-    );
-    final File file = File('${dir.path}/ledger.sqlite');
-    try {
-      final LocalLedger ledger = LocalLedger(
-        NativeDatabase(
-          file,
-          setup: (database) {
-            database.execute('''
+      final Directory dir = await Directory.systemTemp.createTemp(
+        'khata_v2_migration_',
+      );
+      final File file = File('${dir.path}/ledger.sqlite');
+      try {
+        final LocalLedger ledger = LocalLedger(
+          NativeDatabase(
+            file,
+            setup: (database) {
+              database.execute('''
               CREATE TABLE khatas (
                 id TEXT PRIMARY KEY NOT NULL,
                 name TEXT NOT NULL,
@@ -194,7 +194,7 @@ void main() {
                 sync_state TEXT NOT NULL DEFAULT 'pending'
               )
             ''');
-            database.execute('''
+              database.execute('''
               CREATE TABLE "transactions" (
                 id TEXT PRIMARY KEY NOT NULL,
                 khata_id TEXT NOT NULL REFERENCES khatas(id),
@@ -211,40 +211,41 @@ void main() {
                 sync_state TEXT NOT NULL DEFAULT 'pending'
               )
             ''');
-            database.execute('''
+              database.execute('''
               CREATE TABLE active_khata_preference (
                 singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                 khata_id TEXT NOT NULL
               )
             ''');
-            database.execute('''
+              database.execute('''
               INSERT INTO khatas
                 (id, name, opening_balance_paise, created_at, updated_at)
               VALUES
                 ('personal', 'Personal Khata', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
                 ('biz-v2', 'Business V2', 50000, '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z')
             ''');
-            database.execute(
-              "INSERT INTO active_khata_preference (singleton, khata_id) VALUES (1, 'biz-v2')",
-            );
-            database.execute('PRAGMA user_version = 2');
-          },
-        ),
-      );
+              database.execute(
+                "INSERT INTO active_khata_preference (singleton, khata_id) VALUES (1, 'biz-v2')",
+              );
+              database.execute('PRAGMA user_version = 2');
+            },
+          ),
+        );
 
-      expect(await ledger.readActiveKhataId(), 'biz-v2');
-      expect(
-        (await ledger.customSelect('PRAGMA user_version').getSingle())
-            .read<int>('user_version'),
-        3,
-      );
-      expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
-      expect(await ledger.readPendingSyncCount(), 2);
-      await ledger.close();
-    } finally {
-      await dir.delete(recursive: true);
-    }
-  });
+        expect(await ledger.readActiveKhataId(), 'biz-v2');
+        expect(
+          (await ledger.customSelect('PRAGMA user_version').getSingle())
+              .read<int>('user_version'),
+          3,
+        );
+        expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
+        expect(await ledger.readPendingSyncCount(), 2);
+        await ledger.close();
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    },
+  );
 
   test('active khata defaults, persists, and rejects stale selections', () async {
     final Directory dir = await Directory.systemTemp.createTemp(

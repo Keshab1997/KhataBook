@@ -121,6 +121,12 @@ void main() {
         find.byKey(const Key('continue-with-google-button')),
         120,
       );
+      // scrollUntilVisible stops once the button is partly on screen; bring
+      // all of it into view so the tap lands on it.
+      await tester.ensureVisible(
+        find.byKey(const Key('continue-with-google-button')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('continue-with-google-button')));
       await tester.pumpAndSettle();
 

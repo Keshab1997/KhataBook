@@ -46,7 +46,7 @@ class SyncEngine {
     Duration baseBackoff = const Duration(seconds: 2),
     Duration maxBackoff = const Duration(minutes: 5),
     TimerFactory? timerFactory,
-  }) : _isOnline = isOnline,
+  }) : _onlineCheck = isOnline,
        _now = now ?? _utcNow {
     if (batchSize <= 0) {
       throw ArgumentError.value(batchSize, 'batchSize', 'must be positive');
@@ -73,7 +73,7 @@ class SyncEngine {
   final CloudBackend backend;
   final int batchSize;
   final Duration pullOverlap;
-  final OnlineCheck? _isOnline;
+  final OnlineCheck? _onlineCheck;
   final ClockReader _now;
 
   late final SyncScheduler scheduler;
@@ -506,7 +506,7 @@ class SyncEngine {
   }
 
   Future<bool> _checkOnline() async {
-    final OnlineCheck? check = _isOnline;
+    final OnlineCheck? check = _onlineCheck;
     if (check == null) return true;
     try {
       return await check();

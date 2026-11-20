@@ -21,7 +21,7 @@ class SyncScheduler {
     this.baseBackoff = const Duration(seconds: 2),
     this.maxBackoff = const Duration(minutes: 5),
     TimerFactory? timerFactory,
-  }) : _runSync = runSync,
+  }) : _syncRunner = runSync,
        _timerFactory = timerFactory ?? Timer.new {
     if (debounce.isNegative) {
       throw ArgumentError.value(debounce, 'debounce', 'must not be negative');
@@ -38,7 +38,7 @@ class SyncScheduler {
     }
   }
 
-  final SyncRunner _runSync;
+  final SyncRunner _syncRunner;
   final Duration debounce;
   final Duration baseBackoff;
   final Duration maxBackoff;
@@ -163,7 +163,7 @@ class SyncScheduler {
     _running = true;
     bool succeeded = false;
     try {
-      succeeded = await _runSync();
+      succeeded = await _syncRunner();
     } catch (_) {
       succeeded = false;
     } finally {
