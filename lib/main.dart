@@ -9,6 +9,7 @@ import 'core/l10n/app_strings.dart';
 import 'core/l10n/language_preference.dart';
 import 'features/ledger/data/local_ledger.dart';
 import 'features/ledger/data/web_ledger_stub.dart'
+    if (dart.library.js_interop) 'features/ledger/data/web_ledger.dart'
     if (dart.library.html) 'features/ledger/data/web_ledger.dart';
 import 'features/sync/cloud_sync.dart';
 

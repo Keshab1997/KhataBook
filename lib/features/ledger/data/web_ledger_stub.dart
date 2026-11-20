@@ -1,5 +1,5 @@
 // Native stub for the web ledger opener. Selected (via a conditional import in
-// `main.dart`) whenever `dart.library.html` is absent — i.e. every native
+// `main.dart`) whenever `dart.library.js_interop` is absent — i.e. every native
 // (mobile / desktop) build. The real implementation lives in `web_ledger.dart`
 // and is never compiled here, so `package:drift/wasm.dart` is kept out of the
 // native build.

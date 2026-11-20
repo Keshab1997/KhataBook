@@ -9,7 +9,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show HandshakeException, SocketException, TlsException;
+
 
 import 'package:http/http.dart' show ClientException;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -428,10 +428,11 @@ class SupabaseCloudBackend implements CloudBackend {
   }
 
   static bool _isOfflineError(Object error) {
+    final String errorType = error.runtimeType.toString();
     if (error is CloudOfflineException ||
-        error is SocketException ||
-        error is TlsException ||
-        error is HandshakeException ||
+        errorType == 'SocketException' ||
+        errorType == 'TlsException' ||
+        errorType == 'HandshakeException' ||
         error is ClientException ||
         error is TimeoutException) {
       return true;
