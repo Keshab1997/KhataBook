@@ -104,150 +104,144 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SupabaseCloudBackend auth & session mapping', () {
-    test(
-      'maps currentUser and userChanges, treats missing email as signed out, and signs out locally',
-      () async {
-        Map<String, dynamic> nextTokenPayload = _sessionPayload(
-          userId: 'user-111',
-          email: 'alice@example.com',
-        );
+    test('maps currentUser and userChanges, treats missing email as signed out, and signs out locally', () async {
+      Map<String, dynamic> nextTokenPayload = _sessionPayload(
+        userId: 'user-111',
+        email: 'alice@example.com',
+      );
 
-        final SupabaseClient client = _buildClient((http.Request req) async {
-          if (req.url.path.endsWith('/auth/v1/token')) {
-            return _jsonResponse(nextTokenPayload);
-          }
-          if (req.url.path.endsWith('/auth/v1/logout')) {
-            return http.Response('', 204);
-          }
-          return _jsonResponse(<Object>[]);
-        });
-        addTearDown(client.dispose);
-
-        final SupabaseCloudBackend backend = SupabaseCloudBackend(
-          client: client,
-          redirectTo: 'in.keshab.khatabook://login-callback',
-        );
-
-        final List<CloudUser?> observed = <CloudUser?>[];
-        final StreamSubscription<CloudUser?> sub = backend.userChanges.listen(
-          observed.add,
-        );
-        addTearDown(sub.cancel);
-
-        expect(backend.currentUser, isNull);
-
-        await client.auth.signInWithPassword(
-          email: 'alice@example.com',
-          password: 'pw',
-        );
-        await Future<void>.delayed(Duration.zero);
-
-        expect(
-          backend.currentUser,
-          CloudUser(id: 'user-111', email: 'alice@example.com'),
-        );
-
-        // A session whose user has no email is treated as signed out.
-        nextTokenPayload = _sessionPayload(userId: 'user-no-email');
-        await client.auth.signInWithPassword(
-          email: 'placeholder@example.com',
-          password: 'pw',
-        );
-        await Future<void>.delayed(Duration.zero);
-        expect(backend.currentUser, isNull);
-
-        // Sign back in with an email, then signOut() clears session locally.
-        nextTokenPayload = _sessionPayload(
-          userId: 'user-111',
-          email: 'alice@example.com',
-        );
-        await client.auth.signInWithPassword(
-          email: 'alice@example.com',
-          password: 'pw',
-        );
-        await Future<void>.delayed(Duration.zero);
-        expect(backend.currentUser?.email, 'alice@example.com');
-
-        await backend.signOut();
-        await Future<void>.delayed(Duration.zero);
-        expect(backend.currentUser, isNull);
-        expect(
-          observed,
-          containsAllInOrder(<CloudUser?>[
-            CloudUser(id: 'user-111', email: 'alice@example.com'),
-            null,
-            CloudUser(id: 'user-111', email: 'alice@example.com'),
-            null,
-          ]),
-        );
-      },
-    );
-
-    test(
-      'signInWithGoogle launches OAuth with redirectTo & externalApplication, resolves on session, and returns null on timeout',
-      () async {
-        const MethodChannel urlLauncherChannel = MethodChannel(
-          'plugins.flutter.io/url_launcher',
-        );
-        final List<MethodCall> launcherCalls = <MethodCall>[];
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(urlLauncherChannel, (
-              MethodCall call,
-            ) async {
-              launcherCalls.add(call);
-              return true;
-            });
-        addTearDown(() {
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-              .setMockMethodCallHandler(urlLauncherChannel, null);
-        });
-
-        final SupabaseClient client = _buildClient((http.Request req) async {
-          if (req.url.path.endsWith('/auth/v1/token')) {
-            return _jsonResponse(
-              _sessionPayload(userId: 'google-uid', email: 'g@example.com'),
-            );
-          }
+      final SupabaseClient client = _buildClient((http.Request req) async {
+        if (req.url.path.endsWith('/auth/v1/token')) {
+          return _jsonResponse(nextTokenPayload);
+        }
+        if (req.url.path.endsWith('/auth/v1/logout')) {
           return http.Response('', 204);
-        });
-        addTearDown(client.dispose);
+        }
+        return _jsonResponse(<Object>[]);
+      });
+      addTearDown(client.dispose);
 
-        // 1. Timeout when no OAuth callback arrives -> returns null (cancelled).
-        final SupabaseCloudBackend timeoutBackend = SupabaseCloudBackend(
-          client: client,
-          redirectTo: 'in.keshab.khatabook://login-callback',
-          signInTimeout: const Duration(milliseconds: 40),
-        );
-        final CloudUser? cancelled = await timeoutBackend.signInWithGoogle();
-        expect(cancelled, isNull);
-        expect(launcherCalls, isNotEmpty);
-        final String launchedUrl =
-            (launcherCalls.last.arguments as Map<Object?, Object?>)['url']!
-                as String;
-        final Uri parsedLaunch = Uri.parse(launchedUrl);
-        expect(parsedLaunch.path, '/auth/v1/authorize');
-        expect(parsedLaunch.queryParameters['provider'], 'google');
-        expect(
-          parsedLaunch.queryParameters['redirect_to'],
-          'in.keshab.khatabook://login-callback',
-        );
+      final SupabaseCloudBackend backend = SupabaseCloudBackend(
+        client: client,
+        redirectTo: 'in.keshab.khatabook://login-callback',
+      );
 
-        // 2. Session arrives over onAuthStateChange -> resolves with CloudUser.
-        final SupabaseCloudBackend liveBackend = SupabaseCloudBackend(
-          client: client,
-          redirectTo: 'in.keshab.khatabook://login-callback',
-          signInTimeout: const Duration(seconds: 5),
-        );
-        final Future<CloudUser?> signInFuture = liveBackend.signInWithGoogle();
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        await client.auth.signInWithPassword(
-          email: 'g@example.com',
-          password: 'pw',
-        );
-        final CloudUser? resolved = await signInFuture;
-        expect(resolved, CloudUser(id: 'google-uid', email: 'g@example.com'));
-      },
-    );
+      final List<CloudUser?> observed = <CloudUser?>[];
+      final StreamSubscription<CloudUser?> sub = backend.userChanges.listen(
+        observed.add,
+      );
+      addTearDown(sub.cancel);
+
+      expect(backend.currentUser, isNull);
+
+      await client.auth.signInWithPassword(
+        email: 'alice@example.com',
+        password: 'pw',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        backend.currentUser,
+        CloudUser(id: 'user-111', email: 'alice@example.com'),
+      );
+
+      // A session whose user has no email is treated as signed out.
+      nextTokenPayload = _sessionPayload(userId: 'user-no-email');
+      await client.auth.signInWithPassword(
+        email: 'placeholder@example.com',
+        password: 'pw',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.currentUser, isNull);
+
+      // Sign back in with an email, then signOut() clears session locally.
+      nextTokenPayload = _sessionPayload(
+        userId: 'user-111',
+        email: 'alice@example.com',
+      );
+      await client.auth.signInWithPassword(
+        email: 'alice@example.com',
+        password: 'pw',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.currentUser?.email, 'alice@example.com');
+
+      await backend.signOut();
+      await Future<void>.delayed(Duration.zero);
+      expect(backend.currentUser, isNull);
+      expect(
+        observed,
+        containsAllInOrder(<CloudUser?>[
+          CloudUser(id: 'user-111', email: 'alice@example.com'),
+          null,
+          CloudUser(id: 'user-111', email: 'alice@example.com'),
+          null,
+        ]),
+      );
+    });
+
+    test('signInWithGoogle launches OAuth with redirectTo & externalApplication, resolves on session, and returns null on timeout', () async {
+      const MethodChannel urlLauncherChannel = MethodChannel(
+        'plugins.flutter.io/url_launcher',
+      );
+      final List<MethodCall> launcherCalls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(urlLauncherChannel, (
+            MethodCall call,
+          ) async {
+            launcherCalls.add(call);
+            return true;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(urlLauncherChannel, null);
+      });
+
+      final SupabaseClient client = _buildClient((http.Request req) async {
+        if (req.url.path.endsWith('/auth/v1/token')) {
+          return _jsonResponse(
+            _sessionPayload(userId: 'google-uid', email: 'g@example.com'),
+          );
+        }
+        return http.Response('', 204);
+      });
+      addTearDown(client.dispose);
+
+      // 1. Timeout when no OAuth callback arrives -> returns null (cancelled).
+      final SupabaseCloudBackend timeoutBackend = SupabaseCloudBackend(
+        client: client,
+        redirectTo: 'in.keshab.khatabook://login-callback',
+        signInTimeout: const Duration(milliseconds: 40),
+      );
+      final CloudUser? cancelled = await timeoutBackend.signInWithGoogle();
+      expect(cancelled, isNull);
+      expect(launcherCalls, isNotEmpty);
+      final String launchedUrl =
+          (launcherCalls.last.arguments as Map<Object?, Object?>)['url']!
+              as String;
+      final Uri parsedLaunch = Uri.parse(launchedUrl);
+      expect(parsedLaunch.path, '/auth/v1/authorize');
+      expect(parsedLaunch.queryParameters['provider'], 'google');
+      expect(
+        parsedLaunch.queryParameters['redirect_to'],
+        'in.keshab.khatabook://login-callback',
+      );
+
+      // 2. Session arrives over onAuthStateChange -> resolves with CloudUser.
+      final SupabaseCloudBackend liveBackend = SupabaseCloudBackend(
+        client: client,
+        redirectTo: 'in.keshab.khatabook://login-callback',
+        signInTimeout: const Duration(seconds: 5),
+      );
+      final Future<CloudUser?> signInFuture = liveBackend.signInWithGoogle();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await client.auth.signInWithPassword(
+        email: 'g@example.com',
+        password: 'pw',
+      );
+      final CloudUser? resolved = await signInFuture;
+      expect(resolved, CloudUser(id: 'google-uid', email: 'g@example.com'));
+    });
 
     test('calls made while signed out throw StateError', () async {
       final SupabaseClient client = _buildClient(
@@ -269,428 +263,413 @@ void main() {
   });
 
   group('SupabaseCloudBackend REST push & pull requests', () {
-    test(
-      'upsertKhatas and upsertTransactions send exact snake_case columns without server_updated_at and map server-returned rows',
-      () async {
-        final List<http.Request> restRequests = <http.Request>[];
-        final DateTime serverTime1 = DateTime.utc(2026, 11, 20, 10, 5);
-        final DateTime serverTime2 = DateTime.utc(2026, 11, 20, 10, 6);
+    test('upsertKhatas and upsertTransactions send exact snake_case columns without server_updated_at and map server-returned rows', () async {
+      final List<http.Request> restRequests = <http.Request>[];
+      final DateTime serverTime1 = DateTime.utc(2026, 11, 20, 10, 5);
+      final DateTime serverTime2 = DateTime.utc(2026, 11, 20, 10, 6);
 
-        final SupabaseClient client = _buildClient((http.Request req) async {
-          if (req.url.path.endsWith('/auth/v1/token')) {
-            return _jsonResponse(
-              _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
-            );
-          }
-          restRequests.add(req);
-          if (req.url.path == '/rest/v1/khatas') {
-            final List<dynamic> decoded = jsonDecode(req.body) as List<dynamic>;
-            final Map<String, dynamic> sent = Map<String, dynamic>.from(
-              decoded.single as Map,
-            );
-            // Simulate trigger keeping a newer server copy on upsert!
-            return _jsonResponse(<Map<String, dynamic>>[
-              <String, dynamic>{
-                ...sent,
-                'name': 'Server Kept Newer Name',
-                'updated_at': '2026-11-20T10:04:00.000Z',
-                'server_updated_at': serverTime1.toIso8601String(),
-              },
-            ]);
-          }
-          if (req.url.path == '/rest/v1/transactions') {
-            final List<dynamic> decoded = jsonDecode(req.body) as List<dynamic>;
-            final Map<String, dynamic> sent = Map<String, dynamic>.from(
-              decoded.single as Map,
-            );
-            return _jsonResponse(<Map<String, dynamic>>[
-              <String, dynamic>{
-                ...sent,
-                'server_updated_at': serverTime2.toIso8601String(),
-              },
-            ]);
-          }
-          return _jsonResponse(<Object>[]);
-        });
-        addTearDown(client.dispose);
-
-        await client.auth.signInWithPassword(
-          email: 'sync@example.com',
-          password: 'pw',
-        );
-        final SupabaseCloudBackend backend = SupabaseCloudBackend(
-          client: client,
-        );
-
-        final List<CloudKhataRow> storedKhatas = await backend
-            .upsertKhatas(<CloudKhataRow>[
-              CloudKhataRow(
-                id: 'personal',
-                name: 'Local Name',
-                openingBalancePaise: 50000,
-                currency: 'INR',
-                sortOrder: 1,
-                createdAt: DateTime.utc(2026, 11, 20, 9, 0),
-                updatedAt: DateTime.utc(2026, 11, 20, 9, 30),
-                serverUpdatedAt: DateTime.utc(2026, 11, 20, 9, 30),
-              ),
-            ]);
-
-        expect(restRequests, hasLength(1));
-        final http.Request khataReq = restRequests.single;
-        expect(khataReq.method, 'POST');
-        expect(khataReq.url.path, '/rest/v1/khatas');
-        expect(khataReq.url.queryParameters['on_conflict'], 'user_id,id');
-        expect(khataReq.url.queryParameters['select'], '*');
-        expect(
-          khataReq.headers['Prefer'],
-          contains('resolution=merge-duplicates'),
-        );
-        expect(khataReq.headers['Prefer'], contains('return=representation'));
-
-        final Map<String, dynamic> khataBody = Map<String, dynamic>.from(
-          (jsonDecode(khataReq.body) as List<dynamic>).single as Map,
-        );
-        expect(
-          khataBody.keys.toSet(),
-          equals(<String>{
-            'user_id',
-            'id',
-            'name',
-            'opening_balance_paise',
-            'currency',
-            'sort_order',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-          }),
-        );
-        expect(khataBody.containsKey('server_updated_at'), isFalse);
-        expect(khataBody['user_id'], 'uid-42');
-        expect(khataBody['opening_balance_paise'], 50000);
-        expect(khataBody['deleted_at'], isNull);
-
-        expect(storedKhatas, hasLength(1));
-        expect(storedKhatas.single.userId, 'uid-42');
-        expect(storedKhatas.single.name, 'Server Kept Newer Name');
-        expect(storedKhatas.single.serverUpdatedAt, serverTime1);
-
-        // Push transaction with tombstone & noteSessionId.
-        final DateTime deletedAt = DateTime.utc(2026, 11, 20, 10, 2);
-        final List<CloudTransactionRow> storedTx = await backend
-            .upsertTransactions(<CloudTransactionRow>[
-              CloudTransactionRow(
-                id: 'tx-1',
-                khataId: 'personal',
-                type: CloudTransactionType.expense,
-                amountPaise: 12500,
-                categoryId: 'Food',
-                description: 'Tea & snacks',
-                occurredAt: DateTime.utc(2026, 11, 20, 9, 45),
-                noteSessionId: 'session-9',
-                createdAt: DateTime.utc(2026, 11, 20, 9, 45),
-                updatedAt: deletedAt,
-                deletedAt: deletedAt,
-                serverUpdatedAt: DateTime.utc(2026, 11, 20, 9, 50),
-              ),
-            ]);
-
-        expect(restRequests, hasLength(2));
-        final http.Request txReq = restRequests.last;
-        expect(txReq.method, 'POST');
-        expect(txReq.url.path, '/rest/v1/transactions');
-        expect(txReq.url.queryParameters['on_conflict'], 'user_id,id');
-
-        final Map<String, dynamic> txBody = Map<String, dynamic>.from(
-          (jsonDecode(txReq.body) as List<dynamic>).single as Map,
-        );
-        expect(
-          txBody.keys.toSet(),
-          equals(<String>{
-            'user_id',
-            'id',
-            'khata_id',
-            'type',
-            'amount_paise',
-            'category_id',
-            'description',
-            'occurred_at',
-            'note_session_id',
-            'created_at',
-            'updated_at',
-            'deleted_at',
-          }),
-        );
-        expect(txBody.containsKey('server_updated_at'), isFalse);
-        expect(txBody['user_id'], 'uid-42');
-        expect(txBody['type'], 'expense');
-        expect(txBody['amount_paise'], 12500);
-        expect(txBody['deleted_at'], deletedAt.toIso8601String());
-
-        expect(storedTx, hasLength(1));
-        expect(storedTx.single.serverUpdatedAt, serverTime2);
-        expect(storedTx.single.deletedAt, deletedAt);
-        expect(storedTx.single.noteSessionId, 'session-9');
-      },
-    );
-
-    test(
-      'fetchChanges filters gt(server_updated_at), orders ascending by server_updated_at then id, pages with range(), and tracks cursor',
-      () async {
-        final List<Uri> requestedUrls = <Uri>[];
-        final DateTime since = DateTime.utc(2026, 11, 20, 8, 0);
-        final DateTime t1 = DateTime.utc(2026, 11, 20, 8, 10);
-        final DateTime t2 = DateTime.utc(2026, 11, 20, 8, 20);
-        final DateTime t3 = DateTime.utc(2026, 11, 20, 8, 35);
-
-        bool returnEmpty = false;
-
-        final SupabaseClient client = _buildClient((http.Request req) async {
-          if (req.url.path.endsWith('/auth/v1/token')) {
-            return _jsonResponse(
-              _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
-            );
-          }
-          requestedUrls.add(req.url);
-          if (returnEmpty) {
-            return _jsonResponse(<Object>[]);
-          }
-
-          final int offset = int.parse(
-            req.url.queryParameters['offset'] ?? '0',
+      final SupabaseClient client = _buildClient((http.Request req) async {
+        if (req.url.path.endsWith('/auth/v1/token')) {
+          return _jsonResponse(
+            _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
           );
-          if (req.url.path == '/rest/v1/khatas') {
-            if (offset == 0) {
-              return _jsonResponse(<Map<String, dynamic>>[
-                <String, dynamic>{
-                  'user_id': 'uid-42',
-                  'id': 'k-1',
-                  'name': 'Personal Khata',
-                  'opening_balance_paise': 0,
-                  'currency': 'INR',
-                  'sort_order': 0,
-                  'created_at': t1.toIso8601String(),
-                  'updated_at': t1.toIso8601String(),
-                  'deleted_at': null,
-                  'server_updated_at': t1.toIso8601String(),
-                },
-                <String, dynamic>{
-                  'user_id': 'uid-42',
-                  'id': 'k-2',
-                  'name': 'Shop',
-                  'opening_balance_paise': 10000,
-                  'currency': 'INR',
-                  'sort_order': 1,
-                  'created_at': t2.toIso8601String(),
-                  'updated_at': t2.toIso8601String(),
-                  'deleted_at': null,
-                  'server_updated_at': t2.toIso8601String(),
-                },
-              ]);
-            }
-            // Second page returns 1 row (< pageSize=2) -> terminates paging!
+        }
+        restRequests.add(req);
+        if (req.url.path == '/rest/v1/khatas') {
+          final List<dynamic> decoded = jsonDecode(req.body) as List<dynamic>;
+          final Map<String, dynamic> sent = Map<String, dynamic>.from(
+            decoded.single as Map,
+          );
+          // Simulate trigger keeping a newer server copy on upsert!
+          return _jsonResponse(<Map<String, dynamic>>[
+            <String, dynamic>{
+              ...sent,
+              'name': 'Server Kept Newer Name',
+              'updated_at': '2026-11-20T10:04:00.000Z',
+              'server_updated_at': serverTime1.toIso8601String(),
+            },
+          ]);
+        }
+        if (req.url.path == '/rest/v1/transactions') {
+          final List<dynamic> decoded = jsonDecode(req.body) as List<dynamic>;
+          final Map<String, dynamic> sent = Map<String, dynamic>.from(
+            decoded.single as Map,
+          );
+          return _jsonResponse(<Map<String, dynamic>>[
+            <String, dynamic>{
+              ...sent,
+              'server_updated_at': serverTime2.toIso8601String(),
+            },
+          ]);
+        }
+        return _jsonResponse(<Object>[]);
+      });
+      addTearDown(client.dispose);
+
+      await client.auth.signInWithPassword(
+        email: 'sync@example.com',
+        password: 'pw',
+      );
+      final SupabaseCloudBackend backend = SupabaseCloudBackend(client: client);
+
+      final List<CloudKhataRow> storedKhatas = await backend.upsertKhatas(
+        <CloudKhataRow>[
+          CloudKhataRow(
+            id: 'personal',
+            name: 'Local Name',
+            openingBalancePaise: 50000,
+            currency: 'INR',
+            sortOrder: 1,
+            createdAt: DateTime.utc(2026, 11, 20, 9, 0),
+            updatedAt: DateTime.utc(2026, 11, 20, 9, 30),
+            serverUpdatedAt: DateTime.utc(2026, 11, 20, 9, 30),
+          ),
+        ],
+      );
+
+      expect(restRequests, hasLength(1));
+      final http.Request khataReq = restRequests.single;
+      expect(khataReq.method, 'POST');
+      expect(khataReq.url.path, '/rest/v1/khatas');
+      expect(khataReq.url.queryParameters['on_conflict'], 'user_id,id');
+      expect(khataReq.url.queryParameters['select'], '*');
+      expect(
+        khataReq.headers['Prefer'],
+        contains('resolution=merge-duplicates'),
+      );
+      expect(khataReq.headers['Prefer'], contains('return=representation'));
+
+      final Map<String, dynamic> khataBody = Map<String, dynamic>.from(
+        (jsonDecode(khataReq.body) as List<dynamic>).single as Map,
+      );
+      expect(
+        khataBody.keys.toSet(),
+        equals(<String>{
+          'user_id',
+          'id',
+          'name',
+          'opening_balance_paise',
+          'currency',
+          'sort_order',
+          'created_at',
+          'updated_at',
+          'deleted_at',
+        }),
+      );
+      expect(khataBody.containsKey('server_updated_at'), isFalse);
+      expect(khataBody['user_id'], 'uid-42');
+      expect(khataBody['opening_balance_paise'], 50000);
+      expect(khataBody['deleted_at'], isNull);
+
+      expect(storedKhatas, hasLength(1));
+      expect(storedKhatas.single.userId, 'uid-42');
+      expect(storedKhatas.single.name, 'Server Kept Newer Name');
+      expect(storedKhatas.single.serverUpdatedAt, serverTime1);
+
+      // Push transaction with tombstone & noteSessionId.
+      final DateTime deletedAt = DateTime.utc(2026, 11, 20, 10, 2);
+      final List<CloudTransactionRow> storedTx = await backend
+          .upsertTransactions(<CloudTransactionRow>[
+            CloudTransactionRow(
+              id: 'tx-1',
+              khataId: 'personal',
+              type: CloudTransactionType.expense,
+              amountPaise: 12500,
+              categoryId: 'Food',
+              description: 'Tea & snacks',
+              occurredAt: DateTime.utc(2026, 11, 20, 9, 45),
+              noteSessionId: 'session-9',
+              createdAt: DateTime.utc(2026, 11, 20, 9, 45),
+              updatedAt: deletedAt,
+              deletedAt: deletedAt,
+              serverUpdatedAt: DateTime.utc(2026, 11, 20, 9, 50),
+            ),
+          ]);
+
+      expect(restRequests, hasLength(2));
+      final http.Request txReq = restRequests.last;
+      expect(txReq.method, 'POST');
+      expect(txReq.url.path, '/rest/v1/transactions');
+      expect(txReq.url.queryParameters['on_conflict'], 'user_id,id');
+
+      final Map<String, dynamic> txBody = Map<String, dynamic>.from(
+        (jsonDecode(txReq.body) as List<dynamic>).single as Map,
+      );
+      expect(
+        txBody.keys.toSet(),
+        equals(<String>{
+          'user_id',
+          'id',
+          'khata_id',
+          'type',
+          'amount_paise',
+          'category_id',
+          'description',
+          'occurred_at',
+          'note_session_id',
+          'created_at',
+          'updated_at',
+          'deleted_at',
+        }),
+      );
+      expect(txBody.containsKey('server_updated_at'), isFalse);
+      expect(txBody['user_id'], 'uid-42');
+      expect(txBody['type'], 'expense');
+      expect(txBody['amount_paise'], 12500);
+      expect(txBody['deleted_at'], deletedAt.toIso8601String());
+
+      expect(storedTx, hasLength(1));
+      expect(storedTx.single.serverUpdatedAt, serverTime2);
+      expect(storedTx.single.deletedAt, deletedAt);
+      expect(storedTx.single.noteSessionId, 'session-9');
+    });
+
+    test('fetchChanges filters gt(server_updated_at), orders ascending by server_updated_at then id, pages with range(), and tracks cursor', () async {
+      final List<Uri> requestedUrls = <Uri>[];
+      final DateTime since = DateTime.utc(2026, 11, 20, 8, 0);
+      final DateTime t1 = DateTime.utc(2026, 11, 20, 8, 10);
+      final DateTime t2 = DateTime.utc(2026, 11, 20, 8, 20);
+      final DateTime t3 = DateTime.utc(2026, 11, 20, 8, 35);
+
+      bool returnEmpty = false;
+
+      final SupabaseClient client = _buildClient((http.Request req) async {
+        if (req.url.path.endsWith('/auth/v1/token')) {
+          return _jsonResponse(
+            _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
+          );
+        }
+        requestedUrls.add(req.url);
+        if (returnEmpty) {
+          return _jsonResponse(<Object>[]);
+        }
+
+        final int offset = int.parse(req.url.queryParameters['offset'] ?? '0');
+        if (req.url.path == '/rest/v1/khatas') {
+          if (offset == 0) {
             return _jsonResponse(<Map<String, dynamic>>[
               <String, dynamic>{
                 'user_id': 'uid-42',
-                'id': 'k-3',
-                'name': 'Archived Khata',
+                'id': 'k-1',
+                'name': 'Personal Khata',
                 'opening_balance_paise': 0,
                 'currency': 'INR',
-                'sort_order': 2,
+                'sort_order': 0,
+                'created_at': t1.toIso8601String(),
+                'updated_at': t1.toIso8601String(),
+                'deleted_at': null,
+                'server_updated_at': t1.toIso8601String(),
+              },
+              <String, dynamic>{
+                'user_id': 'uid-42',
+                'id': 'k-2',
+                'name': 'Shop',
+                'opening_balance_paise': 10000,
+                'currency': 'INR',
+                'sort_order': 1,
                 'created_at': t2.toIso8601String(),
                 'updated_at': t2.toIso8601String(),
-                'deleted_at': t2.toIso8601String(),
+                'deleted_at': null,
                 'server_updated_at': t2.toIso8601String(),
               },
             ]);
           }
+          // Second page returns 1 row (< pageSize=2) -> terminates paging!
+          return _jsonResponse(<Map<String, dynamic>>[
+            <String, dynamic>{
+              'user_id': 'uid-42',
+              'id': 'k-3',
+              'name': 'Archived Khata',
+              'opening_balance_paise': 0,
+              'currency': 'INR',
+              'sort_order': 2,
+              'created_at': t2.toIso8601String(),
+              'updated_at': t2.toIso8601String(),
+              'deleted_at': t2.toIso8601String(),
+              'server_updated_at': t2.toIso8601String(),
+            },
+          ]);
+        }
 
-          if (req.url.path == '/rest/v1/transactions') {
-            return _jsonResponse(<Map<String, dynamic>>[
-              <String, dynamic>{
-                'user_id': 'uid-42',
-                'id': 'tx-99',
-                'khata_id': 'k-1',
-                'type': 'income',
-                'amount_paise': 9900,
-                'category_id': 'Salary',
-                'description': 'Bonus',
-                'occurred_at': t3.toIso8601String(),
-                'note_session_id': null,
-                'created_at': t3.toIso8601String(),
-                'updated_at': t3.toIso8601String(),
-                'deleted_at': null,
-                'server_updated_at': t3.toIso8601String(),
-              },
-            ]);
-          }
-          return _jsonResponse(<Object>[]);
-        });
-        addTearDown(client.dispose);
+        if (req.url.path == '/rest/v1/transactions') {
+          return _jsonResponse(<Map<String, dynamic>>[
+            <String, dynamic>{
+              'user_id': 'uid-42',
+              'id': 'tx-99',
+              'khata_id': 'k-1',
+              'type': 'income',
+              'amount_paise': 9900,
+              'category_id': 'Salary',
+              'description': 'Bonus',
+              'occurred_at': t3.toIso8601String(),
+              'note_session_id': null,
+              'created_at': t3.toIso8601String(),
+              'updated_at': t3.toIso8601String(),
+              'deleted_at': null,
+              'server_updated_at': t3.toIso8601String(),
+            },
+          ]);
+        }
+        return _jsonResponse(<Object>[]);
+      });
+      addTearDown(client.dispose);
 
-        await client.auth.signInWithPassword(
-          email: 'sync@example.com',
-          password: 'pw',
-        );
-        final SupabaseCloudBackend backend = SupabaseCloudBackend(
-          client: client,
-          pageSize: 2,
-        );
+      await client.auth.signInWithPassword(
+        email: 'sync@example.com',
+        password: 'pw',
+      );
+      final SupabaseCloudBackend backend = SupabaseCloudBackend(
+        client: client,
+        pageSize: 2,
+      );
 
-        final CloudChangeSet firstPull = await backend.fetchChanges(since);
-        expect(firstPull.khatas.map((CloudKhataRow k) => k.id), <String>[
-          'k-1',
-          'k-2',
-          'k-3',
-        ]);
-        expect(firstPull.khatas.last.isArchived, isTrue);
-        expect(firstPull.transactions, hasLength(1));
-        expect(firstPull.transactions.single.id, 'tx-99');
-        expect(firstPull.cursor, t3);
+      final CloudChangeSet firstPull = await backend.fetchChanges(since);
+      expect(firstPull.khatas.map((CloudKhataRow k) => k.id), <String>[
+        'k-1',
+        'k-2',
+        'k-3',
+      ]);
+      expect(firstPull.khatas.last.isArchived, isTrue);
+      expect(firstPull.transactions, hasLength(1));
+      expect(firstPull.transactions.single.id, 'tx-99');
+      expect(firstPull.cursor, t3);
 
-        // Verify query parameters on the two khata page requests and one tx page.
-        expect(requestedUrls, hasLength(3));
-        expect(
-          requestedUrls[0].queryParameters['server_updated_at'],
-          'gt.${since.toIso8601String()}',
-        );
-        expect(
-          requestedUrls[0].queryParameters['order'],
-          'server_updated_at.asc.nullslast,id.asc.nullslast',
-        );
-        expect(requestedUrls[0].queryParameters['offset'], '0');
-        expect(requestedUrls[0].queryParameters['limit'], '2');
+      // Verify query parameters on the two khata page requests and one tx page.
+      expect(requestedUrls, hasLength(3));
+      expect(
+        requestedUrls[0].queryParameters['server_updated_at'],
+        'gt.${since.toIso8601String()}',
+      );
+      expect(
+        requestedUrls[0].queryParameters['order'],
+        'server_updated_at.asc.nullslast,id.asc.nullslast',
+      );
+      expect(requestedUrls[0].queryParameters['offset'], '0');
+      expect(requestedUrls[0].queryParameters['limit'], '2');
 
-        expect(requestedUrls[1].queryParameters['offset'], '2');
-        expect(requestedUrls[1].queryParameters['limit'], '2');
+      expect(requestedUrls[1].queryParameters['offset'], '2');
+      expect(requestedUrls[1].queryParameters['limit'], '2');
 
-        expect(requestedUrls[2].path, '/rest/v1/transactions');
-        expect(requestedUrls[2].queryParameters['offset'], '0');
-        expect(requestedUrls[2].queryParameters['limit'], '2');
+      expect(requestedUrls[2].path, '/rest/v1/transactions');
+      expect(requestedUrls[2].queryParameters['offset'], '0');
+      expect(requestedUrls[2].queryParameters['limit'], '2');
 
-        // When since is null, no server_updated_at filter is sent; when nothing
-        // comes back with non-null `since`, `since` is preserved as cursor.
-        requestedUrls.clear();
-        returnEmpty = true;
-        final CloudChangeSet emptyWithSince = await backend.fetchChanges(t3);
-        expect(emptyWithSince.khatas, isEmpty);
-        expect(emptyWithSince.transactions, isEmpty);
-        expect(emptyWithSince.cursor, t3);
+      // When since is null, no server_updated_at filter is sent; when nothing
+      // comes back with non-null `since`, `since` is preserved as cursor.
+      requestedUrls.clear();
+      returnEmpty = true;
+      final CloudChangeSet emptyWithSince = await backend.fetchChanges(t3);
+      expect(emptyWithSince.khatas, isEmpty);
+      expect(emptyWithSince.transactions, isEmpty);
+      expect(emptyWithSince.cursor, t3);
 
-        requestedUrls.clear();
-        final CloudChangeSet emptyInitial = await backend.fetchChanges(null);
-        expect(emptyInitial.cursor, isNull);
-        expect(
-          requestedUrls.first.queryParameters.containsKey('server_updated_at'),
-          isFalse,
-        );
-      },
-    );
+      requestedUrls.clear();
+      final CloudChangeSet emptyInitial = await backend.fetchChanges(null);
+      expect(emptyInitial.cursor, isNull);
+      expect(
+        requestedUrls.first.queryParameters.containsKey('server_updated_at'),
+        isFalse,
+      );
+    });
   });
 
   group('SupabaseCloudBackend offline & error normalization', () {
-    test(
-      'maps SocketException, ClientException, TimeoutException, and AuthRetryableFetchException to CloudOfflineException and strips secrets from other errors',
-      () async {
-        Object? nextFailure;
-        int nextStatusCode = 200;
-        Object nextJsonBody = <Object>[];
+    test('maps SocketException, ClientException, TimeoutException, and AuthRetryableFetchException to CloudOfflineException and strips secrets from other errors', () async {
+      Object? nextFailure;
+      int nextStatusCode = 200;
+      Object nextJsonBody = <Object>[];
 
-        final SupabaseClient client = _buildClient((http.Request req) async {
-          if (req.url.path.endsWith('/auth/v1/token')) {
-            if (nextFailure case final Object failure) {
-              throw failure;
-            }
-            return _jsonResponse(
-              _sessionPayload(userId: 'uid-1', email: 'u@example.com'),
-            );
+      final SupabaseClient client = _buildClient((http.Request req) async {
+        if (req.url.path.endsWith('/auth/v1/token')) {
+          if (nextFailure case final Object failure) {
+            throw failure;
           }
-          if (nextFailure case final Object err) {
-            if (err is Future<http.Response> Function()) {
-              return err();
-            }
-            throw err;
+          return _jsonResponse(
+            _sessionPayload(userId: 'uid-1', email: 'u@example.com'),
+          );
+        }
+        if (nextFailure case final Object err) {
+          if (err is Future<http.Response> Function()) {
+            return err();
           }
-          return _jsonResponse(nextJsonBody, statusCode: nextStatusCode);
-        });
-        addTearDown(client.dispose);
+          throw err;
+        }
+        return _jsonResponse(nextJsonBody, statusCode: nextStatusCode);
+      });
+      addTearDown(client.dispose);
 
-        final SupabaseCloudBackend backend = SupabaseCloudBackend(
-          client: client,
-          requestTimeout: const Duration(milliseconds: 40),
-        );
+      final SupabaseCloudBackend backend = SupabaseCloudBackend(
+        client: client,
+        requestTimeout: const Duration(milliseconds: 40),
+      );
 
-        // Auth network error -> GoTrue throws AuthRetryableFetchException ->
-        // signInWithGoogle surfaces CloudOfflineException when launcher throws it.
-        final SupabaseCloudBackend authOfflineBackend = SupabaseCloudBackend(
-          client: client,
-          oauthLauncher:
-              ({
-                required String? redirectTo,
-                required LaunchMode launchMode,
-              }) async {
-                throw AuthRetryableFetchException(
-                  message: 'Network unreachable',
-                );
-              },
-        );
-        await expectLater(
-          authOfflineBackend.signInWithGoogle(),
-          throwsA(isA<CloudOfflineException>()),
-        );
+      // Auth network error -> GoTrue throws AuthRetryableFetchException ->
+      // signInWithGoogle surfaces CloudOfflineException when launcher throws it.
+      final SupabaseCloudBackend authOfflineBackend = SupabaseCloudBackend(
+        client: client,
+        oauthLauncher:
+            ({
+              required String? redirectTo,
+              required LaunchMode launchMode,
+            }) async {
+              throw AuthRetryableFetchException(message: 'Network unreachable');
+            },
+      );
+      await expectLater(
+        authOfflineBackend.signInWithGoogle(),
+        throwsA(isA<CloudOfflineException>()),
+      );
 
-        // Sign in so we can exercise REST failure modes.
-        await client.auth.signInWithPassword(
-          email: 'u@example.com',
-          password: 'pw',
-        );
+      // Sign in so we can exercise REST failure modes.
+      await client.auth.signInWithPassword(
+        email: 'u@example.com',
+        password: 'pw',
+      );
 
-        // 1. SocketException -> CloudOfflineException
-        nextFailure = const SocketException('Failed host lookup');
-        await expectLater(
-          backend.fetchChanges(null),
-          throwsA(isA<CloudOfflineException>()),
-        );
+      // 1. SocketException -> CloudOfflineException
+      nextFailure = const SocketException('Failed host lookup');
+      await expectLater(
+        backend.fetchChanges(null),
+        throwsA(isA<CloudOfflineException>()),
+      );
 
-        // 2. http.ClientException -> CloudOfflineException
-        nextFailure = http.ClientException('Connection reset by peer');
-        await expectLater(
-          backend.fetchChanges(null),
-          throwsA(isA<CloudOfflineException>()),
-        );
+      // 2. http.ClientException -> CloudOfflineException
+      nextFailure = http.ClientException('Connection reset by peer');
+      await expectLater(
+        backend.fetchChanges(null),
+        throwsA(isA<CloudOfflineException>()),
+      );
 
-        // 3. Request timeout -> CloudOfflineException
-        nextFailure = () async {
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-          return _jsonResponse(<Object>[]);
-        };
-        await expectLater(
-          backend.fetchChanges(null),
-          throwsA(isA<CloudOfflineException>()),
-        );
+      // 3. Request timeout -> CloudOfflineException
+      nextFailure = () async {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        return _jsonResponse(<Object>[]);
+      };
+      await expectLater(
+        backend.fetchChanges(null),
+        throwsA(isA<CloudOfflineException>()),
+      );
 
-        // 4. Non-network PostgrestException -> rethrown with secrets stripped!
-        nextFailure = null;
-        nextStatusCode = 403;
-        nextJsonBody = <String, dynamic>{
-          'message':
-              'RLS policy violation for Bearer secret-jwt-token-123 and sb_publishable_abcdef123456 ?apikey=my-secret-key',
-          'code': '42501',
-        };
-        await expectLater(
-          backend.fetchChanges(null),
-          throwsA(
-            predicate<Object>((Object error) {
-              final String msg = error.toString();
-              return error is! CloudOfflineException &&
-                  msg.contains('RLS policy violation') &&
-                  !msg.contains('secret-jwt-token-123') &&
-                  !msg.contains('sb_publishable_abcdef123456') &&
-                  !msg.contains('my-secret-key');
-            }),
-          ),
-        );
-      },
-    );
+      // 4. Non-network PostgrestException -> rethrown with secrets stripped!
+      nextFailure = null;
+      nextStatusCode = 403;
+      nextJsonBody = <String, dynamic>{
+        'message': 'RLS policy violation for Bearer secret-jwt-token-123 and sb_publishable_abcdef123456 ?apikey=my-secret-key',
+        'code': '42501',
+      };
+      await expectLater(
+        backend.fetchChanges(null),
+        throwsA(
+          predicate<Object>((Object error) {
+            final String msg = error.toString();
+            return error is! CloudOfflineException &&
+                msg.contains('RLS policy violation') &&
+                !msg.contains('secret-jwt-token-123') &&
+                !msg.contains('sb_publishable_abcdef123456') &&
+                !msg.contains('my-secret-key');
+          }),
+        ),
+      );
+    });
   });
 }

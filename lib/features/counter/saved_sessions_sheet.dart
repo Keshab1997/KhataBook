@@ -186,9 +186,8 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _deleting.remove(session.id));
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(copy.deleteFailed)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(copy.deleteFailed)));
     }
   }
 

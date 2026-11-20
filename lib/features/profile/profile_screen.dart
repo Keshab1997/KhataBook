@@ -414,9 +414,8 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save(LocalProfile profile) async {

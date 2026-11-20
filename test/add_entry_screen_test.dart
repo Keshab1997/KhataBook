@@ -38,9 +38,8 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         builder: (BuildContext context, Widget? child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
           child: child ?? const SizedBox.shrink(),
         ),
         home: AddEntryScreen(openingBalancePaise: balance, onSave: saved.add),

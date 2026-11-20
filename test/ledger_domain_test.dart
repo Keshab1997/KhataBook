@@ -552,9 +552,10 @@ void main() {
         expenseAt(id: 'h15', amountPaise: 600, hour: 15),
       ];
 
-      final List<String> ids = totals(
-        rows,
-      ).recent().map((LedgerTransaction t) => t.id).toList();
+      final List<String> ids = totals(rows)
+          .recent()
+          .map((LedgerTransaction t) => t.id)
+          .toList();
 
       expect(ids, <String>['h20', 'h17', 'h15', 'h13']);
       expect(totals(rows).recent().length, 4);
@@ -620,10 +621,8 @@ void main() {
       );
 
       expect(
-        totals(<LedgerTransaction>[
-          earlierCreated,
-          laterCreated,
-        ]).transactions.map((LedgerTransaction t) => t.id),
+        totals(<LedgerTransaction>[earlierCreated, laterCreated]).transactions
+            .map((LedgerTransaction t) => t.id),
         <String>['evening', 'morning'],
       );
     });
