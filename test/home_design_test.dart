@@ -84,35 +84,28 @@ void main() {
       expect(find.text(formatPaise(summary.totalExpensePaise)), findsOneWidget);
     });
 
-    testWidgets('shows the wordmark, tagline and Add New Entry CTA', (
+    testWidgets('shows Home content without a full-width brand header', (
       WidgetTester tester,
     ) async {
       await pumpHome(tester);
 
-      expect(find.text('KhataBook'), findsOneWidget);
-      expect(find.text('Plan · Track · Save'), findsOneWidget);
+      expect(find.text('KhataBook'), findsNothing);
+      expect(find.text('Plan · Track · Save'), findsNothing);
+      expect(find.byIcon(Icons.settings), findsNothing);
       expect(find.text('Recent Transactions'), findsOneWidget);
       expect(find.text('View All'), findsOneWidget);
       expect(find.text('Add New Entry'), findsOneWidget);
       expect(find.text('Sample ledger · preview data only'), findsOneWidget);
     });
 
-    testWidgets('the settings gear and CTA are present and tappable', (
+    testWidgets('the Add New Entry CTA remains tappable without a header', (
       WidgetTester tester,
     ) async {
       int addTaps = 0;
       await pumpHome(tester, onAddEntry: () => addTaps++);
 
-      expect(find.byIcon(Icons.settings), findsOneWidget);
+      expect(find.byIcon(Icons.settings), findsNothing);
       expect(find.byIcon(Icons.add), findsOneWidget);
-
-      // Settings opens a real route; return before exercising the Home CTA.
-      await tester.tap(find.byIcon(Icons.settings));
-      await tester.pumpAndSettle();
-      expect(find.text('App Settings'), findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-
       final Finder cta = find.text('Add New Entry');
       await tester.ensureVisible(cta);
       await tester.pumpAndSettle();
@@ -196,8 +189,6 @@ void main() {
       expect(find.byKey(const Key('category-artwork-Food')), findsOneWidget);
       expect(find.byKey(const Key('category-artwork-Bills')), findsOneWidget);
       expect(find.byKey(const Key('category-artwork-Gifts')), findsOneWidget);
-      // The open-book mark and the wallet live elsewhere on the screen.
-      expect(find.byIcon(Icons.menu_book), findsOneWidget);
       expect(find.byIcon(Icons.account_balance_wallet), findsOneWidget);
     });
   });
@@ -288,7 +279,7 @@ void main() {
         find.bySemanticsLabel(RegExp(r'Category Shopping')),
         findsOneWidget,
       );
-      expect(find.byTooltip('Settings'), findsOneWidget);
+      expect(find.byTooltip('Settings'), findsNothing);
       handle.dispose();
     });
   });

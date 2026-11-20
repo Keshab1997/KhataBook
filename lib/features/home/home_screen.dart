@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../entry/category_artwork.dart';
-import '../profile/settings_screen.dart';
 import 'models.dart';
 
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
@@ -84,7 +83,6 @@ class HomeScreen extends StatelessWidget {
         bottom: false,
         child: Column(
           children: <Widget>[
-            _HomeHeader(_strings),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
@@ -175,119 +173,6 @@ class HomeScreen extends StatelessWidget {
               color: AppColors.expenseRed,
               icon: Icons.north_east_rounded,
               direction: _strings.text(AppString.expense).toLowerCase(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Brand header: a compact book mark, wordmark, promise and a labelled action.
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader(this.strings);
-
-  final AppStrings strings;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        HomeScreen._pagePadding,
-        8,
-        HomeScreen._pagePadding,
-        0,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: <Color>[AppColors.headerGreen, AppColors.primaryGreen],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: AppColors.primaryGreen.withValues(alpha: 0.16),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.warmIvory,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.menu_book,
-              color: AppColors.primaryGreen,
-              size: 25,
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    strings.text(AppString.appName),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: const TextStyle(
-                      color: AppColors.onPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      height: 1.05,
-                      letterSpacing: -0.35,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  strings.text(AppString.tagline),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: const TextStyle(
-                    color: AppColors.lightGreen,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.35,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (_) => SettingsScreen(language: strings.language),
-              ),
-            ),
-            icon: const Icon(Icons.settings, size: 21),
-            color: AppColors.onPrimary,
-            tooltip: strings.text(AppString.settings),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.onPrimary.withValues(alpha: 0.10),
-              minimumSize: const Size(42, 42),
-              maximumSize: const Size(42, 42),
-              padding: EdgeInsets.zero,
-              side: BorderSide(
-                color: AppColors.onPrimary.withValues(alpha: 0.18),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
             ),
           ),
         ],

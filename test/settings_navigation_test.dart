@@ -3,12 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/calculator/calculator_screen.dart';
 import 'package:khatabook/features/counter/note_counter_screen.dart';
-import 'package:khatabook/features/home/home_screen.dart';
 import 'package:khatabook/features/profile/settings_screen.dart';
 
 void main() {
   for (final Widget screen in <Widget>[
-    const HomeScreen(),
     const CalculatorScreen(),
     const NoteCounterScreen(),
   ]) {
