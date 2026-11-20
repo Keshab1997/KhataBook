@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'add_entry_screen.dart';
+import 'category_picker.dart';
+import 'category_store.dart';
 
 /// What the caller should do once the editor has closed.
 enum TransactionEditResult { updated, deleted }
@@ -30,12 +32,14 @@ class TransactionEditorScreen extends StatefulWidget {
   const TransactionEditorScreen({
     super.key,
     this.language = AppLanguage.en,
+    this.categoryStore,
     required this.initial,
     required this.onUpdate,
     required this.onDelete,
   });
 
   final AppLanguage language;
+  final CategoryStore? categoryStore;
 
   /// The entry being edited, shown prefilled and never mutated.
   final EntryFormResult initial;
@@ -621,7 +625,16 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       spacing: 8,
       runSpacing: 8,
       children: <Widget>[
-        for (final String category in _categoryChoices) _categoryChip(category),
+        for (final String category in _categoryChoices)
+          if (widget.categoryStore == null || _standardCategories.contains(category))
+            _categoryChip(category),
+        if (widget.categoryStore != null)
+          CustomCategoryChoices(
+            store: widget.categoryStore!,
+            language: widget.language,
+            selected: _category,
+            onSelected: _selectCategory,
+          ),
       ],
     );
   }

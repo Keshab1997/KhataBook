@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import 'category_store.dart';
 
 /// AI-generated artwork for the app's canonical expense category IDs.
 ///
@@ -23,16 +24,24 @@ class CategoryArtwork extends StatelessWidget {
     required this.category,
     required this.size,
     this.fallbackColor = AppColors.navigationGrey,
+    this.customCategory,
   });
 
   final String category;
   final double size;
   final Color fallbackColor;
+  final CustomCategory? customCategory;
 
   @override
   Widget build(BuildContext context) {
     final String? asset = categoryIconAssets[category];
     final Key imageKey = key ?? Key('category-artwork-$category');
+    if (asset == null && customCategory != null) {
+      return ColoredBox(
+        color: customCategory!.color.withValues(alpha: 0.14),
+        child: Icon(customCategory!.icon, key: imageKey, size: size * 0.65, color: customCategory!.color),
+      );
+    }
     if (asset == null) {
       return Icon(
         category == 'Income'

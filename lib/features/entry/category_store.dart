@@ -46,7 +46,7 @@ const categoryColors = <Color>[
 
 /// Local-only storage. The auxiliary table is created lazily without a schema
 /// version change, and archived records retain their stable transaction IDs.
-class CategoryStore {
+class CategoryStore extends ChangeNotifier {
   CategoryStore(this._ledger);
   final LocalLedger _ledger;
 
@@ -93,6 +93,7 @@ class CategoryStore {
       'INSERT INTO custom_categories (id, name, icon_index, color_index) VALUES (?, ?, ?, ?)',
       [category.id, category.name, iconIndex, colorIndex],
     );
+    notifyListeners();
     return category;
   }
 
@@ -103,6 +104,7 @@ class CategoryStore {
       'UPDATE custom_categories SET name = ? WHERE id = ?',
       [validName, id],
     );
+    notifyListeners();
   }
 
   Future<void> archive(String id) async {
@@ -111,6 +113,7 @@ class CategoryStore {
       'UPDATE custom_categories SET archived = 1 WHERE id = ?',
       [id],
     );
+    notifyListeners();
   }
 
   Future<List<CustomCategory>> load({bool includeArchived = false}) async {

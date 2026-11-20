@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../entry/category_artwork.dart';
+import '../entry/category_picker.dart';
+import '../entry/category_store.dart';
 import 'models.dart';
 
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
@@ -25,9 +27,11 @@ class HomeScreen extends StatelessWidget {
     this.onViewAll,
     this.khataName,
     this.onSwitchKhata,
+    this.categoryStore,
   });
 
   final AppLanguage language;
+  final CategoryStore? categoryStore;
 
   AppStrings get _strings => AppStrings(language);
 
@@ -120,11 +124,22 @@ class HomeScreen extends StatelessWidget {
                       _EmptyTransactions(_strings)
                     else
                       for (final LedgerEntry entry in recent)
-                        _RecentTransactionRow(
-                          strings: _strings,
-                          entry: entry,
-                          preview: preview,
-                        ),
+                        if (categoryStore == null)
+                          _RecentTransactionRow(
+                            strings: _strings,
+                            entry: entry,
+                            preview: preview,
+                          )
+                        else
+                          CategoryCatalog(
+                            store: categoryStore!,
+                            builder: (context, categories) => _RecentTransactionRow(
+                              strings: _strings,
+                              entry: entry,
+                              preview: preview,
+                              categories: categories,
+                            ),
+                          ),
                     const SizedBox(height: 4),
                     if (preview) ...<Widget>[
                       const SizedBox(height: 10),
@@ -595,11 +610,13 @@ class _RecentTransactionRow extends StatelessWidget {
     required this.strings,
     required this.entry,
     required this.preview,
+    this.categories,
   });
 
   final AppStrings strings;
   final LedgerEntry entry;
   final bool preview;
+  final List<CustomCategory>? categories;
 
   @override
   Widget build(BuildContext context) {
@@ -620,7 +637,9 @@ class _RecentTransactionRow extends StatelessWidget {
         children: <Widget>[
           Semantics(
             label: strings.categoryLabel(
-              _categoryLabel(strings, entry.category),
+              categories == null
+                  ? _categoryLabel(strings, entry.category)
+                  : categoryDisplayName(strings.language, entry.category, categories!),
             ),
             child: Container(
               width: 38,
@@ -634,6 +653,7 @@ class _RecentTransactionRow extends StatelessWidget {
                   category: entry.category,
                   size: 38,
                   fallbackColor: _categoryColor(entry.category),
+                  customCategory: categories == null ? null : findCustomCategory(entry.category, categories!),
                 ),
               ),
             ),
@@ -646,7 +666,7 @@ class _RecentTransactionRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  preview ? _previewTitle(strings, entry.title) : entry.title,
+                  preview ? _previewTitle(strings, entry.title) : (categories != null && entry.title == entry.category ? categoryDisplayName(strings.language, entry.category, categories!) : entry.title),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -655,6 +675,8 @@ class _RecentTransactionRow extends StatelessWidget {
                     color: AppColors.darkText,
                   ),
                 ),
+                if (categories != null)
+                  Text(categoryDisplayName(strings.language, entry.category, categories!)),
                 const SizedBox(height: 2),
                 Text(
                   strings.dateTime(entry.at),
