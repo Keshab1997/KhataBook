@@ -174,7 +174,7 @@ void main() {
 
       final int fetchesBeforeResume = backend.fetchCalls;
       WidgetsBinding.instance.handleAppLifecycleStateChanged(
-        AppLifecycleState.paused,
+        AppLifecycleState.inactive,
       );
       WidgetsBinding.instance.handleAppLifecycleStateChanged(
         AppLifecycleState.resumed,
@@ -201,7 +201,7 @@ void main() {
 
       sync.notifyLocalChange();
       WidgetsBinding.instance.handleAppLifecycleStateChanged(
-        AppLifecycleState.paused,
+        AppLifecycleState.inactive,
       );
       WidgetsBinding.instance.handleAppLifecycleStateChanged(
         AppLifecycleState.resumed,

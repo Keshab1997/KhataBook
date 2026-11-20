@@ -70,7 +70,20 @@ SupabaseClient _buildClient(
   return SupabaseClient(
     'https://example.supabase.co',
     'test-key',
-    httpClient: MockClient(handler),
+    httpClient: MockClient((http.Request req) async {
+      // postgrest parses `response.request!`, which a hand-built response
+      // lacks; re-wrap the mock's answer with the request attached.
+      final http.Response res = await handler(req);
+      return http.Response.bytes(
+        res.bodyBytes,
+        res.statusCode,
+        request: req,
+        headers: res.headers,
+        isRedirect: res.isRedirect,
+        persistentConnection: res.persistentConnection,
+        reasonPhrase: res.reasonPhrase,
+      );
+    }),
     authOptions: AuthClientOptions(
       autoRefreshToken: false,
       pkceAsyncStorage: _MemoryGotrueStorage(<String, String>{}),

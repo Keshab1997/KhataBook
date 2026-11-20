@@ -106,13 +106,14 @@ void main() {
         final FakeCloudBackend backend = FakeCloudBackend();
         backend.nextSignInUser = alice;
 
-        late CloudSync sync;
+        // CloudSync must subscribe to backend.userChanges in the widget-test
+        // zone; a runAsync zone swallows stream callbacks.
+        final CloudSync sync = CloudSync(
+          ledger: ledger,
+          backend: backend,
+          observeAppLifecycle: false,
+        );
         await tester.runAsync(() async {
-          sync = CloudSync(
-            ledger: ledger,
-            backend: backend,
-            observeAppLifecycle: false,
-          );
           await Future<void>.delayed(const Duration(milliseconds: 20));
         });
 
@@ -140,7 +141,9 @@ void main() {
         await tester.tap(find.byKey(const Key('continue-with-google-button')));
         await tester.pump();
         await tester.runAsync(() async {
-          await Future<void>.delayed(const Duration(milliseconds: 80));
+          // The sign-in stream event and the first sync run on the real event
+          // loop with real database work; give them room to finish.
+          await Future<void>.delayed(const Duration(milliseconds: 300));
         });
         await tester.pumpAndSettle();
 
