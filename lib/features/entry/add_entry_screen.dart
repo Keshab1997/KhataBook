@@ -244,7 +244,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final DateTime now = DateTime.now();
     final bool future = _date.isAfter(DateTime(now.year, now.month, now.day));
 
-    return Scaffold(
+    return Hero(tag: 'add-entry-fab', child: Scaffold(
       backgroundColor: AppColors.creamBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -431,6 +431,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 

@@ -98,18 +98,21 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-          child: FilledButton.icon(
-            key: const Key('home-add-entry'),
-            onPressed: onAddEntry,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              minimumSize: const Size.fromHeight(56),
-              shape: const StadiumBorder(),
-            ),
-            icon: const Icon(Icons.add, size: 30),
-            label: Text(
-              _strings.text(AppString.addNewEntry),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          child: Hero(
+            tag: 'add-entry-fab',
+            child: FilledButton.icon(
+              key: const Key('home-add-entry'),
+              onPressed: onAddEntry,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                minimumSize: const Size.fromHeight(56),
+                shape: const StadiumBorder(),
+              ),
+              icon: const Icon(Icons.add, size: 30),
+              label: Text(
+                _strings.text(AppString.addNewEntry),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ),
@@ -564,26 +567,29 @@ class _EmptyTransactions extends StatelessWidget {
       ),
       child: Column(
         children: <Widget>[
-          Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-              color: AppColors.lightGreen,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.receipt_long_rounded,
-              color: AppColors.primaryGreen,
-              size: 26,
-            ),
+          Image.asset(
+            'assets/illustrations/home_brand.png',
+            width: 80,
+            height: 80,
           ),
           const SizedBox(height: 12),
           Text(
             strings.text(AppString.homeEmpty),
             textAlign: TextAlign.center,
             style: const TextStyle(
+              color: AppColors.darkText,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strings.language.name == 'Bengali' ? "আপনার প্রথম লেনদেন যোগ করতে নিচের বড় '+' বাটনটি চাপুন।" : "Tap the big '+' button below to add your first expense or income.",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
               color: AppColors.softText,
-              fontSize: 13,
+              fontSize: 12,
               height: 1.4,
             ),
           ),

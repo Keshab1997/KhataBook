@@ -2,6 +2,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+
+
 import 'app_colors.dart';
 
 /// The light, paper-and-forest-green design system from docs/spec/theme.md.
@@ -23,6 +25,15 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+        },
+      ),
       scaffoldBackgroundColor: AppColors.creamBackground,
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.headerGreen,

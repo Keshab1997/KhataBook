@@ -1,0 +1,11 @@
+--- lib/features/entry/add_entry_screen.dart
++++ lib/features/entry/add_entry_screen.dart
+@@ -236,7 +236,7 @@
+     final DateTime now = DateTime.now();
+     final bool future = _date.isAfter(DateTime(now.year, now.month, now.day));
+ 
+-    return Scaffold(
++    return Hero(tag: 'add-entry-fab', child: Scaffold(
+       backgroundColor: AppColors.creamBackground,
+       appBar: AppBar(
+         backgroundColor: Colors.transparent,

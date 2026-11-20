@@ -203,6 +203,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         _kind == EntryFormKind.income || _category != null;
     setState(() => _showCategoryError = !validCategory);
     if (!validFields || !validCategory) return;
+    HapticFeedback.mediumImpact();
     widget.onSave(
       EntryFormResult(
         kind: _kind,
@@ -215,6 +216,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   void _selectKind(EntryFormKind kind) {
+    HapticFeedback.lightImpact();
     setState(() {
       _kind = kind;
       _showCategoryError = false;
@@ -222,6 +224,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   void _selectCategory(String category) {
+    HapticFeedback.lightImpact();
     setState(() {
       _category = category;
       _showCategoryError = false;
