@@ -419,7 +419,7 @@ class _MainShellState extends State<MainShell> {
               MaterialPageRoute<void>(
                 builder: (_) => SettingsScreen(
                   language: _language,
-                  onLanguageChanged: _webPreview ? null : _changeLanguage,
+                  onLanguageChanged: _changeLanguage,
                 ),
               ),
             ),
