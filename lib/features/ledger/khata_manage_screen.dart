@@ -7,8 +7,8 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'data/local_ledger.dart';
 
-/// Geometry shared by this screen: one card radius and one hairline border, so
-/// the khata rows, the banners and the empty states line up.
+/// Geometry — one card radius and one hairline border so the khata rows,
+/// the banners and the empty states line up as one system.
 const double _cardRadius = 18;
 const double _edge = 0.85;
 const double _softEdge = 0.6;
@@ -56,7 +56,6 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
   String? _loadError;
   String? _actionError;
 
-  /// Copy for this screen and its dialogs. Display only.
   AppStrings get _strings => AppStrings(widget.language);
 
   @override
@@ -216,7 +215,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
           title: Text(strings.text(AppString.manageKhatas)),
           leading: IconButton(
             key: const Key('manage-khatas-back'),
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_rounded),
             tooltip: strings.text(AppString.back),
             onPressed: _mutating ? null : _handleBack,
           ),
@@ -228,10 +227,33 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
 
   Widget _buildBody(AppStrings strings) {
     if (_loading) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(key: Key('manage-khatas-loading')),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  key: const Key('manage-khatas-loading'),
+                  strokeWidth: 3,
+                  color: AppColors.primaryGreen,
+                  backgroundColor: AppColors.lightGreen,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Loading khatas…',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.softText,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -248,30 +270,46 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
               border: Border.all(
                 color: AppColors.outline.withValues(alpha: _edge),
               ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.darkText.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.expenseRed,
-                  size: 28,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.error_outline_rounded,
+                    color: AppColors.expenseRed,
+                    size: 24,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
                   _loadError!,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13.5,
-                    height: 1.4,
+                    height: 1.45,
                     color: AppColors.softText,
                   ),
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
+                FilledButton.icon(
                   key: const Key('manage-khatas-retry'),
                   onPressed: _mutating ? null : _loadAll,
-                  child: Text(strings.text(AppString.retry)),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(strings.text(AppString.retry)),
                 ),
               ],
             ),
@@ -284,45 +322,72 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         if (_actionError != null) ...<Widget>[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(_cardRadius),
-            child: MaterialBanner(
-              key: const Key('manage-khatas-action-error'),
-              backgroundColor: AppColors.lightGreen,
-              elevation: 0,
-              content: Text(
-                _actionError!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: AppColors.darkText,
-                ),
+          Container(
+            key: const Key('manage-khatas-action-error'),
+            padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+            decoration: BoxDecoration(
+              color: AppColors.lightGreen,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.primaryGreen.withValues(alpha: 0.15),
               ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: _mutating
-                      ? null
-                      : () => setState(() => _actionError = null),
-                  child: Text(strings.text(AppString.dismiss)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: AppColors.primaryGreen,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _actionError!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: AppColors.darkText,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: _mutating ? null : _loadAll,
-                  child: Text(strings.text(AppString.retry)),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: _mutating
+                          ? null
+                          : () => setState(() => _actionError = null),
+                      child: Text(strings.text(AppString.dismiss)),
+                    ),
+                    const SizedBox(width: 4),
+                    FilledButton(
+                      onPressed: _mutating ? null : _loadAll,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        minimumSize: const Size(0, 36),
+                      ),
+                      child: Text(strings.text(AppString.retry)),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
-        Text(
-          strings.text(AppString.activeKhatas),
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.2,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryGreen,
-          ),
+        _SectionHeader(
+          icon: Icons.folder_open_rounded,
+          label: strings.text(AppString.activeKhatas),
         ),
         const SizedBox(height: 10),
         if (_active.isEmpty)
@@ -344,16 +409,10 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                   ? null
                   : () => _promptArchive(khata),
             ),
-        const SizedBox(height: 28),
-        Text(
-          strings.text(AppString.archivedKhatas),
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.2,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryGreen,
-          ),
+        const SizedBox(height: 24),
+        _SectionHeader(
+          icon: Icons.archive_outlined,
+          label: strings.text(AppString.archivedKhatas),
         ),
         const SizedBox(height: 10),
         if (_archived.isEmpty)
@@ -377,8 +436,42 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
   }
 }
 
-/// The placeholder shown for an empty group of khatas: a quiet, bordered card
-/// so an empty section still reads as part of the screen.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: AppColors.primaryGreen),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.2,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryGreen,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Placeholder shown for an empty group — quiet bordered card.
 class _EmptyGroup extends StatelessWidget {
   const _EmptyGroup({super.key, required this.message});
 
@@ -387,7 +480,7 @@ class _EmptyGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
@@ -397,10 +490,18 @@ class _EmptyGroup extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          const Icon(
-            Icons.inbox_outlined,
-            color: AppColors.navigationGrey,
-            size: 20,
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.creamBackground,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              color: AppColors.navigationGrey,
+              size: 16,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -443,32 +544,57 @@ class _KhataRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
-        side: BorderSide(color: AppColors.outline.withValues(alpha: _edge)),
+        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.darkText.withValues(alpha: 0.025),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
+        child: Row(
           children: <Widget>[
-            ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 120),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isArchived
+                    ? AppColors.navigationGrey.withValues(alpha: 0.12)
+                    : AppColors.lightGreen,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isArchived
+                    ? Icons.archive_rounded
+                    : isPersonal
+                    ? Icons.star_rounded
+                    : Icons.book_rounded,
+                size: 18,
+                color: isArchived
+                    ? AppColors.navigationGrey
+                    : AppColors.primaryGreen,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
                     khata.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 14.5,
                       height: 1.25,
                       letterSpacing: -0.1,
                       fontWeight: FontWeight.w700,
@@ -477,46 +603,80 @@ class _KhataRow extends StatelessWidget {
                   ),
                   if (isPersonal) ...<Widget>[
                     const SizedBox(height: 2),
-                    Text(
-                      strings.text(AppString.defaultKhata),
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        height: 1.3,
-                        color: AppColors.softText,
-                        fontWeight: FontWeight.w500,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightGreen,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        strings.text(AppString.defaultKhata),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.2,
+                          letterSpacing: 0.4,
+                          color: AppColors.primaryGreen,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
                 ],
               ),
             ),
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: <Widget>[
-                if (!isArchived && onRename != null)
-                  IconButton(
-                    key: Key('rename-khata-${khata.id}'),
-                    icon: const Icon(Icons.edit_outlined),
-                    tooltip: strings.renameLabel(khata.name),
-                    onPressed: busy ? null : onRename,
+            const SizedBox(width: 8),
+            if (!isArchived && onRename != null)
+              IconButton(
+                key: Key('rename-khata-${khata.id}'),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                tooltip: strings.renameLabel(khata.name),
+                color: AppColors.softText,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.creamBackground,
+                  minimumSize: const Size(36, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: busy ? null : onRename,
+              ),
+            if (!isArchived && !isPersonal && onArchive != null) ...<Widget>[
+              const SizedBox(width: 4),
+              IconButton(
+                key: Key('archive-khata-${khata.id}'),
+                icon: const Icon(Icons.archive_outlined, size: 18),
+                tooltip: strings.archiveLabel(khata.name),
+                color: AppColors.softText,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.creamBackground,
+                  minimumSize: const Size(36, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: busy ? null : onArchive,
+              ),
+            ],
+            if (isArchived && onUnarchive != null)
+              FilledButton.icon(
+                key: Key('unarchive-khata-${khata.id}'),
+                icon: const Icon(Icons.unarchive_outlined, size: 16),
+                label: Text(
+                  strings.text(AppString.unarchive),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
-                if (!isArchived && !isPersonal && onArchive != null)
-                  IconButton(
-                    key: Key('archive-khata-${khata.id}'),
-                    icon: const Icon(Icons.archive_outlined),
-                    tooltip: strings.archiveLabel(khata.name),
-                    onPressed: busy ? null : onArchive,
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                if (isArchived && onUnarchive != null)
-                  TextButton.icon(
-                    key: Key('unarchive-khata-${khata.id}'),
-                    icon: const Icon(Icons.unarchive_outlined),
-                    label: Text(strings.text(AppString.unarchive)),
-                    onPressed: busy ? null : onUnarchive,
-                  ),
-              ],
-            ),
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: busy ? null : onUnarchive,
+              ),
           ],
         ),
       ),
@@ -584,6 +744,8 @@ class _RenameKhataDialogState extends State<_RenameKhataDialog> {
             maxLengthEnforcement: MaxLengthEnforcement.none,
             decoration: InputDecoration(
               labelText: strings.text(AppString.khataName),
+              filled: true,
+              fillColor: AppColors.surface,
             ),
             validator: _validate,
             onFieldSubmitted: (_) => _submit(),

@@ -12,12 +12,13 @@ import '../entry/category_store.dart';
 import '../entry/transaction_editor_screen.dart';
 import 'data/local_ledger.dart';
 
-/// Geometry shared by this screen: one card radius, one row radius and one
-/// hairline keep the summary, the filters and the rows reading as one system.
+/// Geometry — one card radius, one row radius and one hairline keep the
+/// summary, the filters and the rows reading as one system.
 const double _cardRadius = 20;
 const double _rowRadius = 16;
-const double _hairline = 0.72;
+const double _hairline = 0.7;
 const double _edge = 0.85;
+const double _pagePadding = 16;
 
 /// The device-local calendar day of [instant].
 ///
@@ -340,8 +341,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final DateTime? to = _toDay;
     setState(() {
       if (to != null && day.isAfter(to)) {
-        // A start after the current end means the user picked the two days
-        // the other way round; keep the span and let the labels follow it.
         _fromDay = to;
         _toDay = day;
       } else {
@@ -380,23 +379,15 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     });
   }
 
-  /// 48 dp clear control, shown only while there is a query to clear.
   Widget _clearSearchButton() {
     return IconButton(
       key: const Key('search-clear'),
       tooltip: _strings.text(AppString.clearSearch),
       onPressed: _clearQuery,
-      icon: const Icon(Icons.close),
+      icon: const Icon(Icons.close_rounded, size: 20),
     );
   }
 
-  /// Categories to offer, alphabetical on the canonical stored token. Built
-  /// from every entry, not the filtered ones, so choosing a category never
-  /// moves the chips under the user's finger. The selected category stays
-  /// listed even when an edit removed its last entry, so such a filter still
-  /// reads as selected and can be changed instead of silently disappearing.
-  /// Ordering stays canonical too, so switching language relabels the chips
-  /// without rearranging them under the user.
   List<String> get _categoryOptions {
     final Set<String> unique = <String>{
       for (final LedgerEntry entry in _summary.entries) entry.category,
@@ -426,8 +417,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     return List<LedgerEntry>.from(rows)..sort(_newestFirst);
   }
 
-  /// Newest first, with a total order so equal timestamps are still stable:
-  /// title, then category, then amount decide ties instead of list order.
   int _newestFirst(LedgerEntry a, LedgerEntry b) {
     final int byTime = b.at.compareTo(a.at);
     if (byTime != 0) {
@@ -444,8 +433,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     return a.amountPaise.compareTo(b.amountPaise);
   }
 
-  /// Buckets already-sorted rows into months, then days, summing each month's
-  /// income and expense from the rows it actually contains.
   List<_MonthGroup> _group(List<LedgerEntry> rows) {
     final List<_MonthGroup> months = <_MonthGroup>[];
     for (final LedgerEntry entry in rows) {
@@ -499,18 +486,26 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.expenseRed,
-                  size: 28,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lightGreen,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.error_outline_rounded,
+                    color: AppColors.expenseRed,
+                    size: 24,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 Text(
                   strings.text(AppString.refreshTransactionsFailed),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
+                    fontSize: 13.5,
+                    height: 1.45,
                     color: AppColors.softText,
                   ),
                 ),
@@ -540,8 +535,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       );
     }
 
-    // One filtered list feeds the rows, the month totals and the summary card,
-    // so the three can never disagree after a filter change.
     final List<LedgerEntry> visible = _visibleEntries;
     final List<_MonthGroup> groups = _group(visible);
 
@@ -573,14 +566,19 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       body: SafeArea(
         top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(
+            _pagePadding,
+            _pagePadding,
+            _pagePadding,
+            24,
+          ),
           children: <Widget>[
             _SummaryCard(
               totalCount: allEntries.length,
               entries: visible,
               strings: strings,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             TextField(
               key: const Key('search-field'),
               controller: _searchController,
@@ -590,7 +588,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               decoration: InputDecoration(
                 labelText: strings.text(AppString.searchTransactions),
                 hintText: strings.text(AppString.searchHint),
-                prefixIcon: const Icon(Icons.search, color: AppColors.softText),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.softText,
+                  size: 20,
+                ),
                 suffixIcon: _query.isEmpty ? null : _clearSearchButton(),
                 filled: true,
                 fillColor: AppColors.surface,
@@ -599,7 +601,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   color: AppColors.softText,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 14,
                   vertical: 14,
                 ),
                 border: OutlineInputBorder(
@@ -616,12 +618,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   borderRadius: BorderRadius.circular(_rowRadius),
                   borderSide: const BorderSide(
                     color: AppColors.primaryGreen,
-                    width: 2,
+                    width: 1.5,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             _SectionTitle(strings.text(AppString.date)),
             const SizedBox(height: 8),
             Wrap(
@@ -696,9 +698,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   selected: _categoryFilter == null,
                   onTap: () => _selectCategory(null),
                 ),
-                // The key and the filter value stay the canonical stored
-                // category; only the visible label is translated, so a tapped
-                // chip still matches the same rows in either language.
                 for (final String category in _categoryOptions)
                   _FilterChip(
                     key: Key('category-filter-$category'),
@@ -727,7 +726,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             if (groups.isEmpty)
               _NoMatches(strings: strings, onClear: _clearFilters)
             else
@@ -753,8 +752,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 }
 
-/// Top card: how many rows are shown and their income/expense totals, with the
-/// definition of those totals spelled out underneath.
+/// Top card: how many rows are shown and their income/expense totals.
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.totalCount,
@@ -795,7 +793,7 @@ class _SummaryCard extends StatelessWidget {
       child: ExcludeSemantics(
         child: Container(
           key: const Key('transactions-summary'),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
@@ -808,7 +806,7 @@ class _SummaryCard extends StatelessWidget {
             ),
             boxShadow: <BoxShadow>[
               BoxShadow(
-                color: AppColors.darkText.withValues(alpha: 0.04),
+                color: AppColors.darkText.withValues(alpha: 0.035),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -817,17 +815,37 @@ class _SummaryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                countText,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  height: 1.2,
-                  letterSpacing: -0.1,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.darkText,
-                ),
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGreen.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long_rounded,
+                      size: 14,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      countText,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        height: 1.25,
+                        letterSpacing: -0.1,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkText,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -838,7 +856,12 @@ class _SummaryCard extends StatelessWidget {
                       color: AppColors.incomeGreen,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  Container(
+                    width: 1,
+                    height: 36,
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    color: AppColors.outline.withValues(alpha: 0.5),
+                  ),
                   Expanded(
                     child: _TotalTile(
                       label: strings.text(AppString.expense),
@@ -849,12 +872,22 @@ class _SummaryCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                strings.text(AppString.filteredTotalsExplanation),
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  height: 1.4,
-                  color: AppColors.softText,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.creamBackground.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  strings.text(AppString.filteredTotalsExplanation),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.4,
+                    color: AppColors.softText,
+                  ),
                 ),
               ),
             ],
@@ -865,8 +898,6 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-/// One half of a totals pair. 20 dp w800 keeps the red/green amounts at the
-/// "large text" size theme.md requires for AA contrast on light surfaces.
 class _TotalTile extends StatelessWidget {
   const _TotalTile({
     required this.label,
@@ -875,8 +906,6 @@ class _TotalTile extends StatelessWidget {
   });
 
   final String label;
-
-  /// Already formatted for the active language; this tile does no arithmetic.
   final String value;
   final Color color;
 
@@ -889,13 +918,14 @@ class _TotalTile extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 11.5,
+            fontSize: 11,
             height: 1.2,
-            letterSpacing: 0.2,
+            letterSpacing: 0.3,
+            fontWeight: FontWeight.w600,
             color: AppColors.softText,
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -904,7 +934,7 @@ class _TotalTile extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 19,
               height: 1.15,
               letterSpacing: -0.3,
               fontWeight: FontWeight.w800,
@@ -917,7 +947,6 @@ class _TotalTile extends StatelessWidget {
   }
 }
 
-/// Heading above the filter rows.
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
 
@@ -925,21 +954,33 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 13,
-        height: 1.2,
-        letterSpacing: 0.4,
-        fontWeight: FontWeight.w800,
-        color: AppColors.darkText,
-      ),
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 3,
+          height: 14,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 1.2,
+            letterSpacing: 0.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.darkText,
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// A 44 dp+ pill that reports its selected state in words, colour and a check
-/// mark, so selection is never carried by colour alone.
+/// Filter chip — 44dp, stadium, check + colour distinguish selection.
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     super.key,
@@ -960,7 +1001,7 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color background = selected
         ? AppColors.primaryGreen
-        : AppColors.warmIvory;
+        : AppColors.surface;
     final Color foreground = selected
         ? AppColors.onPrimary
         : AppColors.darkText;
@@ -970,8 +1011,6 @@ class _FilterChip extends StatelessWidget {
       button: true,
       selected: selected,
       label: semanticLabel,
-      // The child is excluded, so the accessible tap action must live on this
-      // node; otherwise a screen reader could read the chip but not press it.
       onTap: onTap,
       child: ExcludeSemantics(
         child: ConstrainedBox(
@@ -980,7 +1019,7 @@ class _FilterChip extends StatelessWidget {
             color: background,
             clipBehavior: Clip.antiAlias,
             elevation: selected ? 2 : 0,
-            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.35),
+            shadowColor: AppColors.primaryGreen.withValues(alpha: 0.3),
             shape: StadiumBorder(
               side: BorderSide(
                 color: selected
@@ -1001,13 +1040,15 @@ class _FilterChip extends StatelessWidget {
                     if (customCategory != null) ...<Widget>[
                       Icon(
                         customCategory!.icon,
-                        color: customCategory!.color,
-                        size: 16,
+                        color: selected
+                            ? AppColors.onPrimary
+                            : customCategory!.color,
+                        size: 15,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                     ],
                     if (selected) ...<Widget>[
-                      Icon(Icons.check, size: 16, color: foreground),
+                      Icon(Icons.check_rounded, size: 15, color: foreground),
                       const SizedBox(width: 4),
                     ],
                     Flexible(
@@ -1017,6 +1058,7 @@ class _FilterChip extends StatelessWidget {
                           fontSize: 13.5,
                           height: 1.15,
                           fontWeight: FontWeight.w700,
+                          letterSpacing: 0.1,
                           color: foreground,
                         ),
                       ),
@@ -1047,39 +1089,67 @@ class _MonthHeader extends StatelessWidget {
       expensePaise: group.expensePaise,
     );
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      padding: const EdgeInsets.only(top: 14, bottom: 8),
       child: Semantics(
         container: true,
         label: '$label. $totals',
         child: ExcludeSemantics(
           child: Container(
             key: Key(_monthKey(group.month)),
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: <Color>[AppColors.lightGreen, AppColors.surface],
+                colors: <Color>[
+                  AppColors.lightGreen,
+                  AppColors.surface.withValues(alpha: 0.9),
+                ],
               ),
               borderRadius: BorderRadius.circular(_cardRadius),
               border: Border.all(
                 color: AppColors.outline.withValues(alpha: _edge),
               ),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.darkText.withValues(alpha: 0.02),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    height: 1.2,
-                    letterSpacing: -0.2,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.darkText,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_month_rounded,
+                        size: 16,
+                        color: AppColors.primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.2,
+                        letterSpacing: -0.2,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.darkText,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -1090,7 +1160,12 @@ class _MonthHeader extends StatelessWidget {
                         color: AppColors.incomeGreen,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    Container(
+                      width: 1,
+                      height: 32,
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      color: AppColors.outline.withValues(alpha: 0.4),
+                    ),
                     Expanded(
                       child: _TotalTile(
                         label: strings.text(AppString.expense),
@@ -1109,7 +1184,6 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-/// Day heading inside a month.
 class _DayHeader extends StatelessWidget {
   const _DayHeader({required this.day, required this.strings});
 
@@ -1119,16 +1193,33 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 6),
-      child: Text(
-        strings.day(day),
-        style: const TextStyle(
-          fontSize: 12,
-          height: 1.2,
-          letterSpacing: 0.5,
-          fontWeight: FontWeight.w700,
-          color: AppColors.softText,
-        ),
+      padding: const EdgeInsets.only(top: 10, bottom: 6),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 20,
+            height: 1,
+            color: AppColors.outline.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            strings.day(day),
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.2,
+              letterSpacing: 0.4,
+              fontWeight: FontWeight.w700,
+              color: AppColors.softText,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.outline.withValues(alpha: 0.4),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1159,8 +1250,6 @@ class _EntryRow extends StatelessWidget {
       income: isIncome,
     );
 
-    // The stored category is translated for display only; the title is the
-    // user's own text and is never touched.
     final String category = categories == null
         ? _categoryLabel(strings, entry.category)
         : categoryDisplayName(strings.language, entry.category, categories!);
@@ -1188,6 +1277,7 @@ class _EntryRow extends StatelessWidget {
         child: InkWell(
           key: entry.id == null ? null : Key('transaction-${entry.id}'),
           onTap: onTap,
+          borderRadius: BorderRadius.circular(_rowRadius),
           child: Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
@@ -1199,7 +1289,7 @@ class _EntryRow extends StatelessWidget {
               ),
               boxShadow: <BoxShadow>[
                 BoxShadow(
-                  color: AppColors.darkText.withValues(alpha: 0.03),
+                  color: AppColors.darkText.withValues(alpha: 0.025),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1209,22 +1299,24 @@ class _EntryRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: amountColor.withValues(alpha: 0.14),
+                    color: amountColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: categories == null
                       ? Icon(
-                          isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                          size: 20,
+                          isIncome
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded,
+                          size: 18,
                           color: amountColor,
                         )
                       : ClipOval(
                           child: CategoryArtwork(
                             category: entry.category,
-                            size: 36,
+                            size: 38,
                             fallbackColor: AppColors.navigationGrey,
                             customCategory: custom,
                           ),
@@ -1237,37 +1329,39 @@ class _EntryRow extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 14,
-                          height: 1.2,
+                          height: 1.25,
                           fontWeight: FontWeight.w600,
                           color: AppColors.darkText,
+                          letterSpacing: -0.1,
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         '$category · ${strings.dateTime(entry.at.toLocal())}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11.5,
                           height: 1.3,
                           color: AppColors.softText,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      // The amount gets its own line, so 200% text scale never
-                      // squeezes it against the title.
+                      const SizedBox(height: 6),
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.centerLeft,
                         child: Text(
                           signedAmount,
                           maxLines: 1,
                           softWrap: false,
-                          // 19 dp w800 matches Home's rows and keeps the red and
-                          // green amounts at the large-text size theme.md asks
-                          // for before they can use those colours.
                           style: TextStyle(
-                            fontSize: 19,
+                            fontSize: 18,
+                            height: 1.15,
+                            letterSpacing: -0.2,
                             fontWeight: FontWeight.w800,
                             color: amountColor,
                           ),
@@ -1278,10 +1372,18 @@ class _EntryRow extends StatelessWidget {
                 ),
                 if (onTap != null) ...<Widget>[
                   const SizedBox(width: 8),
-                  const Icon(
-                    Icons.edit_outlined,
-                    size: 20,
-                    color: AppColors.softText,
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: AppColors.lightGreen.withValues(alpha: 0.7),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      size: 14,
+                      color: AppColors.primaryGreen,
+                    ),
                   ),
                 ],
               ],
@@ -1293,8 +1395,7 @@ class _EntryRow extends StatelessWidget {
   }
 }
 
-/// Shown when the khata itself has no entries: no filters, because there is
-/// nothing to filter.
+/// Shown when the khata itself has no entries.
 class _EmptyLedger extends StatelessWidget {
   const _EmptyLedger({required this.strings});
 
@@ -1307,7 +1408,7 @@ class _EmptyLedger extends StatelessWidget {
       children: <Widget>[
         _MessageCard(
           key: const Key('transactions-empty'),
-          icon: Icons.menu_book,
+          icon: Icons.menu_book_rounded,
           title: strings.text(AppString.noTransactions),
           message: strings.text(AppString.transactionsEmptyHelp),
         ),
@@ -1316,7 +1417,7 @@ class _EmptyLedger extends StatelessWidget {
   }
 }
 
-/// Shown when filters hide every entry: a different truth from an empty khata.
+/// Shown when filters hide every entry.
 class _NoMatches extends StatelessWidget {
   const _NoMatches({required this.strings, required this.onClear});
 
@@ -1327,19 +1428,19 @@ class _NoMatches extends StatelessWidget {
   Widget build(BuildContext context) {
     return _MessageCard(
       key: const Key('transactions-no-match'),
-      icon: Icons.filter_list,
+      icon: Icons.filter_list_rounded,
       title: strings.text(AppString.noMatchingTransactions),
       message: strings.text(AppString.noMatchesHelp),
-      action: FilledButton(
+      action: FilledButton.icon(
         key: const Key('clear-filters'),
         onPressed: onClear,
-        child: Text(strings.text(AppString.clearFilters)),
+        icon: const Icon(Icons.clear_all_rounded, size: 18),
+        label: Text(strings.text(AppString.clearFilters)),
       ),
     );
   }
 }
 
-/// Shared message card for the two empty states.
 class _MessageCard extends StatelessWidget {
   const _MessageCard({
     super.key,
@@ -1362,6 +1463,13 @@ class _MessageCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
         border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.darkText.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1373,16 +1481,17 @@ class _MessageCard extends StatelessWidget {
               color: AppColors.lightGreen,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 26, color: AppColors.primaryGreen),
+            child: Icon(icon, size: 24, color: AppColors.primaryGreen),
           ),
           const SizedBox(height: 14),
           Text(
             title,
             style: const TextStyle(
               fontSize: 15.5,
-              height: 1.2,
+              height: 1.25,
               fontWeight: FontWeight.w800,
               color: AppColors.darkText,
+              letterSpacing: -0.2,
             ),
           ),
           const SizedBox(height: 6),
@@ -1390,12 +1499,12 @@ class _MessageCard extends StatelessWidget {
             message,
             style: const TextStyle(
               fontSize: 13,
-              height: 1.4,
+              height: 1.45,
               color: AppColors.softText,
             ),
           ),
           if (action != null) ...<Widget>[
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Align(alignment: Alignment.centerLeft, child: action!),
           ],
         ],
@@ -1404,7 +1513,6 @@ class _MessageCard extends StatelessWidget {
   }
 }
 
-/// A calendar month's rows and its trading totals for those rows only.
 class _MonthGroup {
   _MonthGroup(this.month);
 
@@ -1414,7 +1522,6 @@ class _MonthGroup {
   int expensePaise = 0;
 }
 
-/// One local calendar day inside a month.
 class _DayGroup {
   _DayGroup(this.day);
 
@@ -1422,15 +1529,9 @@ class _DayGroup {
   final List<LedgerEntry> entries = <LedgerEntry>[];
 }
 
-/// Stable widget key for a month heading, e.g. `month-2026-11`.
 String _monthKey(DateTime value) =>
     'month-${value.year}-${value.month.toString().padLeft(2, '0')}';
 
-/// The editor's fixed category tokens, mapped to their dictionary keys.
-///
-/// A category is stored as the canonical token (`Shopping`, `Food`, ...), so
-/// only this display mapping is translated; the stored value, the chip key and
-/// the filter comparison keep using the token itself.
 const Map<String, AppString> _categoryStrings = <String, AppString>{
   'Shopping': AppString.shopping,
   'Food': AppString.food,
@@ -1439,8 +1540,6 @@ const Map<String, AppString> _categoryStrings = <String, AppString>{
   'Gifts': AppString.gifts,
 };
 
-/// [category] rendered for display. Anything the editor does not offer - an
-/// imported or hand-written category - is shown verbatim, never translated.
 String _categoryLabel(AppStrings strings, String category) {
   final AppString? key = _categoryStrings[category];
   return key == null ? category : strings.text(key);
