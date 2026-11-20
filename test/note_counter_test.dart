@@ -127,48 +127,45 @@ void expectNoLayoutErrors(WidgetTester tester) {
   );
 }
 
-/// Taps the chip for [denominationPaise], e.g. `50000` for ₹500.
-Future<void> selectDenomination(
+/// Types [value] straight into the field of [denominationPaise], replacing
+/// what is there. Note rows take a quantity of notes; the ₹1-coin row takes
+/// the **total value of the coins in rupees**.
+Future<void> typeQuantity(
   WidgetTester tester,
   int denominationPaise,
+  String value,
 ) async {
-  await tapHittable(tester, find.byKey(Key('denomination-$denominationPaise')));
-}
-
-Future<void> tapIncrement(WidgetTester tester, {int times = 1}) async {
-  for (int index = 0; index < times; index++) {
-    await tapHittable(tester, find.byKey(const Key('note-counter-increment')));
-  }
-}
-
-Future<void> tapDecrement(WidgetTester tester, {int times = 1}) async {
-  for (int index = 0; index < times; index++) {
-    await tapHittable(tester, find.byKey(const Key('note-counter-decrement')));
-  }
-}
-
-/// Types [value] straight into the quantity field, replacing what is there.
-Future<void> typeQuantity(WidgetTester tester, String value) async {
-  final Finder field = find.byKey(const Key('note-counter-quantity-field'));
+  final Finder field = find.byKey(Key('note-counter-field-$denominationPaise'));
   await tester.ensureVisible(field);
   await tester.pumpAndSettle();
   await tester.enterText(field, value);
   await tester.pumpAndSettle();
 }
 
-/// The quantity currently in the text field, read from its controller.
+/// Types [value] into the ₹500 row's field - the common case in these tests.
+Future<void> typeFiveHundreds(WidgetTester tester, String value) =>
+    typeQuantity(tester, 50000, value);
+
+/// The quantity currently in [denominationPaise]'s field, read from its
+/// controller.
 ///
 /// Reading the controller avoids `find.text('0')`, which matches every zero
-/// wearing text on the screen (both cards, the hint, the empty chips...).
-String fieldText(WidgetTester tester) {
+/// wearing text on the screen.
+String fieldText(WidgetTester tester, int denominationPaise) {
   final EditableText editable = tester.widget<EditableText>(
     find.descendant(
-      of: find.byKey(const Key('note-counter-quantity-field')),
+      of: find.byKey(Key('note-counter-field-$denominationPaise')),
       matching: find.byType(EditableText),
     ),
   );
   return editable.controller.text;
 }
+
+/// The rendered amount of [denominationPaise]'s row total.
+Finder rowTotalText(String formatted, int denominationPaise) => find.descendant(
+  of: find.byKey(Key('note-counter-row-total-$denominationPaise')),
+  matching: find.text(formatted),
+);
 
 /// Scrolls [finder] into view and asserts it can actually receive a tap.
 Future<void> tapHittable(WidgetTester tester, Finder finder) async {
@@ -189,28 +186,13 @@ Finder grandTotalText(String formatted) => find.descendant(
   matching: find.text(formatted),
 );
 
-/// The "Total Amount" card's rendered amount.
-///
-/// Anchored on the label's `Column` (the card body) and then on the card
-/// `Container` above it, so the finder cannot accidentally resolve to a row
-/// that merely contains the label.
-Finder totalAmountText(String formatted) => find.descendant(
-  of: find
-      .ancestor(of: find.text('Total Amount'), matching: find.byType(Container))
-      .last,
-  matching: find.text(formatted),
-);
-
 void main() {
   group('initial state', () {
-    testWidgets('starts empty at ₹500 with a zero grand total', (
+    testWidgets('starts empty with a zero grand total', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      expect(find.text('Note Counter'), findsOneWidget);
-      expect(find.text('Enter Quantity'), findsOneWidget);
-      expect(find.text('Total Amount'), findsOneWidget);
       expect(find.text('Grand Total'), findsOneWidget);
       expect(grandTotalText('₹0'), findsOneWidget);
       // The state is explicitly not persisted - say so on screen.
@@ -218,29 +200,66 @@ void main() {
         find.text('In-memory session - nothing is saved or added to a khata'),
         findsOneWidget,
       );
+      // Every row starts at zero.
+      for (final int denomination in <int>[
+        50000,
+        20000,
+        10000,
+        5000,
+        2000,
+        1000,
+        100,
+      ]) {
+        expect(
+          fieldText(tester, denomination),
+          '0',
+          reason: 'row $denomination must start at zero',
+        );
+      }
     });
 
-    testWidgets('offers ₹10 to ₹500 but not ₹2,000 by default', (
+    testWidgets('six note rows and one coins row are always on screen', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
       for (final int denomination in <int>[
-        1000,
-        2000,
-        5000,
-        10000,
-        20000,
         50000,
+        20000,
+        10000,
+        5000,
+        2000,
+        1000,
       ]) {
         expect(
-          find.byKey(Key('denomination-$denomination')),
+          find.byKey(Key('note-counter-row-$denomination')),
           findsOneWidget,
-          reason: 'missing $denomination paise chip',
+          reason: 'missing row for $denomination paise',
+        );
+        expect(
+          find.byKey(Key('note-counter-field-$denomination')),
+          findsOneWidget,
         );
       }
+      // The coins row is present and typed as a total amount in rupees.
+      expect(find.byKey(const Key('note-counter-row-100')), findsOneWidget);
+      expect(find.byKey(const Key('note-counter-field-100')), findsOneWidget);
+      expect(find.text('Coins'), findsOneWidget);
+      expect(find.text('Total value of coins (₹)'), findsOneWidget);
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('the ₹2,000 note is gone from the screen', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      expect(find.byKey(const Key('note-counter-row-200000')), findsNothing);
+      expect(find.byKey(const Key('note-counter-field-200000')), findsNothing);
       expect(find.byKey(const Key('denomination-200000')), findsNothing);
-      expect(find.text('Include ₹2,000 notes'), findsOneWidget);
+      expect(find.byKey(const Key('note-counter-show-2000')), findsNothing);
+      expect(find.text('Include ₹2,000 notes'), findsNothing);
+      expect(find.text('₹2,000'), findsNothing);
     });
   });
 
@@ -248,38 +267,23 @@ void main() {
     testWidgets('₹500 × 10 gives ₹5,000', (WidgetTester tester) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 10);
+      await typeFiveHundreds(tester, '10');
 
-      expect(totalAmountText('₹5,000'), findsOneWidget);
+      expect(rowTotalText('₹5,000', 50000), findsOneWidget);
       expect(grandTotalText('₹5,000'), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
 
-    testWidgets('adding ₹100 × 5 gives a grand total of ₹5,500', (
+    testWidgets('rows add up into one grand total', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 10); // ₹500 x 10
-      await selectDenomination(tester, 10000); // ₹100
-      await tapIncrement(tester, times: 5);
+      await typeFiveHundreds(tester, '10'); // ₹5,000
+      await typeQuantity(tester, 10000, '5'); // ₹500
 
-      // The per-denomination card follows the selection...
-      expect(totalAmountText('₹500'), findsOneWidget);
-      // ...while the grand total adds both counts.
-      expect(grandTotalText('₹5,500'), findsOneWidget);
-    });
-
-    testWidgets('direct numeric input gives the same totals as the stepper', (
-      WidgetTester tester,
-    ) async {
-      await pumpCounter(tester);
-
-      await typeQuantity(tester, '10');
-      expect(grandTotalText('₹5,000'), findsOneWidget);
-
-      await selectDenomination(tester, 10000);
-      await typeQuantity(tester, '5');
+      expect(rowTotalText('₹5,000', 50000), findsOneWidget);
+      expect(rowTotalText('₹500', 10000), findsOneWidget);
       expect(grandTotalText('₹5,500'), findsOneWidget);
     });
 
@@ -288,11 +292,23 @@ void main() {
     ) async {
       await pumpCounter(tester);
 
-      await selectDenomination(tester, 1000); // ₹10
-      await typeQuantity(tester, '99999');
+      await typeQuantity(tester, 1000, '99999');
       // 1000 x 99999 = 99999000 paise = ₹9,99,990 with Indian grouping.
       expect(grandTotalText('₹9,99,990'), findsOneWidget);
       expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('notes and coins combine into the grand total', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      await typeFiveHundreds(tester, '2'); // ₹1,000
+      await typeQuantity(tester, 100, '37'); // ₹37 of coins
+
+      expect(rowTotalText('₹1,000', 50000), findsOneWidget);
+      expect(rowTotalText('₹37', 100), findsOneWidget);
+      expect(grandTotalText('₹1,037'), findsOneWidget);
     });
   });
 
@@ -302,50 +318,25 @@ void main() {
     ) async {
       await pumpCounter(tester);
 
-      await typeQuantity(tester, '999999');
+      await typeFiveHundreds(tester, '999999');
       // Clamped to the documented maximum, and the field shows the clamp.
-      expect(fieldText(tester), '99999');
+      expect(fieldText(tester, 50000), '99999');
       expect(grandTotalText('₹4,99,99,500'), findsOneWidget); // 50000 x 99999
-
-      await tapIncrement(tester);
-      expect(grandTotalText('₹4,99,99,500'), findsOneWidget);
     });
 
-    testWidgets('decrement is disabled at zero and enabled above it', (
+    testWidgets('negative input is rejected with the generic message', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
-
-      // Tapping the disabled control must not push the count below zero.
-      await tapDecrement(tester);
-      expect(grandTotalText('₹0'), findsOneWidget);
-
-      await tapIncrement(tester);
-      await tapIncrement(tester);
-      expect(grandTotalText('₹1,000'), findsOneWidget);
-
-      await tapDecrement(tester);
-      await tapDecrement(tester);
-      await tapDecrement(tester); // one extra tap past zero
-      expect(grandTotalText('₹0'), findsOneWidget);
-      expectNoLayoutErrors(tester);
-    });
-
-    testWidgets('negative input is rejected with its own message', (
-      WidgetTester tester,
-    ) async {
-      await pumpCounter(tester);
-      await typeQuantity(tester, '7');
+      await typeFiveHundreds(tester, '7');
       expect(grandTotalText('₹3,500'), findsOneWidget);
 
-      await typeQuantity(tester, '-5');
+      await typeFiveHundreds(tester, '-5');
 
       expect(
-        find.textContaining('Quantity cannot be negative'),
+        find.textContaining('Enter a whole number of notes'),
         findsOneWidget,
       );
-      // The generic message must NOT appear: the screen has a specific one.
-      expect(find.textContaining('Enter a whole number'), findsNothing);
       // Nothing was counted, so the total is still the last valid one.
       expect(grandTotalText('₹3,500'), findsOneWidget);
       expectNoLayoutErrors(tester);
@@ -355,19 +346,15 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
-      await typeQuantity(tester, '7');
+      await typeFiveHundreds(tester, '7');
 
       for (final String decimal in <String>['1.5', '0.5', '.5', '100.25']) {
-        await typeQuantity(tester, decimal);
+        await typeFiveHundreds(tester, decimal);
 
         expect(
           find.textContaining('Enter a whole number of notes'),
           findsOneWidget,
           reason: '"$decimal" must show the whole-number message',
-        );
-        expect(
-          find.textContaining('Quantity cannot be negative'),
-          findsNothing,
         );
         expect(
           grandTotalText('₹3,500'),
@@ -382,10 +369,10 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
-      await typeQuantity(tester, '7');
+      await typeFiveHundreds(tester, '7');
 
       for (final String junk in <String>['abc', '0x10', '1e3']) {
-        await typeQuantity(tester, junk);
+        await typeFiveHundreds(tester, junk);
 
         expect(
           find.textContaining('Enter a whole number of notes'),
@@ -404,15 +391,12 @@ void main() {
     testWidgets('whitespace is rejected, not treated as an empty field', (
       WidgetTester tester,
     ) async {
-      // `' '` trims to empty, so a trimming validator would silently reset the
-      // count and show no error. Whitespace is something the user typed: it
-      // must be rejected and must preserve the last good count.
       await pumpCounter(tester);
-      await typeQuantity(tester, '7');
+      await typeFiveHundreds(tester, '7');
       expect(grandTotalText('₹3,500'), findsOneWidget);
 
       for (final String whitespace in <String>[' ', '   ', ' 5', '5 ', '5 0']) {
-        await typeQuantity(tester, whitespace);
+        await typeFiveHundreds(tester, whitespace);
 
         expect(
           find.textContaining('Enter a whole number of notes'),
@@ -432,16 +416,16 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
-      await typeQuantity(tester, '7');
+      await typeFiveHundreds(tester, '7');
       expect(grandTotalText('₹3,500'), findsOneWidget);
 
       // Empty is not an error: it means "nothing counted right now".
-      await typeQuantity(tester, '');
+      await typeFiveHundreds(tester, '');
       expect(find.textContaining('Enter a whole number'), findsNothing);
       expect(grandTotalText('₹0'), findsOneWidget);
 
       // A rejected value after that still shows an error and keeps the zero.
-      await typeQuantity(tester, ' ');
+      await typeFiveHundreds(tester, ' ');
       expect(
         find.textContaining('Enter a whole number of notes'),
         findsOneWidget,
@@ -454,34 +438,30 @@ void main() {
     ) async {
       await pumpCounter(tester);
 
-      await typeQuantity(tester, '-5');
+      await typeFiveHundreds(tester, '-5');
       expect(
-        find.textContaining('Quantity cannot be negative'),
+        find.textContaining('Enter a whole number of notes'),
         findsOneWidget,
       );
 
-      await typeQuantity(tester, '2');
+      await typeFiveHundreds(tester, '2');
       expect(find.textContaining('Enter a whole number'), findsNothing);
-      expect(find.textContaining('Quantity cannot be negative'), findsNothing);
       expect(grandTotalText('₹1,000'), findsOneWidget);
-      expect(fieldText(tester), '2');
+      expect(fieldText(tester, 50000), '2');
     });
 
     testWidgets(
       'an overflowing digit string clamps to 99,999 and rewrites the field',
       (WidgetTester tester) async {
-        // Regression: `int.tryParse` returns null for a digit string longer
-        // than 64 bits. The old `?? kMaxNoteQuantity` fallback counted the
-        // maximum but left the field showing the entire huge string, so the
-        // visible number and the counted number disagreed.
+        // `int.tryParse` returns null for a digit string longer than 64 bits.
         await pumpCounter(tester);
 
         final String overflowing = '9' * 30; // far beyond int64
-        await typeQuantity(tester, overflowing);
+        await typeFiveHundreds(tester, overflowing);
 
         expectNoLayoutErrors(tester);
         expect(
-          fieldText(tester),
+          fieldText(tester, 50000),
           '99999',
           reason: 'the field must show the same number that is counted',
         );
@@ -492,12 +472,6 @@ void main() {
           findsNothing,
           reason: 'an over-long count clamps; it is not a validation error',
         );
-
-        // Still consistent afterwards: the stepper works from the clamp.
-        await tapDecrement(tester);
-        expect(fieldText(tester), '99998');
-        // ₹500 x 99,998 = 49,99,90,000 paise -> ₹4,99,99,000
-        expect(grandTotalText('₹4,99,99,000'), findsOneWidget);
       },
     );
 
@@ -505,116 +479,116 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
-      await tapIncrement(tester, times: 3);
+      await typeFiveHundreds(tester, '3');
       expect(grandTotalText('₹1,500'), findsOneWidget);
 
-      await typeQuantity(tester, '');
+      await typeFiveHundreds(tester, '');
       expectNoLayoutErrors(tester);
       expect(grandTotalText('₹0'), findsOneWidget);
       expect(find.textContaining('Enter a whole number'), findsNothing);
     });
   });
 
-  group('denomination switching keeps quantities', () {
-    testWidgets('switching away and back restores the previous count', (
+  group('coins row', () {
+    testWidgets('typing a coin total in rupees adds it to the grand total', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 4); // ₹500 x 4 = ₹2,000
-      await selectDenomination(tester, 10000);
-      await tapIncrement(tester, times: 2); // ₹100 x 2 = ₹200
-      expect(grandTotalText('₹2,200'), findsOneWidget);
+      await typeQuantity(tester, 100, '37');
 
-      await selectDenomination(tester, 50000);
-      expect(totalAmountText('₹2,000'), findsOneWidget);
-      expect(grandTotalText('₹2,200'), findsOneWidget);
-
-      await selectDenomination(tester, 10000);
-      expect(totalAmountText('₹200'), findsOneWidget);
-      expect(grandTotalText('₹2,200'), findsOneWidget);
+      expect(rowTotalText('₹37', 100), findsOneWidget);
+      expect(grandTotalText('₹37'), findsOneWidget);
+      expectNoLayoutErrors(tester);
     });
 
-    testWidgets('the quantity field follows the selected denomination', (
+    testWidgets('the coin amount is capped at 99,999 and shows the clamp', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 3);
-      await selectDenomination(tester, 20000);
-      expect(fieldText(tester), '0');
+      await typeQuantity(tester, 100, '100000');
+      // 99,999 × ₹1 = ₹99,999 of coins.
+      expect(fieldText(tester, 100), '99999');
+      expect(rowTotalText('₹99,999', 100), findsOneWidget);
+      expect(grandTotalText('₹99,999'), findsOneWidget);
+    });
 
-      await selectDenomination(tester, 50000);
-      expect(fieldText(tester), '3');
+    testWidgets('an overflowing coin digit string clamps like a note row', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      await typeQuantity(tester, 100, '9' * 30);
+      expect(fieldText(tester, 100), '99999');
+      expect(grandTotalText('₹99,999'), findsOneWidget);
+    });
+
+    testWidgets('non-numeric coin input is rejected and keeps the total', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+      await typeQuantity(tester, 100, '37');
+
+      for (final String junk in <String>['abc', '3.5', '-2', ' ', '1e3']) {
+        await typeQuantity(tester, 100, junk);
+
+        expect(
+          find.textContaining('Enter a whole number of notes'),
+          findsOneWidget,
+          reason: '"$junk" must show the whole-number message',
+        );
+        expect(
+          grandTotalText('₹37'),
+          findsOneWidget,
+          reason: '"$junk" must not alter the counted total',
+        );
+        expectNoLayoutErrors(tester);
+      }
+    });
+
+    testWidgets('the coin row is labelled as a total amount in ₹', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      // Not "how many coins" - the label says the total value in rupees.
+      expect(find.text('Total value of coins (₹)'), findsOneWidget);
+      expect(find.text('Coins'), findsOneWidget);
     });
   });
 
-  group('₹2,000 toggle', () {
-    testWidgets('showing ₹2,000 adds a chipless option that counts', (
+  group('each row keeps its own count', () {
+    testWidgets('every field keeps what was typed independently', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-show-2000')),
-      );
+      await typeFiveHundreds(tester, '4'); // ₹2,000
+      await typeQuantity(tester, 10000, '2'); // ₹200
 
-      expect(find.byKey(const Key('denomination-200000')), findsOneWidget);
-
-      await selectDenomination(tester, 200000);
-      await tapIncrement(tester, times: 2);
-      expect(totalAmountText('₹4,000'), findsOneWidget);
-      expect(grandTotalText('₹4,000'), findsOneWidget);
-      expectNoLayoutErrors(tester);
-    });
-
-    testWidgets('hiding ₹2,000 never silently drops counted notes', (
-      WidgetTester tester,
-    ) async {
-      await pumpCounter(tester);
-
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-show-2000')),
-      );
-      await selectDenomination(tester, 200000);
-      await tapIncrement(tester); // ₹2,000 x 1
-
-      // Turn the denomination back off while it is selected.
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-show-2000')),
-      );
-
-      expect(find.byKey(const Key('denomination-200000')), findsNothing);
-      // The money is still counted, and the card explains why.
-      expect(grandTotalText('₹2,000'), findsOneWidget);
-      expect(
-        find.text('Includes ₹2,000 × 1 (denomination hidden)'),
-        findsOneWidget,
-      );
-      expectNoLayoutErrors(tester);
+      expect(fieldText(tester, 50000), '4');
+      expect(fieldText(tester, 10000), '2');
+      expect(rowTotalText('₹2,000', 50000), findsOneWidget);
+      expect(rowTotalText('₹200', 10000), findsOneWidget);
+      expect(grandTotalText('₹2,200'), findsOneWidget);
     });
   });
 
   group('New count', () {
-    testWidgets('clears every denomination, not just the selected one', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('clears every row, not just one', (WidgetTester tester) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 2); // ₹500 x 2
-      await selectDenomination(tester, 10000);
-      await tapIncrement(tester, times: 3); // ₹100 x 3
-      expect(grandTotalText('₹1,300'), findsOneWidget);
+      await typeFiveHundreds(tester, '2'); // ₹1,000
+      await typeQuantity(tester, 10000, '3'); // ₹300
+      await typeQuantity(tester, 100, '15'); // ₹15 of coins
+      expect(grandTotalText('₹1,315'), findsOneWidget);
 
-      await typeQuantity(tester, ''); // leave the field empty mid-edit
       await tapHittable(
         tester,
         find.byKey(const Key('note-counter-new-count')),
       );
-      // A non-empty count confirms first; the typed value is not lost by
+      // A non-empty count confirms first; the typed values are not lost by
       // accident.
       await tapHittable(
         tester,
@@ -622,12 +596,11 @@ void main() {
       );
 
       expect(grandTotalText('₹0'), findsOneWidget);
-      expect(totalAmountText('₹0'), findsOneWidget);
-
-      // Clearing is real: switching back shows zero, not the old count.
-      await selectDenomination(tester, 50000);
-      expect(totalAmountText('₹0'), findsOneWidget);
-      expect(fieldText(tester), '0');
+      expect(fieldText(tester, 50000), '0');
+      expect(fieldText(tester, 10000), '0');
+      expect(fieldText(tester, 100), '0');
+      expect(rowTotalText('₹0', 50000), findsOneWidget);
+      expect(rowTotalText('₹0', 100), findsOneWidget);
     });
 
     testWidgets('cancelling keeps the current count', (
@@ -635,7 +608,7 @@ void main() {
     ) async {
       await pumpCounter(tester);
 
-      await tapIncrement(tester, times: 3); // ₹500 x 3 = ₹1,500
+      await typeFiveHundreds(tester, '3'); // ₹1,500
       await tapHittable(
         tester,
         find.byKey(const Key('note-counter-new-count')),
@@ -669,73 +642,57 @@ void main() {
   });
 
   group('accessibility and layout', () {
-    testWidgets('stepper buttons expose semantic labels', (
+    testWidgets('every row field exposes a semantic label', (
       WidgetTester tester,
     ) async {
       // `ensureSemantics()` promotes the accessibility tree for the test.
       final SemanticsHandle handle = tester.ensureSemantics();
       await pumpCounter(tester);
 
-      expect(find.bySemanticsLabel('Increase quantity'), findsOneWidget);
-      expect(find.bySemanticsLabel('Decrease quantity'), findsOneWidget);
-      // The chip keeps its `₹` label, so it must read as "₹500 note".
-      expect(find.bySemanticsLabel(RegExp(r'^₹500 note$')), findsOneWidget);
-      expect(find.byTooltip('Settings'), findsOneWidget);
+      const Map<int, String> labels = <int, String>{
+        50000: 'Quantity of ₹500 notes',
+        20000: 'Quantity of ₹200 notes',
+        10000: 'Quantity of ₹100 notes',
+        5000: 'Quantity of ₹50 notes',
+        2000: 'Quantity of ₹20 notes',
+        1000: 'Quantity of ₹10 notes',
+      };
+      for (final MapEntry<int, String> entry in labels.entries) {
+        final Finder field = find.bySemanticsLabel(entry.value);
+        expect(field, findsOneWidget, reason: entry.value);
+        final SemanticsNode node = tester.getSemantics(field);
+        expect(node.flagsCollection.isTextField, isTrue);
+      }
+      // The coin field announces the total-value-in-rupees label. Both the
+      // field and its helper text carry the same words, so this matches at
+      // least the field node.
+      expect(find.bySemanticsLabel('Total value of coins (₹)'), findsWidgets);
       handle.dispose();
     });
 
-    testWidgets('the quantity field has a real accessible name', (
-      WidgetTester tester,
-    ) async {
-      final SemanticsHandle handle = tester.ensureSemantics();
-      await pumpCounter(tester);
-
-      // In the *actual* semantics tree, not just a widget-level label. The
-      // default selection is ₹500.
-      expect(
-        find.bySemanticsLabel(RegExp(r'Quantity of ₹500 notes')),
-        findsOneWidget,
-        reason: 'the quantity field must expose an accessible name',
-      );
-
-      // It is a text field, so the node must carry the textField flag and the
-      // field's own current value.
-      final SemanticsNode node = tester.getSemantics(
-        find.bySemanticsLabel(RegExp(r'Quantity of ₹500 notes')),
-      );
-      expect(node.flagsCollection.isTextField, isTrue);
-
-      // The name follows the selected denomination.
-      await selectDenomination(tester, 10000);
-      expect(
-        find.bySemanticsLabel(RegExp(r'Quantity of ₹100 notes')),
-        findsOneWidget,
-        reason: 'the accessible name must track the selection',
-      );
-      expect(
-        find.bySemanticsLabel(RegExp(r'Quantity of ₹500 notes')),
-        findsNothing,
-      );
-
-      handle.dispose();
-    });
-
-    testWidgets('chips are at least 44 dp tall for touch targets', (
+    testWidgets('fields are at least 44 dp tall for touch targets', (
       WidgetTester tester,
     ) async {
       await pumpCounter(tester);
 
-      final Size chip = tester.getSize(
-        find.byKey(const Key('denomination-50000')),
-      );
-      expect(chip.height, greaterThanOrEqualTo(44));
-      expect(chip.width, greaterThanOrEqualTo(44));
-
-      final Size button = tester.getSize(
-        find.byKey(const Key('note-counter-increment')),
-      );
-      expect(button.height, greaterThanOrEqualTo(44));
-      expect(button.width, greaterThanOrEqualTo(44));
+      for (final int denomination in <int>[
+        50000,
+        20000,
+        10000,
+        5000,
+        2000,
+        1000,
+        100,
+      ]) {
+        final Size field = tester.getSize(
+          find.byKey(Key('note-counter-field-$denomination')),
+        );
+        expect(
+          field.height,
+          greaterThanOrEqualTo(44),
+          reason: 'field $denomination must be a legal touch target',
+        );
+      }
     });
 
     testWidgets('layout survives a 320 dp phone at 200% text scale', (
@@ -744,69 +701,17 @@ void main() {
       await pumpCounter(tester, size: smallPhone, scale: 2.0);
       expectNoLayoutErrors(tester);
 
-      await tapIncrement(tester, times: 10);
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-show-2000')),
-      );
+      await typeFiveHundreds(tester, '10');
+      expect(grandTotalText('₹5,000'), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
 
-    testWidgets('chips stay compact and adjacent chips share a row', (
+    testWidgets('rows stay inside the screen at 300% text scale', (
       WidgetTester tester,
     ) async {
-      // Regression: an aligned `Container` inside the `Wrap` stretched each
-      // chip to the full width, giving one chip per row.
-      //
-      // Render order is ₹500, ₹200, ₹100, ₹50, ₹20, ₹10 (largest
-      // first), so ₹500 and ₹200 are adjacent - the pair that can
-      // share a row. ₹500 and ₹100 sit two apart and legitimately wrap
-      // apart; asserting on those was a bad test, not a bad layout.
-      await pumpCounter(tester, size: smallPhone, scale: 2.0);
-      expectNoLayoutErrors(tester);
-
-      const double contentWidth = 320 - 32; // page padding on both sides
-
-      final Rect fiveHundred = tester.getRect(
-        find.byKey(const Key('denomination-50000')),
-      );
-      final Rect twoHundred = tester.getRect(
-        find.byKey(const Key('denomination-20000')),
-      );
-
-      // Adjacent chips share a row.
-      expect(
-        fiveHundred.center.dy,
-        closeTo(twoHundred.center.dy, 1.0),
-        reason: '₹500 and ₹200 are adjacent and must share a row at 200%',
-      );
-
-      // Each chip is compact: under half the content column, still a legal
-      // touch target, and two of them plus the 8 dp gap fit one row.
-      final List<Rect> pair = <Rect>[fiveHundred, twoHundred];
-      for (final Rect chip in pair) {
-        expect(chip.width, lessThan(contentWidth / 2));
-        expect(chip.width, greaterThanOrEqualTo(44));
-        expect(chip.height, greaterThanOrEqualTo(44));
-        expect(chip.left, greaterThanOrEqualTo(0));
-        expect(chip.right, lessThanOrEqualTo(smallPhone.width));
-      }
-      expect(
-        fiveHundred.width + twoHundred.width + 8,
-        lessThanOrEqualTo(contentWidth),
-      );
-    });
-
-    testWidgets('chips wrap without overflowing when text is huge', (
-      WidgetTester tester,
-    ) async {
-      // 300% is beyond the 200% requirement but must still render: on the
-      // previous revision a Run overflowed by 12 px here because the ₹2,000
-      // label grew wider than the content column.
       await pumpCounter(tester, size: smallPhone, scale: 3.0);
       expectNoLayoutErrors(tester);
 
-      // ₹2,000 is hidden by default, so it is covered by the toggle tests.
       for (final int denomination in <int>[
         50000,
         20000,
@@ -814,20 +719,17 @@ void main() {
         5000,
         2000,
         1000,
+        100,
       ]) {
-        final Rect chip = tester.getRect(
-          find.byKey(Key('denomination-$denomination')),
+        final Rect row = tester.getRect(
+          find.byKey(Key('note-counter-row-$denomination')),
         );
-        expect(chip.left, greaterThanOrEqualTo(0));
-        expect(chip.right, lessThanOrEqualTo(smallPhone.width));
-        expect(chip.left, lessThan(smallPhone.width));
-        expect(chip.height, greaterThanOrEqualTo(44));
-        expect(chip.width, lessThanOrEqualTo(320 - 32));
+        expect(row.left, greaterThanOrEqualTo(0));
+        expect(row.right, lessThanOrEqualTo(smallPhone.width));
       }
 
-      // Chips still work at this scale.
-      await selectDenomination(tester, 10000);
-      expect(grandTotalText('₹0'), findsOneWidget);
+      await typeQuantity(tester, 10000, '5');
+      expect(grandTotalText('₹500'), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
 
@@ -836,7 +738,7 @@ void main() {
     ) async {
       await pumpCounter(tester, size: smallPhone, scale: 2.0);
 
-      await typeQuantity(tester, '99999');
+      await typeFiveHundreds(tester, '99999');
       await tester.drag(
         find.byType(SingleChildScrollView),
         const Offset(0, -300),
@@ -855,9 +757,8 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 10); // ₹500 x 10
-      await selectDenomination(tester, 10000); // ₹100
-      await tapIncrement(tester, times: 5);
+      await typeFiveHundreds(tester, '10'); // ₹500 x 10
+      await typeQuantity(tester, 10000, '5'); // ₹100 x 5
       expect(grandTotalText('₹5,500'), findsOneWidget);
 
       // Unmount and reopen: a brand-new state must reload from the store.
@@ -865,10 +766,30 @@ void main() {
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
 
       expect(grandTotalText('₹5,500'), findsOneWidget);
-      expect(totalAmountText('₹500'), findsOneWidget);
-      // The field shows the selected denomination's stored quantity.
-      expect(fieldText(tester), '5');
+      expect(rowTotalText('₹500', 10000), findsOneWidget);
+      // The field shows each row's stored quantity.
+      expect(fieldText(tester, 50000), '10');
+      expect(fieldText(tester, 10000), '5');
       expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('the coin amount survives a reopen', (
+      WidgetTester tester,
+    ) async {
+      final LocalLedger ledger = await openInMemoryLedger(tester);
+      final NoteCounterStore store = NoteCounterStore(ledger);
+
+      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+      await typeFiveHundreds(tester, '2'); // ₹1,000
+      await typeQuantity(tester, 100, '37'); // ₹37 of coins
+      expect(grandTotalText('₹1,037'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+
+      expect(grandTotalText('₹1,037'), findsOneWidget);
+      expect(fieldText(tester, 100), '37');
+      expect(rowTotalText('₹37', 100), findsOneWidget);
     });
 
     testWidgets('switching khata never carries quantities over', (
@@ -881,7 +802,7 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 4); // ₹500 x 4 = ₹2,000
+      await typeFiveHundreds(tester, '4'); // ₹500 x 4 = ₹2,000
       expect(grandTotalText('₹2,000'), findsOneWidget);
 
       // A different khata, switched in place, starts empty.
@@ -897,10 +818,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(grandTotalText('₹0'), findsOneWidget);
-      expect(totalAmountText('₹0'), findsOneWidget);
+      expect(fieldText(tester, 50000), '0');
 
       // Count something there, then switch back: both keep their own count.
-      await tapIncrement(tester, times: 2); // ₹500 x 2 = ₹1,000
+      await typeFiveHundreds(tester, '2'); // ₹500 x 2 = ₹1,000
       expect(grandTotalText('₹1,000'), findsOneWidget);
 
       await tester.pumpWidget(
@@ -929,34 +850,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(grandTotalText('₹1,000'), findsOneWidget);
     });
-
-    testWidgets('selection and ₹2,000 visibility survive a reopen', (
-      WidgetTester tester,
-    ) async {
-      final LocalLedger ledger = await openInMemoryLedger(tester);
-      final NoteCounterStore store = NoteCounterStore(ledger);
-
-      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapHittable(
-        tester,
-        find.byKey(const Key('note-counter-show-2000')),
-      );
-      await selectDenomination(tester, 200000); // ₹2,000
-      await tapIncrement(tester, times: 2); // ₹2,000 x 2 = ₹4,000
-
-      await tester.pumpWidget(const SizedBox());
-      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-
-      expect(find.byKey(const Key('denomination-200000')), findsOneWidget);
-      expect(
-        tester
-            .widget<Switch>(find.byKey(const Key('note-counter-show-2000')))
-            .value,
-        isTrue,
-      );
-      expect(totalAmountText('₹4,000'), findsOneWidget);
-      expect(grandTotalText('₹4,000'), findsOneWidget);
-    });
   });
 
   group('saved sessions', () {
@@ -972,7 +865,7 @@ void main() {
       );
       expect(save.onPressed, isNull);
 
-      await tapIncrement(tester);
+      await typeFiveHundreds(tester, '1');
       await tester.pumpAndSettle();
       save = tester.widget<FilledButton>(
         find.byKey(const Key('note-counter-save')),
@@ -987,7 +880,7 @@ void main() {
         final NoteCounterStore store = NoteCounterStore(ledger);
 
         await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-        await tapIncrement(tester, times: 3); // ₹500 x 3 = ₹1,500
+        await typeFiveHundreds(tester, '3'); // ₹500 x 3 = ₹1,500
         await tapHittable(tester, find.byKey(const Key('note-counter-save')));
         expect(find.text('Count saved'), findsOneWidget);
         await tester.pump(const Duration(seconds: 5));
@@ -1037,12 +930,12 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 3); // ₹1,500
+      await typeFiveHundreds(tester, '3'); // ₹1,500
       await tapHittable(tester, find.byKey(const Key('note-counter-save')));
       expect(find.text('Count saved'), findsOneWidget);
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
-      await tapIncrement(tester, times: 2); // ₹2,500
+      await typeFiveHundreds(tester, '5'); // ₹2,500
       expect(grandTotalText('₹2,500'), findsOneWidget);
 
       await tapHittable(
@@ -1092,7 +985,7 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 2); // ₹1,000
+      await typeFiveHundreds(tester, '2'); // ₹1,000
       await tapHittable(tester, find.byKey(const Key('note-counter-save')));
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
@@ -1133,7 +1026,7 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 2); // ₹1,000
+      await typeFiveHundreds(tester, '2'); // ₹1,000
       await tapHittable(tester, find.byKey(const Key('note-counter-save')));
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
@@ -1180,19 +1073,38 @@ void main() {
       mockClipboard(clipboard);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 10); // ₹500 x 10 = ₹5,000
-      await selectDenomination(tester, 10000); // ₹100
-      await tapIncrement(tester, times: 5); // ₹100 x 5 = ₹500
+      await typeFiveHundreds(tester, '10'); // ₹500 x 10 = ₹5,000
+      await typeQuantity(tester, 10000, '5'); // ₹100 x 5 = ₹500
 
       await tapHittable(
         tester,
         find.byKey(const Key('note-counter-copy-summary')),
       );
       expect(clipboard.text, isNotNull);
-      expect(clipboard.text, contains('Note counter — '));
       expect(clipboard.text, contains('₹500 × 10 = ₹5,000'));
       expect(clipboard.text, contains('₹100 × 5 = ₹500'));
       expect(clipboard.text, contains('Grand Total: ₹5,500'));
+    });
+
+    testWidgets('Copy summary carries the coin row as a rupee total', (
+      WidgetTester tester,
+    ) async {
+      final LocalLedger ledger = await openInMemoryLedger(tester);
+      final NoteCounterStore store = NoteCounterStore(ledger);
+      final ClipboardCapture clipboard = ClipboardCapture();
+      mockClipboard(clipboard);
+
+      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+      await typeFiveHundreds(tester, '1'); // ₹500
+      await typeQuantity(tester, 100, '37'); // ₹37 of coins
+
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-copy-summary')),
+      );
+      expect(clipboard.text, isNotNull);
+      expect(clipboard.text, contains('Coins totalling ₹37'));
+      expect(clipboard.text, contains('Grand Total: ₹537'));
     });
   });
 
@@ -1216,7 +1128,7 @@ void main() {
       );
       expect(find.byKey(const Key('note-counter-add-to-khata')), findsNothing);
 
-      await tapIncrement(tester, times: 10); // ₹500 x 10 = ₹5,000
+      await typeFiveHundreds(tester, '10'); // ₹500 x 10 = ₹5,000
       expect(
         find.byKey(const Key('note-counter-add-to-khata')),
         findsOneWidget,
@@ -1243,7 +1155,7 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      await tapIncrement(tester, times: 2);
+      await typeFiveHundreds(tester, '2');
       expect(find.byKey(const Key('note-counter-add-to-khata')), findsNothing);
     });
   });
@@ -1254,12 +1166,13 @@ void main() {
     ) async {
       await pumpCounter(tester, language: AppLanguage.bn);
 
-      expect(find.text('নোট গণনা'), findsOneWidget);
-      expect(find.text('সংখ্যা লিখুন'), findsOneWidget);
-      expect(find.text('মোট টাকা'), findsOneWidget);
       expect(find.text('সর্বমোট'), findsOneWidget);
+      expect(find.text('কয়েন'), findsOneWidget);
       expect(find.text('নতুন গণনা'), findsOneWidget);
-      expect(find.text('হিসাব করুন'), findsOneWidget);
+      expect(
+        find.text('মাত্র সংখ্যাগুলো লিখুন — হিসাব নিজেই হয়ে যায়'),
+        findsOneWidget,
+      );
       expect(
         find.text(
           'শুধু এই সেশনের জন্য — কিছুই সংরক্ষণ করা হয় না বা খাতায় যোগ হয় না',
@@ -1268,11 +1181,11 @@ void main() {
       );
 
       final SemanticsHandle handle = tester.ensureSemantics();
-      expect(find.bySemanticsLabel('সংখ্যা বাড়ান'), findsOneWidget);
-      expect(find.bySemanticsLabel('সংখ্যা কমান'), findsOneWidget);
+      // Every note field announces "quantity of <money> notes" in Bengali.
+      expect(find.bySemanticsLabel(RegExp('নোটের সংখ্যা')), findsWidgets);
       handle.dispose();
 
-      await tapIncrement(tester, times: 10);
+      await typeFiveHundreds(tester, '10');
       expect(grandTotalText('₹৫,০০০'), findsOneWidget);
       expectNoLayoutErrors(tester);
     });
@@ -1299,7 +1212,7 @@ void main() {
               scale: scale,
               onAddToKhata: (_, _) {},
             );
-            await tapIncrement(tester, times: 2);
+            await typeFiveHundreds(tester, '2');
             await tapHittable(
               tester,
               find.byKey(const Key('note-counter-save')),

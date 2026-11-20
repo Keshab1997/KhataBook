@@ -917,6 +917,8 @@ CREATE TABLE IF NOT EXISTS custom_categories (
   ) async {
     for (final _PreservedQuantity row in preserved.quantities) {
       if (!restoredKhataIds.contains(row.khataId)) continue;
+      // The retired ₹2,000 note is repaired away, never written back.
+      if (row.denominationPaise == kRetiredTwoThousandPaise) continue;
       await ledger.customStatement(
         'INSERT INTO note_counter_quantities '
         '(khata_id, denomination_paise, quantity, updated_at) '
@@ -931,20 +933,51 @@ CREATE TABLE IF NOT EXISTS custom_categories (
     }
     for (final _PreservedState row in preserved.state) {
       if (!restoredKhataIds.contains(row.khataId)) continue;
+      // Retired ₹2,000 selection repairs to the default; the old
+      // show_two_thousand flag repairs away to 0.
+      final int selection =
+          row.selectedDenominationPaise == kRetiredTwoThousandPaise
+          ? kDefaultDenominationPaise
+          : row.selectedDenominationPaise;
       await ledger.customStatement(
         'INSERT INTO note_counter_state '
         '(khata_id, selected_denomination_paise, show_two_thousand, '
         'updated_at) VALUES (?, ?, ?, ?)',
-        <Object?>[
-          row.khataId,
-          row.selectedDenominationPaise,
-          row.showTwoThousand,
-          row.updatedAt,
-        ],
+        <Object?>[row.khataId, selection, 0, row.updatedAt],
       );
     }
     for (final _PreservedSession row in preserved.savedSessions) {
       if (!restoredKhataIds.contains(row.khataId)) continue;
+      // Scrub the retired ₹2,000 note from the session's quantities. Every
+      // non-retired value must still be an integer; otherwise the row is
+      // kept verbatim and the counter's load-time repair reports it.
+      String quantitiesJson = row.quantitiesJson;
+      try {
+        final Object? decoded = jsonDecode(row.quantitiesJson);
+        if (decoded is Map<dynamic, dynamic>) {
+          bool scrubSafe = true;
+          for (final MapEntry<dynamic, dynamic> entry in decoded.entries) {
+            if (entry.key.toString() == '$kRetiredTwoThousandPaise') continue;
+            if (entry.value is! int) {
+              scrubSafe = false;
+              break;
+            }
+          }
+          if (scrubSafe) {
+            quantitiesJson = jsonEncode(<String, int>{
+              for (final MapEntry<dynamic, dynamic> entry in decoded.entries)
+                if (entry.key.toString() != '$kRetiredTwoThousandPaise')
+                  entry.key.toString(): entry.value! as int,
+            });
+          }
+        }
+      } catch (_) {
+        // Keep the row verbatim; the load-time repair will report it.
+      }
+      final int selection =
+          row.selectedDenominationPaise == kRetiredTwoThousandPaise
+          ? kDefaultDenominationPaise
+          : row.selectedDenominationPaise;
       await ledger.customStatement(
         'INSERT INTO note_counter_saved_sessions '
         '(id, khata_id, saved_at, quantities_json, '
@@ -954,9 +987,9 @@ CREATE TABLE IF NOT EXISTS custom_categories (
           row.id,
           row.khataId,
           row.savedAt,
-          row.quantitiesJson,
-          row.selectedDenominationPaise,
-          row.showTwoThousand,
+          quantitiesJson,
+          selection,
+          0,
         ],
       );
     }
@@ -1123,14 +1156,16 @@ CREATE TABLE IF NOT EXISTS custom_categories (
         .get();
     final List<_CounterQuantityRecord> quantities = <_CounterQuantityRecord>[
       for (final QueryRow row in quantityRows)
-        _checkedQuantityRow(
-          khataId: row.read<String>('khata_id'),
-          denominationPaise: row.read<int>('denomination_paise'),
-          quantity: row.read<int>('quantity'),
-          updatedAt: row.read<String>('updated_at'),
-          khataIds: khataIds,
-          path: 'note_counter_quantities',
-        ),
+        if (_checkedQuantityRow(
+              khataId: row.read<String>('khata_id'),
+              denominationPaise: row.read<int>('denomination_paise'),
+              quantity: row.read<int>('quantity'),
+              updatedAt: row.read<String>('updated_at'),
+              khataIds: khataIds,
+              path: 'note_counter_quantities',
+            )
+            case final _CounterQuantityRecord record)
+          record,
     ];
     final List<_CounterStateRecord> state = <_CounterStateRecord>[];
     if (await _tableExists('note_counter_state')) {
@@ -1612,6 +1647,9 @@ int _asDenomination(Object? value, String path) {
   if (value is! int) {
     throw LedgerBackupException('$path must be an integer');
   }
+  // The retired ₹2,000 note cannot be selected any more; a stored selection
+  // repairs to the default instead of failing (or resurrecting) the note.
+  if (value == kRetiredTwoThousandPaise) return kDefaultDenominationPaise;
   return _checkedDenomination(value, path);
 }
 
@@ -1843,13 +1881,24 @@ List<_CounterQuantityRecord> _parseQuantityList(
   Set<String> khataIds,
 ) {
   final Set<String> seen = <String>{};
-  return <_CounterQuantityRecord>[
-    for (int i = 0; i < items.length; i++)
-      _parseQuantityItem(items[i], '$path[$i]', khataIds, seen),
-  ];
+  final List<_CounterQuantityRecord> records = <_CounterQuantityRecord>[];
+  for (int i = 0; i < items.length; i++) {
+    final _CounterQuantityRecord? record = _parseQuantityItem(
+      items[i],
+      '$path[$i]',
+      khataIds,
+      seen,
+    );
+    // A retired-denomination row is dropped (repaired away), not restored.
+    if (record != null) records.add(record);
+  }
+  return records;
 }
 
-_CounterQuantityRecord _parseQuantityItem(
+/// Parses one quantity row. Returns `null` for a row whose denomination is
+/// the retired ₹2,000 note, which this version repairs away -
+/// it must never reach the database, kept or silently ignored.
+_CounterQuantityRecord? _parseQuantityItem(
   Object? value,
   String path,
   Set<String> khataIds,
@@ -1858,6 +1907,10 @@ _CounterQuantityRecord _parseQuantityItem(
   final Map<String, Object?> map = _expectObject(value, path);
   _expectExactKeys(map, _counterQuantityKeys, path);
   final String khataId = _expectId(map, 'khata_id', path);
+  final Object? denominationRaw = map['denomination_paise'];
+  if (denominationRaw is int && denominationRaw == kRetiredTwoThousandPaise) {
+    return null;
+  }
   _checkKhataRef(khataId, khataIds, '$path.khata_id');
   final int denominationPaise = _asDenomination(
     map['denomination_paise'],
@@ -1899,6 +1952,9 @@ _CounterStateRecord _parseStateItem(
   _expectExactKeys(map, _counterStateKeys, path);
   final String khataId = _expectId(map, 'khata_id', path);
   _checkKhataRef(khataId, khataIds, '$path.khata_id');
+  // Required to be a real JSON boolean; the retired flag repairs away to
+  // false in the record below.
+  _expectBool(map, 'show_two_thousand', path);
   if (!seen.add(khataId)) {
     throw LedgerBackupException('Duplicate counter state for khata $khataId');
   }
@@ -1908,7 +1964,8 @@ _CounterStateRecord _parseStateItem(
       map['selected_denomination_paise'],
       '$path.selected_denomination_paise',
     ),
-    showTwoThousand: _expectBool(map, 'show_two_thousand', path),
+    // Required to be a real JSON boolean; the retired flag repairs away.
+    showTwoThousand: false,
     updatedAt: _expectTimestamp(map, 'updated_at', path),
   );
 }
@@ -1933,6 +1990,9 @@ _SavedSessionRecord _parseSessionItem(
 ) {
   final Map<String, Object?> map = _expectObject(value, path);
   _expectExactKeys(map, _savedSessionKeys, path);
+  // Required to be a real JSON boolean; the retired flag repairs away to
+  // false in the record below.
+  _expectBool(map, 'show_two_thousand', path);
   final String id = _expectId(map, 'id', path);
   if (!ids.add(id)) {
     throw LedgerBackupException('Duplicate saved session id $id');
@@ -1948,7 +2008,8 @@ _SavedSessionRecord _parseSessionItem(
       map['selected_denomination_paise'],
       '$path.selected_denomination_paise',
     ),
-    showTwoThousand: _expectBool(map, 'show_two_thousand', path),
+    // Required to be a real JSON boolean; the retired flag repairs away.
+    showTwoThousand: false,
   );
 }
 
@@ -1964,6 +2025,8 @@ Map<int, int> _sessionQuantitiesOf(Object? value, String path) {
         '$path has a non-integer denomination ${entry.key}',
       );
     }
+    // A retired ₹2,000 entry is dropped (repaired away), not restored.
+    if (denomination == kRetiredTwoThousandPaise) continue;
     _checkedDenomination(denomination, '$path.${entry.key}');
     final Object? rawQuantity = entry.value;
     if (rawQuantity is! int) {
@@ -2004,6 +2067,15 @@ bool _checkedFlag(int value, String path) {
   return value == 1;
 }
 
+/// Validates the stored 0/1 `show_two_thousand` flag exactly like
+/// [_checkedFlag], then returns `false`: the flag is retired with the ₹2,000
+/// note, and a backup written from any phone - repaired or not yet repaired -
+/// never carries it.
+bool _retiredFlag(int value, String path) {
+  _checkedFlag(value, path);
+  return false;
+}
+
 /// Export-side re-checks, so a stored row that restore would reject fails the
 /// export loudly instead of being written into an unusable backup.
 _CustomCategoryRecord _checkedCategoryRow({
@@ -2022,7 +2094,7 @@ _CustomCategoryRecord _checkedCategoryRow({
   path: path,
 );
 
-_CounterQuantityRecord _checkedQuantityRow({
+_CounterQuantityRecord? _checkedQuantityRow({
   required String khataId,
   required int denominationPaise,
   required int quantity,
@@ -2031,6 +2103,9 @@ _CounterQuantityRecord _checkedQuantityRow({
   required String path,
 }) {
   _checkKhataRef(khataId, khataIds, '$path.khata_id');
+  // The retired ₹2,000 note is never written into a new backup; a stale
+  // stored row is dropped (the next counter load removes it from the phone).
+  if (denominationPaise == kRetiredTwoThousandPaise) return null;
   return _CounterQuantityRecord(
     khataId: khataId,
     denominationPaise: _checkedDenomination(
@@ -2053,11 +2128,16 @@ _CounterStateRecord _checkedStateRow({
   _checkKhataRef(khataId, khataIds, '$path.khata_id');
   return _CounterStateRecord(
     khataId: khataId,
-    selectedDenominationPaise: _checkedDenomination(
-      selectedDenominationPaise,
-      '$path.selected_denomination_paise',
-    ),
-    showTwoThousand: _checkedFlag(showTwoThousand, '$path.show_two_thousand'),
+    selectedDenominationPaise:
+        selectedDenominationPaise == kRetiredTwoThousandPaise
+        ? kDefaultDenominationPaise
+        : _checkedDenomination(
+            selectedDenominationPaise,
+            '$path.selected_denomination_paise',
+          ),
+    // Validated as 0/1 (a stray non-0/1 still fails the export loudly),
+    // then repaired away: a fresh backup never carries the retired flag.
+    showTwoThousand: _retiredFlag(showTwoThousand, '$path.show_two_thousand'),
     updatedAt: _checkTimestamp(updatedAt, '$path.updated_at'),
   );
 }
@@ -2083,10 +2163,14 @@ _SavedSessionRecord _checkedSessionRow({
     khataId: khataId,
     savedAt: _checkTimestamp(savedAt, '$path.saved_at'),
     quantities: _sessionQuantitiesFromJson(quantitiesJson, path),
-    selectedDenominationPaise: _checkedDenomination(
-      selectedDenominationPaise,
-      '$path.selected_denomination_paise',
-    ),
-    showTwoThousand: _checkedFlag(showTwoThousand, '$path.show_two_thousand'),
+    selectedDenominationPaise:
+        selectedDenominationPaise == kRetiredTwoThousandPaise
+        ? kDefaultDenominationPaise
+        : _checkedDenomination(
+            selectedDenominationPaise,
+            '$path.selected_denomination_paise',
+          ),
+    // Validated as 0/1, then repaired away.
+    showTwoThousand: _retiredFlag(showTwoThousand, '$path.show_two_thousand'),
   );
 }

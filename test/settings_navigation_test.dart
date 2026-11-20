@@ -2,22 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/counter/note_counter_screen.dart';
-import 'package:khatabook/features/profile/settings_screen.dart';
 
 void main() {
-  for (final Widget screen in <Widget>[const NoteCounterScreen()]) {
-    testWidgets('${screen.runtimeType} settings gear opens and returns', (
-      tester,
-    ) async {
-      await tester.pumpWidget(MaterialApp(home: screen));
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-      expect(find.byType(SettingsScreen), findsOneWidget);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.byType(SettingsScreen), findsNothing);
-      expect(find.byType(screen.runtimeType), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-  }
+  testWidgets('the full-screen counter has no settings app bar', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: NoteCounterScreen()));
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.byTooltip('Settings'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

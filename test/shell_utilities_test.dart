@@ -68,8 +68,14 @@ void main() {
       expect(counter.store, isNotNull);
       expect(counter.khataId, 'personal');
 
-      await tapKey(tester, 'note-counter-increment');
-      await tapKey(tester, 'note-counter-increment'); // ₹500 × 2
+      final Finder fiveHundredField = find.byKey(
+        const Key('note-counter-field-50000'),
+      );
+      await tester.ensureVisible(fiveHundredField);
+      await tester.tap(fiveHundredField);
+      await tester.pump();
+      await tester.enterText(fiveHundredField, '2'); // ₹500 × 2
+      await tester.pumpAndSettle();
       final NoteCounterSnapshot saved = (await tester.runAsync(
         () => NoteCounterStore(ledger).load('personal'),
       ))!;
