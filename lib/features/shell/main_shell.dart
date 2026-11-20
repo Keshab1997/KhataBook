@@ -24,6 +24,7 @@ import '../sync/cloud_backup_screen.dart';
 import '../sync/cloud_sync.dart';
 import '../profile/profile_screen.dart';
 import '../profile/profile_store.dart';
+import '../profile/settings_screen.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({
@@ -408,6 +409,14 @@ class _MainShellState extends State<MainShell> {
         onViewAll: _viewAll,
         khataName: _activeKhata.name,
         onSwitchKhata: _switchKhata,
+        onSettings: () => Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => SettingsScreen(
+              language: _language,
+              onLanguageChanged: _changeLanguage,
+            ),
+          ),
+        ),
       );
     }
     return Scaffold(

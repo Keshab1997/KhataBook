@@ -116,6 +116,27 @@ void main() {
     });
   });
 
+  testWidgets('active khata and settings controls invoke their callbacks', (
+    tester,
+  ) async {
+    int switches = 0;
+    int settings = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: HomeScreen(
+          khataName: 'Personal Khata',
+          onSwitchKhata: () => switches++,
+          onSettings: () => settings++,
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const Key('switch-khata')));
+    expect(settings, 1);
+    expect(switches, 1);
+  });
+
   group('visual hierarchy', () {
     testWidgets('hero, totals, section header and rows read top-down', (
       WidgetTester tester,
@@ -226,7 +247,16 @@ void main() {
       expect(find.byKey(const Key('category-artwork-Food')), findsOneWidget);
       expect(find.byKey(const Key('category-artwork-Bills')), findsOneWidget);
       expect(find.byKey(const Key('category-artwork-Gifts')), findsOneWidget);
-      expect(find.byIcon(Icons.account_balance_wallet), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Image &&
+              widget.image is AssetImage &&
+              (widget.image as AssetImage).assetName ==
+                  'assets/illustrations/home_balance_wallet.png',
+        ),
+        findsOneWidget,
+      );
     });
   });
 

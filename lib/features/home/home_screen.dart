@@ -35,10 +35,12 @@ class HomeScreen extends StatelessWidget {
     this.khataName,
     this.onSwitchKhata,
     this.categoryStore,
+    this.onSettings,
   });
 
   final AppLanguage language;
   final CategoryStore? categoryStore;
+  final VoidCallback? onSettings;
 
   AppStrings get _strings => AppStrings(language);
 
@@ -80,6 +82,11 @@ class HomeScreen extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: AppColors.creamBackground,
+            image: const DecorationImage(
+              image: AssetImage('assets/illustrations/home_landscape.png'),
+              fit: BoxFit.cover,
+              alignment: Alignment.bottomCenter,
+            ),
             border: Border(
               top: BorderSide(color: AppColors.outline.withValues(alpha: 0.55)),
             ),
@@ -94,7 +101,12 @@ class HomeScreen extends StatelessWidget {
           child: FilledButton.icon(
             key: const Key('home-add-entry'),
             onPressed: onAddEntry,
-            icon: const Icon(Icons.add, size: 22),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              minimumSize: const Size.fromHeight(56),
+              shape: const StadiumBorder(),
+            ),
+            icon: const Icon(Icons.add, size: 30),
             label: Text(
               _strings.text(AppString.addNewEntry),
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
@@ -123,6 +135,7 @@ class HomeScreen extends StatelessWidget {
                         name:
                             khataName ?? _strings.text(AppString.personalKhata),
                         onTap: onSwitchKhata,
+                        onSettings: onSettings,
                       ),
                       const SizedBox(height: _cardGap),
                     ],
@@ -196,7 +209,7 @@ class HomeScreen extends StatelessWidget {
               label: _strings.text(AppString.totalIncome),
               paise: summary.totalIncomePaise,
               color: AppColors.incomeGreen,
-              icon: Icons.south_west_rounded,
+              icon: Icons.south_rounded,
               direction: _strings.text(AppString.income).toLowerCase(),
             ),
           ),
@@ -223,95 +236,115 @@ class _ActiveKhataCard extends StatelessWidget {
     required this.strings,
     required this.name,
     required this.onTap,
+    this.onSettings,
   });
 
   final AppStrings strings;
   final String name;
   final VoidCallback? onTap;
+  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      key: const Key('switch-khata'),
-      button: onTap != null,
-      enabled: onTap != null,
-      label:
-          '$name, ${strings.text(AppString.activeKhata)}${onTap == null ? '' : ', ${strings.text(AppString.tapToSwitch)}'}',
-      onTap: onTap,
-      excludeSemantics: true,
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(_cardRadius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(_cardRadius),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 60),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(_cardRadius),
-              border: Border.all(
-                color: AppColors.outline.withValues(alpha: _hairline + 0.13),
-              ),
-            ),
-            child: Row(
-              children: <Widget>[
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.menu_book,
-                    color: AppColors.primaryGreen,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Semantics(
+            key: const Key('switch-khata'),
+            button: onTap != null,
+            enabled: onTap != null,
+            label:
+                '$name, ${strings.text(AppString.activeKhata)}${onTap == null ? '' : ', ${strings.text(AppString.tapToSwitch)}'}',
+            onTap: onTap,
+            excludeSemantics: true,
+            child: Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(32),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(32),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
                     children: <Widget>[
-                      Text(
-                        strings.text(AppString.activeKhata).toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          letterSpacing: 1,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.softText,
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/illustrations/home_brand.png',
+                          width: 62,
+                          height: 62,
+                          fit: BoxFit.cover,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.darkText,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              strings.text(AppString.activeKhata).toUpperCase(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.primaryGreen,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 19,
+                                      color: AppColors.headerGreen,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: AppColors.headerGreen,
+                                ),
+                              ],
+                            ),
+                            const Text(
+                              'Plan • Track • Save',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontStyle: FontStyle.italic,
+                                fontSize: 12,
+                                color: AppColors.headerGreen,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  onTap == null
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.primaryGreen,
-                  size: 24,
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+        if (onSettings != null) ...<Widget>[
+          const SizedBox(width: 8),
+          Material(
+            color: AppColors.primaryGreen,
+            shape: const CircleBorder(),
+            child: IconButton(
+              onPressed: onSettings,
+              tooltip: 'Settings',
+              color: AppColors.onPrimary,
+              icon: const Icon(Icons.settings),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -328,118 +361,88 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
         ),
-        borderRadius: BorderRadius.circular(_cardRadius + 2),
+        borderRadius: BorderRadius.circular(32),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.golden, width: 3),
+        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.darkText.withValues(alpha: 0.18),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
+            color: AppColors.darkText.withValues(alpha: 0.16),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(_cardRadius + 2),
-        child: Stack(
-          children: <Widget>[
-            Positioned(
-              right: -34,
-              top: -44,
-              child: ExcludeSemantics(
-                child: Container(
-                  width: 134,
-                  height: 134,
-                  decoration: BoxDecoration(
-                    color: AppColors.headerGreen.withValues(alpha: 0.45),
-                    shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(30),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          child: Row(
+            children: <Widget>[
+              ExcludeSemantics(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.asset(
+                    'assets/illustrations/home_balance_wallet.png',
+                    width: 68,
+                    height: 78,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 15, 14, 15),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            const Icon(
-                              Icons.account_balance_wallet,
-                              color: AppColors.golden,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                strings.text(AppString.remainingBalance),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.onPrimary.withValues(
-                                    alpha: 0.88,
-                                  ),
-                                  fontSize: 12.5,
-                                  letterSpacing: 0.3,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            strings.money(remainingPaise),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: const TextStyle(
-                              color: AppColors.onPrimary,
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              height: 1.05,
-                              letterSpacing: -0.6,
-                            ),
-                          ),
-                        ),
-                      ],
+              Container(
+                width: 1,
+                height: 68,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: AppColors.golden,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      strings.text(AppString.remainingBalance),
+                      maxLines: 2,
+                      style: const TextStyle(
+                        color: AppColors.onPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  ExcludeSemantics(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: SizedBox(
-                        width: 84,
-                        height: 84,
-                        child: Image.asset(
-                          'assets/illustrations/home_wallet.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const ColoredBox(
-                                color: AppColors.lightGreen,
-                                child: Icon(
-                                  Icons.account_balance_wallet,
-                                  size: 44,
-                                  color: AppColors.primaryGreen,
-                                ),
-                              ),
+                    const SizedBox(height: 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        strings.money(remainingPaise),
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: AppColors.golden,
+                          fontSize: 38,
+                          fontWeight: FontWeight.w800,
+                          height: 1.05,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 4),
+              ExcludeSemantics(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/illustrations/home_balance_book.png',
+                    width: 85,
+                    height: 85,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -526,7 +529,7 @@ class _SummaryTile extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 25,
                     height: 1.1,
                     letterSpacing: -0.3,
                     fontWeight: FontWeight.w800,
@@ -647,6 +650,8 @@ class _SectionHeader extends StatelessWidget {
                 minimumSize: const Size(44, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 foregroundColor: tint,
+                backgroundColor: AppColors.lightGreen,
+                shape: const StadiumBorder(),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -704,7 +709,7 @@ class _RecentTransactionRow extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_rowRadius),
