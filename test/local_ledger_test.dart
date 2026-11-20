@@ -168,6 +168,84 @@ void main() {
     }
   });
 
+  test(
+    'v2 on-disk migration adds sync_metadata without touching data',
+    () async {
+    final Directory dir = await Directory.systemTemp.createTemp(
+      'khata_v2_migration_',
+    );
+    final File file = File('${dir.path}/ledger.sqlite');
+    try {
+      final LocalLedger ledger = LocalLedger(
+        NativeDatabase(
+          file,
+          setup: (database) {
+            database.execute('''
+              CREATE TABLE khatas (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                opening_balance_paise INTEGER NOT NULL DEFAULT 0
+                  CHECK (typeof(opening_balance_paise) = 'integer'),
+                currency TEXT NOT NULL DEFAULT 'INR',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                sync_state TEXT NOT NULL DEFAULT 'pending'
+              )
+            ''');
+            database.execute('''
+              CREATE TABLE "transactions" (
+                id TEXT PRIMARY KEY NOT NULL,
+                khata_id TEXT NOT NULL REFERENCES khatas(id),
+                type TEXT NOT NULL CHECK (type IN ('income','expense')),
+                amount_paise INTEGER NOT NULL
+                  CHECK (typeof(amount_paise) = 'integer' AND amount_paise > 0),
+                category_id TEXT NOT NULL,
+                description TEXT CHECK (description IS NULL OR length(description) <= 120),
+                occurred_at TEXT NOT NULL,
+                note_session_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                deleted_at TEXT,
+                sync_state TEXT NOT NULL DEFAULT 'pending'
+              )
+            ''');
+            database.execute('''
+              CREATE TABLE active_khata_preference (
+                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                khata_id TEXT NOT NULL
+              )
+            ''');
+            database.execute('''
+              INSERT INTO khatas
+                (id, name, opening_balance_paise, created_at, updated_at)
+              VALUES
+                ('personal', 'Personal Khata', 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+                ('biz-v2', 'Business V2', 50000, '2026-01-02T00:00:00Z', '2026-01-02T00:00:00Z')
+            ''');
+            database.execute(
+              "INSERT INTO active_khata_preference (singleton, khata_id) VALUES (1, 'biz-v2')",
+            );
+            database.execute('PRAGMA user_version = 2');
+          },
+        ),
+      );
+
+      expect(await ledger.readActiveKhataId(), 'biz-v2');
+      expect(
+        (await ledger.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        3,
+      );
+      expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
+      expect(await ledger.readPendingSyncCount(), 2);
+      await ledger.close();
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
   test('active khata defaults, persists, and rejects stale selections', () async {
     final Directory dir = await Directory.systemTemp.createTemp(
       'khata_selection_',
@@ -179,13 +257,23 @@ void main() {
       expect(
         (await ledger.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        2,
+        3,
       );
       expect(
         (await ledger
                 .customSelect(
                   "SELECT name FROM sqlite_master WHERE type = 'table' "
                   "AND name = 'active_khata_preference'",
+                )
+                .get())
+            .length,
+        1,
+      );
+      expect(
+        (await ledger
+                .customSelect(
+                  "SELECT name FROM sqlite_master WHERE type = 'table' "
+                  "AND name = 'sync_metadata'",
                 )
                 .get())
             .length,

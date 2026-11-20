@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../entry/add_entry_screen.dart';
 import '../../home/models.dart';
+import '../../sync/cloud_backend.dart';
 
 /// A local khata (one ledger) as stored in the existing `khatas` table.
 ///
@@ -84,8 +85,46 @@ class KhataNotArchivedException implements Exception {
       'KhataNotArchivedException: khata $khataId is not archived';
 }
 
+/// Persisted cloud-sync metadata stored on this device.
+///
+/// Kept in the singleton `sync_metadata` table so cursor progress, the last
+/// successful sync timestamp, the most recent sync failure reason and the
+/// account id this device last synced with survive app restarts.
+final class LocalSyncMetadata {
+  LocalSyncMetadata({
+    DateTime? cursor,
+    DateTime? lastSyncedAt,
+    this.lastError,
+    this.lastSyncedAccountId,
+  }) : cursor = cursor?.toUtc(),
+       lastSyncedAt = lastSyncedAt?.toUtc();
+
+  final DateTime? cursor;
+  final DateTime? lastSyncedAt;
+  final String? lastError;
+  final String? lastSyncedAccountId;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LocalSyncMetadata &&
+          other.cursor == cursor &&
+          other.lastSyncedAt == lastSyncedAt &&
+          other.lastError == lastError &&
+          other.lastSyncedAccountId == lastSyncedAccountId;
+
+  @override
+  int get hashCode =>
+      Object.hash(cursor, lastSyncedAt, lastError, lastSyncedAccountId);
+
+  @override
+  String toString() =>
+      'LocalSyncMetadata(cursor: $cursor, lastSyncedAt: $lastSyncedAt, '
+      'lastError: $lastError, lastSyncedAccountId: $lastSyncedAccountId)';
+}
+
 /// A single local database. The SQL schema is also exercised independently
-/// by tests/test_ledger_schema.py. Sync is deliberately not implemented here.
+/// by tests/test_ledger_schema.py.
 class LocalLedger extends GeneratedDatabase {
   LocalLedger(super.executor);
 
@@ -103,8 +142,22 @@ class LocalLedger extends GeneratedDatabase {
   /// spec does not, and an out-of-range value would break totals later.
   static const int _maxOpeningBalancePaise = 99999999999;
 
+  /// Monotonically increasing UTC timestamp helper so rapid local mutations
+  /// within the same millisecond still strictly advance `updated_at`.
+  DateTime? _lastWriteInstantUtc;
+
+  String _nextUtcIso8601() {
+    DateTime candidate = DateTime.now().toUtc();
+    final DateTime? previous = _lastWriteInstantUtc;
+    if (previous != null && !candidate.isAfter(previous)) {
+      candidate = previous.add(const Duration(microseconds: 1));
+    }
+    _lastWriteInstantUtc = candidate;
+    return candidate.toIso8601String();
+  }
+
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
@@ -124,9 +177,11 @@ class LocalLedger extends GeneratedDatabase {
         if (statement.trim().isNotEmpty) await customStatement(statement);
       }
       await _createActiveKhataPreferenceTable();
+      await _createSyncMetadataTable();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 2) await _createActiveKhataPreferenceTable();
+      if (from < 3) await _createSyncMetadataTable();
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -138,6 +193,17 @@ class LocalLedger extends GeneratedDatabase {
       'CREATE TABLE IF NOT EXISTS active_khata_preference ('
       'singleton INTEGER PRIMARY KEY CHECK (singleton = 1), '
       'khata_id TEXT NOT NULL)',
+    );
+  }
+
+  Future<void> _createSyncMetadataTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS sync_metadata ('
+      'singleton INTEGER PRIMARY KEY CHECK (singleton = 1), '
+      'cursor TEXT, '
+      'last_synced_at TEXT, '
+      'last_error TEXT, '
+      'last_synced_account_id TEXT)',
     );
   }
 
@@ -186,9 +252,10 @@ class LocalLedger extends GeneratedDatabase {
   /// default row, so the personal khata stays empty/zero on a fresh install and
   /// keeps every existing entry on later launches.
   Future<void> initialize() async {
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     await customStatement(
-      'INSERT OR IGNORE INTO khatas (id, name, opening_balance_paise, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO khatas (id, name, opening_balance_paise, '
+      "created_at, updated_at, sync_state) VALUES (?, ?, ?, ?, ?, 'pending')",
       <Object>[_defaultKhata, 'Personal Khata', 0, now, now],
     );
   }
@@ -251,9 +318,10 @@ class LocalLedger extends GeneratedDatabase {
       );
     }
     final String id = _uuid.v4();
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     await customStatement(
-      'INSERT INTO khatas (id, name, opening_balance_paise, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO khatas (id, name, opening_balance_paise, created_at, '
+      "updated_at, sync_state) VALUES (?, ?, ?, ?, ?, 'pending')",
       <Object>[id, trimmedName, openingBalancePaise, now, now],
     );
     return LocalKhata(
@@ -286,7 +354,7 @@ class LocalLedger extends GeneratedDatabase {
     required String name,
   }) async {
     final String trimmedName = _validateKhataName(name);
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     return transaction<LocalKhata>(() async {
       final LocalKhata? khata = await _findActiveKhata(khataId);
       if (khata == null) throw KhataNotFoundException(khataId);
@@ -336,7 +404,7 @@ class LocalLedger extends GeneratedDatabase {
     if (khataId == _defaultKhata) {
       throw const KhataPersonalArchiveException(_defaultKhata);
     }
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     await transaction(() async {
       if (await _findActiveKhata(khataId) == null) {
         throw KhataNotFoundException(khataId);
@@ -383,7 +451,7 @@ class LocalLedger extends GeneratedDatabase {
   /// [KhataNotFoundException] for an unknown id and [KhataNotArchivedException]
   /// for a khata that is already active; nothing is written in either case.
   Future<void> unarchiveKhata({required String khataId}) async {
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     await transaction(() async {
       final List<QueryRow> archived = await customSelect(
         'SELECT id FROM khatas WHERE id = ? AND deleted_at IS NOT NULL',
@@ -472,7 +540,7 @@ class LocalLedger extends GeneratedDatabase {
     String khataId = 'personal',
   }) async {
     final String description = _validateEntry(entry);
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     // One transaction so the existence check and the insert cannot be
     // interleaved with a tombstone written elsewhere.
     await transaction(() async {
@@ -480,7 +548,9 @@ class LocalLedger extends GeneratedDatabase {
         throw KhataNotFoundException(khataId);
       }
       await customStatement(
-        'INSERT INTO "transactions" (id, khata_id, type, amount_paise, category_id, description, occurred_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO "transactions" (id, khata_id, type, amount_paise, '
+        'category_id, description, occurred_at, created_at, updated_at, '
+        'sync_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         <Object?>[
           _uuid.v4(),
           khataId,
@@ -491,6 +561,7 @@ class LocalLedger extends GeneratedDatabase {
           entry.occurredAt.toUtc().toIso8601String(),
           now,
           now,
+          'pending',
         ],
       );
     });
@@ -594,7 +665,7 @@ class LocalLedger extends GeneratedDatabase {
     String khataId,
     Future<int> Function(String nowUtc) statement,
   ) async {
-    final String now = DateTime.now().toUtc().toIso8601String();
+    final String now = _nextUtcIso8601();
     return transaction(() async {
       // A tombstoned or unknown khata is inactive: report false and never let a
       // restore resurrect an entry inside a deleted khata.
@@ -637,4 +708,496 @@ class LocalLedger extends GeneratedDatabase {
     ).get();
     return rows.isEmpty ? null : _khataFromRow(rows.single);
   }
+
+  // ---------------------------------------------------------------------------
+  // Cloud sync support (B5)
+  // ---------------------------------------------------------------------------
+
+  /// Total number of khata and transaction rows waiting to be pushed
+  /// (`sync_state = 'pending'`).
+  Future<int> readPendingSyncCount() async {
+    final QueryRow row = await customSelect(
+      'SELECT '
+      "  (SELECT COUNT(*) FROM khatas WHERE sync_state = 'pending') + "
+      "  (SELECT COUNT(*) FROM \"transactions\" WHERE sync_state = 'pending') "
+      'AS pending_count',
+    ).getSingle();
+    return row.read<int>('pending_count');
+  }
+
+  /// Reads pending khata rows (`sync_state = 'pending'`) in deterministic order
+  /// so they can be pushed before dependent transactions.
+  Future<List<CloudKhataRow>> readPendingKhatas({int? limit}) async {
+    final String limitClause = limit == null ? '' : ' LIMIT ?';
+    final List<QueryRow> rows = await customSelect(
+      'SELECT id, name, opening_balance_paise, currency, sort_order, '
+      'created_at, updated_at, deleted_at FROM khatas '
+      "WHERE sync_state = 'pending' "
+      'ORDER BY created_at ASC, id ASC$limitClause',
+      variables: <Variable<Object>>[if (limit != null) Variable<int>(limit)],
+    ).get();
+    return List<CloudKhataRow>.unmodifiable(rows.map(_cloudKhataFromRow));
+  }
+
+  /// Reads pending transaction rows (`sync_state = 'pending'`) in deterministic
+  /// order.
+  Future<List<CloudTransactionRow>> readPendingTransactions({
+    int? limit,
+  }) async {
+    final String limitClause = limit == null ? '' : ' LIMIT ?';
+    final List<QueryRow> rows = await customSelect(
+      'SELECT id, khata_id, type, amount_paise, category_id, description, '
+      'occurred_at, note_session_id, created_at, updated_at, deleted_at '
+      'FROM "transactions" '
+      "WHERE sync_state = 'pending' "
+      'ORDER BY created_at ASC, id ASC$limitClause',
+      variables: <Variable<Object>>[if (limit != null) Variable<int>(limit)],
+    ).get();
+    return List<CloudTransactionRow>.unmodifiable(
+      rows.map(_cloudTransactionFromRow),
+    );
+  }
+
+  /// Marks each khata in [pushed] as `synced` **only** if its local
+  /// `updated_at` has not changed since it was read for push. Returns how many
+  /// rows transitioned to `synced`.
+  Future<int> markKhatasSyncedIfUnchanged(
+    Iterable<CloudKhataRow> pushed,
+  ) async {
+    return transaction<int>(() async {
+      int marked = 0;
+      for (final CloudKhataRow row in pushed) {
+        final String expectedUpdatedAt = row.updatedAt
+            .toUtc()
+            .toIso8601String();
+        final List<QueryRow> existing = await customSelect(
+          'SELECT updated_at, sync_state FROM khatas WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(row.id)],
+        ).get();
+        if (existing.isEmpty) continue;
+        final DateTime currentUpdatedAt = DateTime.parse(
+          existing.single.read<String>('updated_at'),
+        ).toUtc();
+        if (!currentUpdatedAt.isAtSameMomentAs(row.updatedAt)) continue;
+        final int changed = await customUpdate(
+          "UPDATE khatas SET sync_state = 'synced' "
+          "WHERE id = ? AND updated_at = ? AND sync_state = 'pending'",
+          variables: <Variable<Object>>[
+            Variable<String>(row.id),
+            Variable<String>(expectedUpdatedAt),
+          ],
+        );
+        if (changed == 0 &&
+            existing.single.read<String>('sync_state') == 'pending') {
+          // Handle equivalent UTC formatting differences (e.g. `.000Z` vs `Z`)
+          // when the instant itself is identical.
+          marked += await customUpdate(
+            "UPDATE khatas SET sync_state = 'synced' "
+            "WHERE id = ? AND updated_at = ? AND sync_state = 'pending'",
+            variables: <Variable<Object>>[
+              Variable<String>(row.id),
+              Variable<String>(existing.single.read<String>('updated_at')),
+            ],
+          );
+        } else {
+          marked += changed;
+        }
+      }
+      return marked;
+    });
+  }
+
+  /// Marks each transaction in [pushed] as `synced` **only** if its local
+  /// `updated_at` has not changed since it was read for push. Returns how many
+  /// rows transitioned to `synced`.
+  Future<int> markTransactionsSyncedIfUnchanged(
+    Iterable<CloudTransactionRow> pushed,
+  ) async {
+    return transaction<int>(() async {
+      int marked = 0;
+      for (final CloudTransactionRow row in pushed) {
+        final String expectedUpdatedAt = row.updatedAt
+            .toUtc()
+            .toIso8601String();
+        final List<QueryRow> existing = await customSelect(
+          'SELECT updated_at, sync_state FROM "transactions" WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(row.id)],
+        ).get();
+        if (existing.isEmpty) continue;
+        final DateTime currentUpdatedAt = DateTime.parse(
+          existing.single.read<String>('updated_at'),
+        ).toUtc();
+        if (!currentUpdatedAt.isAtSameMomentAs(row.updatedAt)) continue;
+        final int changed = await customUpdate(
+          "UPDATE \"transactions\" SET sync_state = 'synced' "
+          "WHERE id = ? AND updated_at = ? AND sync_state = 'pending'",
+          variables: <Variable<Object>>[
+            Variable<String>(row.id),
+            Variable<String>(expectedUpdatedAt),
+          ],
+        );
+        if (changed == 0 &&
+            existing.single.read<String>('sync_state') == 'pending') {
+          marked += await customUpdate(
+            "UPDATE \"transactions\" SET sync_state = 'synced' "
+            "WHERE id = ? AND updated_at = ? AND sync_state = 'pending'",
+            variables: <Variable<Object>>[
+              Variable<String>(row.id),
+              Variable<String>(existing.single.read<String>('updated_at')),
+            ],
+          );
+        } else {
+          marked += changed;
+        }
+      }
+      return marked;
+    });
+  }
+
+  /// Applies remote khata rows in a single transaction using the B5 conflict
+  /// rules:
+  /// * Unknown `id` -> inserted with `sync_state = 'synced'`.
+  /// * Remote `updated_at` newer than local -> applied with
+  ///   `sync_state = 'synced'` (never hard-deleting; archives set or clear
+  ///   `deleted_at`, except the mandatory `personal` khata is kept active if
+  ///   a corrupt remote tombstone ever arrives).
+  /// * Local row is newer (including a newer `pending` local edit) -> kept
+  ///   untouched.
+  /// * Equal `updated_at` tie -> a tombstone wins (`deleted_at != null` beats
+  ///   `deleted_at == null`); if local is `pending` and has identical content
+  ///   to the remote row, it transitions to `synced`.
+  Future<int> applyRemoteKhatas(Iterable<CloudKhataRow> remoteRows) async {
+    return transaction<int>(() async {
+      int applied = 0;
+      for (final CloudKhataRow incoming in remoteRows) {
+        final DateTime? incomingDeletedAt = incoming.id == _defaultKhata
+            ? null
+            : incoming.deletedAt;
+        final CloudKhataRow normalized = incoming.copyWith(
+          deletedAt: incomingDeletedAt,
+        );
+        final List<QueryRow> existingRows = await customSelect(
+          'SELECT id, name, opening_balance_paise, currency, sort_order, '
+          'created_at, updated_at, deleted_at, sync_state '
+          'FROM khatas WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(normalized.id)],
+        ).get();
+
+        if (existingRows.isEmpty) {
+          await customStatement(
+            'INSERT INTO khatas (id, name, opening_balance_paise, currency, '
+            'sort_order, created_at, updated_at, deleted_at, sync_state) '
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'synced')",
+            <Object?>[
+              normalized.id,
+              normalized.name,
+              normalized.openingBalancePaise,
+              normalized.currency,
+              normalized.sortOrder,
+              normalized.createdAt.toIso8601String(),
+              normalized.updatedAt.toIso8601String(),
+              normalized.deletedAt?.toIso8601String(),
+            ],
+          );
+          applied++;
+          continue;
+        }
+
+        final QueryRow localRow = existingRows.single;
+        final CloudKhataRow local = _cloudKhataFromRow(localRow);
+        final String localSyncState = localRow.read<String>('sync_state');
+
+        if (_shouldApplyRemote(
+          localUpdatedAt: local.updatedAt,
+          localIsTombstone: local.deletedAt != null,
+          localIsPending: localSyncState == 'pending',
+          localMatchesRemote: local.sameContentAs(normalized),
+          remoteUpdatedAt: normalized.updatedAt,
+          remoteIsTombstone: normalized.deletedAt != null,
+        )) {
+          await customStatement(
+            'UPDATE khatas SET name = ?, opening_balance_paise = ?, '
+            'currency = ?, sort_order = ?, created_at = ?, updated_at = ?, '
+            "deleted_at = ?, sync_state = 'synced' WHERE id = ?",
+            <Object?>[
+              normalized.name,
+              normalized.openingBalancePaise,
+              normalized.currency,
+              normalized.sortOrder,
+              normalized.createdAt.toIso8601String(),
+              normalized.updatedAt.toIso8601String(),
+              normalized.deletedAt?.toIso8601String(),
+              normalized.id,
+            ],
+          );
+          if (normalized.deletedAt != null) {
+            await _reconcileSelectionAfterRemoteArchive(normalized.id);
+          }
+          applied++;
+        }
+      }
+      return applied;
+    });
+  }
+
+  /// Applies remote transaction rows in a single transaction using the B5
+  /// conflict rules:
+  /// * Unknown `id` -> inserted with `sync_state = 'synced'` when its khata
+  ///   exists locally.
+  /// * Newer `updated_at` wins; on a tie, a tombstone stays; newer local
+  ///   `pending` rows are never overwritten; applied rows become `synced`;
+  ///   rows are never hard-deleted.
+  Future<int> applyRemoteTransactions(
+    Iterable<CloudTransactionRow> remoteRows,
+  ) async {
+    return transaction<int>(() async {
+      int applied = 0;
+      for (final CloudTransactionRow incoming in remoteRows) {
+        final List<QueryRow> khataExists = await customSelect(
+          'SELECT id FROM khatas WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(incoming.khataId)],
+        ).get();
+        if (khataExists.isEmpty) continue;
+
+        final List<QueryRow> existingRows = await customSelect(
+          'SELECT id, khata_id, type, amount_paise, category_id, description, '
+          'occurred_at, note_session_id, created_at, updated_at, deleted_at, '
+          'sync_state FROM "transactions" WHERE id = ?',
+          variables: <Variable<Object>>[Variable<String>(incoming.id)],
+        ).get();
+
+        if (existingRows.isEmpty) {
+          await customStatement(
+            'INSERT INTO "transactions" (id, khata_id, type, amount_paise, '
+            'category_id, description, occurred_at, note_session_id, '
+            'created_at, updated_at, deleted_at, sync_state) '
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')",
+            <Object?>[
+              incoming.id,
+              incoming.khataId,
+              incoming.type.wireValue,
+              incoming.amountPaise,
+              incoming.categoryId,
+              incoming.description,
+              incoming.occurredAt.toIso8601String(),
+              incoming.noteSessionId,
+              incoming.createdAt.toIso8601String(),
+              incoming.updatedAt.toIso8601String(),
+              incoming.deletedAt?.toIso8601String(),
+            ],
+          );
+          applied++;
+          continue;
+        }
+
+        final QueryRow localRow = existingRows.single;
+        final CloudTransactionRow local = _cloudTransactionFromRow(localRow);
+        final String localSyncState = localRow.read<String>('sync_state');
+
+        if (_shouldApplyRemote(
+          localUpdatedAt: local.updatedAt,
+          localIsTombstone: local.deletedAt != null,
+          localIsPending: localSyncState == 'pending',
+          localMatchesRemote: local.sameContentAs(incoming),
+          remoteUpdatedAt: incoming.updatedAt,
+          remoteIsTombstone: incoming.deletedAt != null,
+        )) {
+          await customStatement(
+            'UPDATE "transactions" SET khata_id = ?, type = ?, '
+            'amount_paise = ?, category_id = ?, description = ?, '
+            'occurred_at = ?, note_session_id = ?, created_at = ?, '
+            "updated_at = ?, deleted_at = ?, sync_state = 'synced' "
+            'WHERE id = ?',
+            <Object?>[
+              incoming.khataId,
+              incoming.type.wireValue,
+              incoming.amountPaise,
+              incoming.categoryId,
+              incoming.description,
+              incoming.occurredAt.toIso8601String(),
+              incoming.noteSessionId,
+              incoming.createdAt.toIso8601String(),
+              incoming.updatedAt.toIso8601String(),
+              incoming.deletedAt?.toIso8601String(),
+              incoming.id,
+            ],
+          );
+          applied++;
+        }
+      }
+      return applied;
+    });
+  }
+
+  /// Reads the persisted sync cursor, last synced time, last error and last
+  /// synced account id. Returns an all-null [LocalSyncMetadata] before the
+  /// first sync.
+  Future<LocalSyncMetadata> readSyncMetadata() async {
+    final List<QueryRow> rows = await customSelect(
+      'SELECT cursor, last_synced_at, last_error, last_synced_account_id '
+      'FROM sync_metadata WHERE singleton = 1',
+    ).get();
+    if (rows.isEmpty) return LocalSyncMetadata();
+    final QueryRow row = rows.single;
+    final String? cursorRaw = row.readNullable<String>('cursor');
+    final String? lastSyncedRaw = row.readNullable<String>('last_synced_at');
+    return LocalSyncMetadata(
+      cursor: cursorRaw == null ? null : DateTime.parse(cursorRaw).toUtc(),
+      lastSyncedAt: lastSyncedRaw == null
+          ? null
+          : DateTime.parse(lastSyncedRaw).toUtc(),
+      lastError: row.readNullable<String>('last_error'),
+      lastSyncedAccountId: row.readNullable<String>('last_synced_account_id'),
+    );
+  }
+
+  /// Updates selected fields of the singleton `sync_metadata` row. Unspecified
+  /// fields preserve their existing stored values.
+  Future<void> writeSyncMetadata({
+    Object? cursor = _keepExistingValue,
+    Object? lastSyncedAt = _keepExistingValue,
+    Object? lastError = _keepExistingValue,
+    Object? lastSyncedAccountId = _keepExistingValue,
+  }) async {
+    await transaction(() async {
+      final LocalSyncMetadata current = await readSyncMetadata();
+      final DateTime? nextCursor = identical(cursor, _keepExistingValue)
+          ? current.cursor
+          : (cursor as DateTime?)?.toUtc();
+      final DateTime? nextLastSyncedAt =
+          identical(lastSyncedAt, _keepExistingValue)
+          ? current.lastSyncedAt
+          : (lastSyncedAt as DateTime?)?.toUtc();
+      final String? nextLastError = identical(lastError, _keepExistingValue)
+          ? current.lastError
+          : lastError as String?;
+      final String? nextAccountId =
+          identical(lastSyncedAccountId, _keepExistingValue)
+          ? current.lastSyncedAccountId
+          : lastSyncedAccountId as String?;
+
+      await customStatement(
+        'INSERT INTO sync_metadata (singleton, cursor, last_synced_at, '
+        'last_error, last_synced_account_id) VALUES (1, ?, ?, ?, ?) '
+        'ON CONFLICT(singleton) DO UPDATE SET '
+        'cursor = excluded.cursor, '
+        'last_synced_at = excluded.last_synced_at, '
+        'last_error = excluded.last_error, '
+        'last_synced_account_id = excluded.last_synced_account_id',
+        <Object?>[
+          nextCursor?.toIso8601String(),
+          nextLastSyncedAt?.toIso8601String(),
+          nextLastError,
+          nextAccountId,
+        ],
+      );
+    });
+  }
+
+  /// Re-marks all local khatas and transactions as `pending` and resets the
+  /// pull cursor when the user explicitly confirms syncing with a different
+  /// cloud account than the one this device previously synced with.
+  Future<void> prepareForAccountSwitch(String newAccountId) async {
+    final String trimmed = newAccountId.trim();
+    if (trimmed.isEmpty) {
+      throw ArgumentError.value(
+        newAccountId,
+        'newAccountId',
+        'must not be blank',
+      );
+    }
+    await transaction(() async {
+      await customStatement("UPDATE khatas SET sync_state = 'pending'");
+      await customStatement(
+        'UPDATE "transactions" SET sync_state = ?',
+        <Object>['pending'],
+      );
+      await writeSyncMetadata(
+        cursor: null,
+        lastSyncedAt: null,
+        lastError: null,
+        lastSyncedAccountId: trimmed,
+      );
+    });
+  }
+
+  Future<void> _reconcileSelectionAfterRemoteArchive(String khataId) async {
+    final List<QueryRow> selected = await customSelect(
+      'SELECT khata_id FROM active_khata_preference WHERE singleton = 1',
+    ).get();
+    final bool wasSelected =
+        selected.isNotEmpty &&
+        selected.single.read<String>('khata_id') == khataId;
+    if (!wasSelected) return;
+    if (await _findActiveKhata(_defaultKhata) != null) {
+      await _writeActiveKhataId(_defaultKhata);
+    } else {
+      await customStatement(
+        'DELETE FROM active_khata_preference WHERE singleton = 1',
+      );
+    }
+  }
+
+  static bool _shouldApplyRemote({
+    required DateTime localUpdatedAt,
+    required bool localIsTombstone,
+    required bool localIsPending,
+    required bool localMatchesRemote,
+    required DateTime remoteUpdatedAt,
+    required bool remoteIsTombstone,
+  }) {
+    if (remoteUpdatedAt.isAfter(localUpdatedAt)) {
+      return true;
+    }
+    if (remoteUpdatedAt.isBefore(localUpdatedAt)) {
+      return false;
+    }
+    // Tie on updated_at: a tombstone always stays/wins.
+    if (localIsTombstone && !remoteIsTombstone) {
+      return false;
+    }
+    if (remoteIsTombstone && !localIsTombstone) {
+      return true;
+    }
+    // Both live or both tombstoned at the exact same instant:
+    // never overwrite a divergent pending local row, but if content already
+    // matches (or local is already synced), apply/settle as synced.
+    if (localIsPending && !localMatchesRemote) {
+      return false;
+    }
+    return !localMatchesRemote || localIsPending;
+  }
+
+  static CloudKhataRow _cloudKhataFromRow(QueryRow row) {
+    final String? deletedRaw = row.readNullable<String>('deleted_at');
+    return CloudKhataRow(
+      id: row.read<String>('id'),
+      name: row.read<String>('name'),
+      openingBalancePaise: row.read<int>('opening_balance_paise'),
+      currency: row.read<String>('currency'),
+      sortOrder: row.read<int>('sort_order'),
+      createdAt: DateTime.parse(row.read<String>('created_at')).toUtc(),
+      updatedAt: DateTime.parse(row.read<String>('updated_at')).toUtc(),
+      deletedAt: deletedRaw == null ? null : DateTime.parse(deletedRaw).toUtc(),
+    );
+  }
+
+  static CloudTransactionRow _cloudTransactionFromRow(QueryRow row) {
+    final String? deletedRaw = row.readNullable<String>('deleted_at');
+    return CloudTransactionRow(
+      id: row.read<String>('id'),
+      khataId: row.read<String>('khata_id'),
+      type: CloudTransactionType.fromWire(row.read<String>('type')),
+      amountPaise: row.read<int>('amount_paise'),
+      categoryId: row.read<String>('category_id'),
+      description: row.readNullable<String>('description'),
+      occurredAt: DateTime.parse(row.read<String>('occurred_at')).toUtc(),
+      noteSessionId: row.readNullable<String>('note_session_id'),
+      createdAt: DateTime.parse(row.read<String>('created_at')).toUtc(),
+      updatedAt: DateTime.parse(row.read<String>('updated_at')).toUtc(),
+      deletedAt: deletedRaw == null ? null : DateTime.parse(deletedRaw).toUtc(),
+    );
+  }
 }
+
+const Object _keepExistingValue = Object();
