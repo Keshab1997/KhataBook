@@ -87604,7 +87604,7 @@ afv(a){var s=A.aQp(a)
 if(B.d.oj(s,".0"))return B.d.a6(s,0,s.length-2)
 return s}}
 A.aiO.prototype={
-$2(a6,a7){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b=null,a=a7.d,a0=a<640,a1=a0?10:14,a2=a0?12:16,a3=a0?100:150,a4=a0?110:140,a5=(a7.b-32-a1*3)/4
+$2(a6,a7){var s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b=null,a=a7.d,a0=a<640,a1=a0?10:14,a2=a0?12:16,a3=a0?104:150,a4=a0?110:140,a5=(a7.b-32-a1*3)/4
 a-=a2*2
 s=(a-a3-a1*5)/5
 r=a5<s?a5:s
