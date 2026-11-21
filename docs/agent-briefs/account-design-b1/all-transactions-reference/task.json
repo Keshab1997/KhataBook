@@ -1,0 +1,18 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "all-transactions-reference",
+  "allowed": [
+    "lib/features/ledger/all_transactions_screen.dart",
+    "test/all_transactions_test.dart",
+    "test/ledger_language_test.dart",
+    "test/all_transactions_design_test.dart"
+  ],
+  "commit": "feat(ledger): redesign all transactions to reference style",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/all_transactions_design_test.dart"
+  },
+  "base_sha": "54bcdb8750c3c56b1eb2e9559c7ce54043e8862e"
+}
