@@ -435,6 +435,35 @@ void main() {
       expect(find.text('Server temporarily unavailable'), findsOneWidget);
     });
 
+    testWidgets('syncing is a calm static panel, never a spinner', (
+      WidgetTester tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        AccountCard(
+          status: SyncStatus.syncing(
+            userEmail: 'keshab@example.com',
+            pendingCount: 1,
+          ),
+        ),
+      );
+
+      expect(find.text('Syncing'), findsOneWidget);
+      // Nothing on the card spins: no indeterminate animation, no dialog.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+
+      // The state is named inside one light-green panel.
+      final Container panel = tester.widget<Container>(
+        find.byKey(const Key('account-card-syncing-panel')),
+      );
+      final BoxDecoration decoration = panel.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.lightGreen);
+      expect(decoration.borderRadius, BorderRadius.circular(14));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets(
       'syncing state stays inline at 320dp / 200% with no progress dialog',
       (WidgetTester tester) async {

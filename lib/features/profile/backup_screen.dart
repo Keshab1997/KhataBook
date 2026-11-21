@@ -500,14 +500,30 @@ class _BackupScreenContentState extends State<BackupScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text(
-                                _summary(),
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.darkText,
-                                ),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 1),
+                                    child: Icon(
+                                      Icons.insert_drive_file_outlined,
+                                      size: 16,
+                                      color: AppColors.primaryGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _summary(),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        height: 1.35,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.darkText,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               if (_hasDetails(_preview!))
                                 Padding(
@@ -549,14 +565,48 @@ class _BackupScreenContentState extends State<BackupScreen> {
                 ],
                 if (_isPending) ...<Widget>[
                   const SizedBox(height: 16),
-                  const Center(
-                    child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: AppColors.primaryGreen,
-                      ),
+                  // A calm, static working panel: the flow is short and the
+                  // buttons already show it is running, so the screen never
+                  // turns into a spinner with the content behind it.
+                  Container(
+                    key: const Key('backup-working-panel'),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.lightGreen,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.sync,
+                            size: 18,
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _stepTitle(
+                              en:
+                                  'Working… keep this screen open until it '
+                                  'finishes.',
+                              bn:
+                                  'কাজ চলছে… শেষ হওয়া পর্যন্ত এই স্ক্রিনটি '
+                                  'খোলা রাখুন।',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

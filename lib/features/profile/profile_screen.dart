@@ -1052,8 +1052,10 @@ class _InfoRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     value,
+                    // The value is this row's title-equivalent, so it carries
+                    // the same 15 dp / w700 heading used by the menu rows.
                     style: const TextStyle(
-                      fontSize: 14.5,
+                      fontSize: 15,
                       height: 1.3,
                       fontWeight: FontWeight.w700,
                       color: AppColors.darkText,

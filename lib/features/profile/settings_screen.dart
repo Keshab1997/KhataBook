@@ -616,8 +616,10 @@ class _ValueChip extends StatelessWidget {
       ),
       child: Text(
         label,
+        // Same pill type scale as the profile status chips and the sync card,
+        // so a "value + reason" reads the same on every settings-like screen.
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 11.5,
           height: 1.2,
           fontWeight: FontWeight.w700,
           color: highlighted ? AppColors.primaryGreen : AppColors.softText,

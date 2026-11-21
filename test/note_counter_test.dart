@@ -220,6 +220,56 @@ void main() {
     });
   });
 
+  group('row focus and total panel', () {
+    testWidgets('the row being typed into shows a clear focus edge', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      Border borderOf(int denominationPaise) {
+        final AnimatedContainer row = tester.widget<AnimatedContainer>(
+          find.byKey(Key('note-counter-row-$denominationPaise')),
+        );
+        return (row.decoration! as BoxDecoration).border! as Border;
+      }
+
+      // Idle rows carry the quiet accent edge, never the focus colour.
+      expect(borderOf(50000).top.color, isNot(AppColors.primaryGreen));
+      expect(borderOf(20000).top.color, isNot(AppColors.primaryGreen));
+
+      await typeFiveHundreds(tester, '2');
+
+      // Exactly one row is the one being counted, and it says so.
+      expect(borderOf(50000).top.color, AppColors.primaryGreen);
+      expect(borderOf(50000).top.width, greaterThan(borderOf(20000).top.width));
+      expect(borderOf(20000).top.color, isNot(AppColors.primaryGreen));
+      // The focused row still keeps the shared ivory fill.
+      final AnimatedContainer focused = tester.widget<AnimatedContainer>(
+        find.byKey(const Key('note-counter-row-50000')),
+      );
+      expect((focused.decoration! as BoxDecoration).color, AppColors.warmIvory);
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('the Grand Total panel is one calm, flat card', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester);
+
+      // A quiet light-green panel with no gradient: the amount is emphasised by
+      // type, not by a loud background.
+      final Container panel = tester.widget<Container>(
+        find.byKey(const Key('note-counter-grand-total')),
+      );
+      final BoxDecoration decoration = panel.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.lightGreen);
+      expect(decoration.gradient, isNull);
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+      expect((decoration.border! as Border).top.width, 1);
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('initial state', () {
     testWidgets('starts empty with a zero grand total', (
       WidgetTester tester,

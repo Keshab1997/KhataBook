@@ -200,7 +200,7 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
-          top: 12,
+          top: 10,
           // Keep clear of the keyboard/home indicator without hiding the list.
           bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
         ),
@@ -210,7 +210,7 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
           children: <Widget>[
             Center(
               child: Container(
-                width: 36,
+                width: 40,
                 height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.beige,
@@ -219,14 +219,16 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
               ),
             ),
             const SizedBox(height: 14),
+            // Same header shape as a settings row: a rounded-square icon
+            // badge, then the title.
             Row(
               children: <Widget>[
                 Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
                     color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.bookmark_outline,
@@ -234,7 +236,7 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                     color: AppColors.primaryGreen,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 // Expanded so a long or scaled-up title wraps instead of
                 // overflowing a narrow phone.
                 Expanded(
@@ -243,21 +245,26 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
+                      height: 1.25,
                       color: AppColors.darkText,
                     ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, thickness: 1, color: AppColors.outline),
             const SizedBox(height: 10),
-            const Divider(height: 1, color: AppColors.beige),
-            const SizedBox(height: 8),
             Flexible(child: _buildBody(strings, copy)),
             const SizedBox(height: 10),
             Text(
               copy.backupNote,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, color: AppColors.softText),
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.25,
+                color: AppColors.softText,
+              ),
             ),
           ],
         ),
@@ -301,15 +308,15 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Container(
-                  width: 64,
-                  height: 64,
-                  decoration: const BoxDecoration(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
                     color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: const Icon(
                     Icons.bookmark_border,
-                    size: 30,
+                    size: 28,
                     color: AppColors.primaryGreen,
                   ),
                 ),
@@ -318,8 +325,9 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                   copy.empty,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.darkText,
                   ),
                 ),
@@ -328,7 +336,8 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                   copy.emptyHelp,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
+                    height: 1.4,
                     color: AppColors.softText,
                   ),
                 ),
@@ -343,7 +352,7 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
           shrinkWrap: true,
           itemCount: _sessions.length,
           separatorBuilder: (BuildContext context, int index) =>
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
           itemBuilder: (BuildContext context, int index) {
             final SavedNoteCount session = _sessions[index];
             final DateTime local = session.savedAt.toLocal();
@@ -351,19 +360,19 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
               color: AppColors.warmIvory,
               clipBehavior: Clip.antiAlias,
               shape: RoundedRectangleBorder(
-                borderRadius: const BorderRadius.all(Radius.circular(14)),
-                side: const BorderSide(color: AppColors.beige),
+                borderRadius: const BorderRadius.all(Radius.circular(16)),
+                side: const BorderSide(color: AppColors.outline),
               ),
               child: ListTile(
                 key: Key('saved-session-${session.id}'),
                 onTap: () => _restore(session),
-                contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                contentPadding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
                 leading: Container(
                   width: 36,
                   height: 36,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.lightGreen,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
                     Icons.history_toggle_off,
@@ -374,8 +383,9 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                 title: Text(
                   strings.dateTime(local),
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w700,
+                    height: 1.3,
                     color: AppColors.darkText,
                   ),
                 ),
@@ -383,7 +393,8 @@ class _SavedSessionsSheetState extends State<SavedSessionsSheet> {
                   '${strings.text(AppString.grandTotal)}: '
                   '${strings.money(session.totalPaise)}',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
+                    height: 1.3,
                     color: AppColors.softText,
                   ),
                 ),

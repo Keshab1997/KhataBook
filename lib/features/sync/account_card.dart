@@ -27,8 +27,9 @@ List<BoxShadow> _cardShadow() => <BoxShadow>[
 ///   (`Up to date` / `Waiting to sync`), `Last synced …`, `N pending`,
 ///   **Back up now**, and **Log out** in [AppColors.expenseRed] behind a
 ///   confirmation dialog;
-/// * **syncing** (`SyncStateKind.syncing`) — non-blocking thin progress bar and
-///   inline status text on the card;
+/// * **syncing** (`SyncStateKind.syncing`) — a calm `lightGreen` panel with the
+///   state text and the reassurance that the app stays usable: nothing on the
+///   card animates or blocks, so the screen is never a waiting room;
 /// * **error** (`SyncStateKind.error`) — red status pill, failure reason,
 ///   `N pending`, **Retry** and **Log out**.
 ///
@@ -352,8 +353,8 @@ class _AccountCardState extends State<AccountCard> {
         _CardHeader(
           badge: const _LeadingBadge(
             icon: Icons.cloud_off_outlined,
-            iconColor: AppColors.primaryGreen,
-            backgroundColor: AppColors.lightGreen,
+            iconColor: AppColors.softText,
+            backgroundColor: AppColors.creamBackground,
           ),
           title: _pair('Local-only mode', 'শুধু ফোনে সংরক্ষিত'),
           pill: _StatusPill(
@@ -461,6 +462,10 @@ class _AccountCardState extends State<AccountCard> {
             label: Text(_pair('Back up now', 'এখন ব্যাকআপ নিন')),
           ),
         ],
+        if (_busyAction) ...<Widget>[
+          const SizedBox(height: 10),
+          _WorkingNote(label: _pair('Working…', 'কাজ চলছে…')),
+        ],
         const SizedBox(height: 10),
         _buildLogoutButton(),
       ],
@@ -488,29 +493,61 @@ class _AccountCardState extends State<AccountCard> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            _pair(
-              'Syncing with cloud backup…',
-              'ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…',
+          // A static panel, not a spinner: the card states what is happening
+          // and stays readable while it happens.
+          Container(
+            key: const Key('account-card-syncing-panel'),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.lightGreen,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.outline),
             ),
-            key: const Key('account-card-syncing-text'),
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              height: 1.4,
-              color: AppColors.primaryGreen,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _pair(
-              'You can continue using KhataBook normally.',
-              'আপনি স্বাভাবিকভাবেই খাতাবুক ব্যবহার চালিয়ে যেতে পারেন।',
-            ),
-            style: const TextStyle(
-              fontSize: 12.5,
-              height: 1.4,
-              color: AppColors.softText,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.sync,
+                    size: 18,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        _pair(
+                          'Syncing with cloud backup…',
+                          'ক্লাউড ব্যাকআপের সাথে সিঙ্ক হচ্ছে…',
+                        ),
+                        key: const Key('account-card-syncing-text'),
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          height: 1.4,
+                          color: AppColors.primaryGreen,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _pair(
+                          'You can continue using KhataBook normally.',
+                          'আপনি স্বাভাবিকভাবেই খাতাবুক ব্যবহার চালিয়ে যেতে পারেন।',
+                        ),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           if (current.pendingCount > 0) ...<Widget>[
@@ -585,6 +622,10 @@ class _AccountCardState extends State<AccountCard> {
           icon: const Icon(Icons.refresh),
           label: Text(_pair('Retry', 'আবার চেষ্টা করুন')),
         ),
+        if (_busyAction) ...<Widget>[
+          const SizedBox(height: 10),
+          _WorkingNote(label: _pair('Working…', 'কাজ চলছে…')),
+        ],
         const SizedBox(height: 10),
         _buildLogoutButton(),
       ],
@@ -665,6 +706,43 @@ class _CardHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A static "an action is running" line.
+///
+/// No spinner: the card stays readable and nothing on screen animates while
+/// a backup is in flight, so the user can keep reading their state.
+class _WorkingNote extends StatelessWidget {
+  const _WorkingNote({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(Icons.sync, size: 15, color: AppColors.softText),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: AppColors.softText,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

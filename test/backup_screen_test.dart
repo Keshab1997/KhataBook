@@ -223,9 +223,11 @@ void main() {
     await t.tap(find.text('Export Backup'));
     await t.pump();
     await t.ensureVisible(find.text('Export Backup'));
-    // The pending state shows a spinning indicator — an infinite animation —
-    // so pumpAndSettle() would never return.
+    // The pending state is a static working panel: it names what is running
+    // and never turns the screen into a spinner.
     await t.pump();
+    expect(find.byKey(const Key('backup-working-panel')), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(
       t
           .widget<FilledButton>(

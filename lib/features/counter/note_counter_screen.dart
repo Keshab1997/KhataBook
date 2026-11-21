@@ -170,6 +170,9 @@ enum _CountPhase { loading, ready, failed }
 /// Whether the newest edit is on disk.
 enum _SavePhase { idle, saving, saved, failed }
 
+/// Vertical rhythm between the denomination rows.
+const double _rowGap = 2;
+
 class _NoteCounterScreenState extends State<NoteCounterScreen> {
   /// Quantity per denomination in paise. Every denomination is present, so a
   /// switch away and back always finds the previous count.
@@ -746,9 +749,13 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 1.5),
+              // One gap value between every row, so the denomination list
+              // reads as an even grid rather than a stack of uneven cards.
+              // One step, not six: seven rows plus this gap have to share a
+              // 390x770 screen with the total card and four actions.
+              const SizedBox(height: _rowGap),
             ],
-            const SizedBox(height: 2),
+            const SizedBox(height: _rowGap),
             _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
             const SizedBox(height: 8),
             if (addToKhataVisible) ...<Widget>[
@@ -783,7 +790,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: _ActionButton.outlined(
+                    child: _ActionButton.tonal(
                       buttonKey: const Key('note-counter-saved-sessions'),
                       onPressed: _showSessions,
                       icon: Icons.bookmark_outline,
@@ -853,29 +860,52 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   }
 }
 
+/// The tier of an [_ActionButton].
+enum _ActionTier {
+  /// The one primary action (Save): solid green.
+  primary,
+
+  /// A named, repeatable entry point (Saved sessions): light-green tonal.
+  tonal,
+
+  /// Everything else: a plain green outline.
+  outlined,
+}
+
 /// A flat-friendly full-width action button that tolerates two lines of
 /// label at large text scales. Never overflows: the label wraps.
+///
+/// All three tiers share one height and one stadium shape, so the stack below
+/// the Grand Total reads as a single control group with a plain reading order:
+/// Save is the loudest, Saved sessions is named, Copy summary is quiet.
 class _ActionButton extends StatelessWidget {
   const _ActionButton.filled({
     required this.buttonKey,
     required this.icon,
     required this.label,
     required this.onPressed,
-  }) : _filled = true;
+  }) : _tier = _ActionTier.primary;
+
+  const _ActionButton.tonal({
+    required this.buttonKey,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  }) : _tier = _ActionTier.tonal;
 
   const _ActionButton.outlined({
     required this.buttonKey,
     required this.icon,
     required this.label,
     required this.onPressed,
-  }) : _filled = false;
+  }) : _tier = _ActionTier.outlined;
 
   /// Lands on the actual button, so a tap-test finds exactly one target.
   final Key buttonKey;
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
-  final bool _filled;
+  final _ActionTier _tier;
 
   @override
   Widget build(BuildContext context) {
@@ -896,42 +926,68 @@ class _ActionButton extends StatelessWidget {
       ],
     );
     const StadiumBorder shape = StadiumBorder();
+    const EdgeInsets labelPadding = EdgeInsets.symmetric(
+      horizontal: 8,
+      vertical: 4,
+    );
     // Every action on this screen is the same height and radius, so the stack
     // below the total reads as one control group.
-    if (_filled) {
-      return FilledButton(
+    return switch (_tier) {
+      _ActionTier.primary => FilledButton(
         key: buttonKey,
         onPressed: onPressed,
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(44),
-          backgroundColor: AppColors.warmIvory,
-          foregroundColor: AppColors.primaryGreen,
-          side: const BorderSide(color: AppColors.primaryGreen),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          backgroundColor: AppColors.primaryGreen,
+          foregroundColor: AppColors.onPrimary,
+          disabledBackgroundColor: AppColors.lightGreen,
+          disabledForegroundColor: AppColors.softText,
+          padding: labelPadding,
           shape: shape,
         ),
         child: child,
-      );
-    }
-    return OutlinedButton(
-      key: buttonKey,
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(44),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        foregroundColor: AppColors.primaryGreen,
-        side: const BorderSide(color: AppColors.primaryGreen),
-        shape: shape,
       ),
-      child: child,
-    );
+      _ActionTier.tonal => FilledButton(
+        key: buttonKey,
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(44),
+          backgroundColor: AppColors.lightGreen,
+          foregroundColor: AppColors.primaryGreen,
+          disabledBackgroundColor: AppColors.warmIvory,
+          disabledForegroundColor: AppColors.softText,
+          side: const BorderSide(color: AppColors.primaryGreen),
+          padding: labelPadding,
+          shape: shape,
+        ),
+        child: child,
+      ),
+      _ActionTier.outlined => OutlinedButton(
+        key: buttonKey,
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(44),
+          padding: labelPadding,
+          foregroundColor: AppColors.primaryGreen,
+          side: const BorderSide(color: AppColors.primaryGreen),
+          shape: shape,
+        ),
+        child: child,
+      ),
+    };
   }
 }
 
 /// One denomination row: its illustration, a quantity field and the row
 /// total. Note rows hold how many notes; the coin row holds the **total
 /// value of the coins in rupees**, never a coin count.
-class _DenominationRow extends StatelessWidget {
+///
+/// The quantity field is the row's stepper: it is the same fixed width in
+/// every row so the seven fields line up down the screen, and the row makes
+/// the state visible without moving anything - a counted row keeps a deeper
+/// green edge while the row being typed into adds a brighter edge, a
+/// light-green field and a soft lift.
+class _DenominationRow extends StatefulWidget {
   const _DenominationRow({
     required this.strings,
     required this.denominationPaise,
@@ -957,33 +1013,74 @@ class _DenominationRow extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onTapSelectAll;
 
-  String get _asset => isCoinRow
+  @override
+  State<_DenominationRow> createState() => _DenominationRowState();
+}
+
+class _DenominationRowState extends State<_DenominationRow> {
+  /// Owns the focus of this row's quantity field, so the row itself can show
+  /// that it is the one being counted.
+  final FocusNode _focusNode = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (!mounted || _focused == _focusNode.hasFocus) return;
+    setState(() => _focused = _focusNode.hasFocus);
+  }
+
+  String get _asset => widget.isCoinRow
       ? 'assets/notes/coins.png'
-      : 'assets/notes/note_${denominationPaise ~/ 100}.png';
+      : 'assets/notes/note_${widget.denominationPaise ~/ 100}.png';
 
   @override
   Widget build(BuildContext context) {
+    final AppStrings strings = widget.strings;
     final _Copy copy = _Copy(strings.language);
-    final String title = isCoinRow
+    final String title = widget.isCoinRow
         ? (strings.language == AppLanguage.bn ? 'কয়েন' : 'Coins')
-        : strings.money(denominationPaise);
-    final String fieldLabel = isCoinRow
+        : strings.money(widget.denominationPaise);
+    final String fieldLabel = widget.isCoinRow
         ? copy.coinsAmountLabel(strings)
-        : copy.quantityFieldLabel(strings, denominationPaise);
+        : copy.quantityFieldLabel(strings, widget.denominationPaise);
     return AnimatedContainer(
-      key: Key('note-counter-row-$denominationPaise'),
-      duration: const Duration(milliseconds: 140),
+      key: Key('note-counter-row-${widget.denominationPaise}'),
+      duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: counted
+          color: _focused
+              ? AppColors.primaryGreen
+              : widget.counted
               ? AppColors.secondaryGreen.withValues(alpha: 0.55)
               : AppColors.accentGreen.withValues(alpha: 0.4),
-          width: counted ? 1.3 : 1,
+          width: _focused ? 1.6 : (widget.counted ? 1.3 : 1),
         ),
+        // The focused row lifts off the canvas; an idle row is flat.
+        boxShadow: _focused
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1020,6 +1117,7 @@ class _DenominationRow extends StatelessWidget {
                 Text(
                   title,
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -1028,10 +1126,13 @@ class _DenominationRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 KeyedSubtree(
-                  key: Key('note-counter-row-total-$denominationPaise'),
+                  key: Key(
+                    'note-counter-row-total-${widget.denominationPaise}',
+                  ),
                   child: Text(
-                    strings.money(rowTotalPaise),
+                    strings.money(widget.rowTotalPaise),
                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -1039,7 +1140,7 @@ class _DenominationRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isCoinRow) ...<Widget>[
+                if (widget.isCoinRow) ...<Widget>[
                   const SizedBox(height: 1),
                   Text(
                     copy.coinsAmountLabel(strings),
@@ -1055,16 +1156,19 @@ class _DenominationRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          // The quantity stepper: the same fixed width in every row, so all
+          // seven fields line up down the screen.
           SizedBox(
             width: 90,
             child: Semantics(
               textField: true,
               label: fieldLabel,
               child: TextField(
-                key: Key('note-counter-field-$denominationPaise'),
-                controller: controller,
-                onChanged: onChanged,
-                onTap: onTapSelectAll,
+                key: Key('note-counter-field-${widget.denominationPaise}'),
+                controller: widget.controller,
+                focusNode: _focusNode,
+                onChanged: widget.onChanged,
+                onTap: widget.onTapSelectAll,
                 textAlign: TextAlign.center,
                 textInputAction: TextInputAction.next,
                 // No filtering formatters: the controller is the single
@@ -1077,11 +1181,13 @@ class _DenominationRow extends StatelessWidget {
                   color: AppColors.headerGreen,
                 ),
                 decoration: InputDecoration(
-                  errorText: errorText,
+                  errorText: widget.errorText,
                   errorMaxLines: 2,
                   isDense: true,
                   filled: true,
-                  fillColor: AppColors.warmIvory,
+                  fillColor: _focused
+                      ? AppColors.lightGreen
+                      : AppColors.warmIvory,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 8,
@@ -1112,7 +1218,12 @@ class _DenominationRow extends StatelessWidget {
   }
 }
 
-/// Grand total on `lightGreen` with the check icon from the style guide.
+/// The Grand Total panel.
+///
+/// One calm panel instead of a loud gradient: a `lightGreen` fill, a single
+/// green edge and the check icon from the style guide, with the label quiet
+/// and the amount the loudest thing on the screen. It keeps the shared card
+/// radius, so the bottom of the counter reads as one stack.
 class _GrandTotalCard extends StatelessWidget {
   const _GrandTotalCard({required this.strings, required this.amountPaise});
 
@@ -1121,88 +1232,74 @@ class _GrandTotalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool counting = amountPaise > 0;
     return Container(
       key: const Key('note-counter-grand-total'),
-      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: <Color>[
-            AppColors.accentGreen,
-            AppColors.primaryGreen,
-            AppColors.headerGreen,
-          ],
-        ),
+        color: AppColors.lightGreen,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accentGreen, width: 1.4),
+        border: Border.all(
+          color: AppColors.primaryGreen.withValues(
+            alpha: counting ? 0.45 : 0.20,
+          ),
+        ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.primaryGreen.withValues(alpha: 0.10),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: AppColors.primaryGreen.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Stack(
+      child: Row(
         children: <Widget>[
-          Positioned(
-            right: -10,
-            bottom: -4,
-            child: Image.asset(
-              'assets/illustrations/counter_total_leaves.png',
-              width: 65,
-              height: 48,
-              fit: BoxFit.contain,
-              excludeFromSemantics: true,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: AppColors.warmIvory,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle,
+              size: 20,
+              color: AppColors.incomeGreen,
             ),
           ),
-          Row(
-            children: <Widget>[
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: AppColors.warmIvory,
-                  shape: BoxShape.circle,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  strings.text(AppString.grandTotal),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                    color: AppColors.softText,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.check_circle,
-                  size: 21,
-                  color: AppColors.incomeGreen,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      strings.text(AppString.grandTotal),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.onPrimary,
-                      ),
+                const SizedBox(height: 1),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    strings.money(amountPaise),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.headerGreen,
                     ),
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        strings.money(amountPaise),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: const TextStyle(
-                          fontSize: 27,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.onPrimary,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

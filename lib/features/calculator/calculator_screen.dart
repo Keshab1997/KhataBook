@@ -182,8 +182,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   ? 0
                   : (compact ? 54 : 58);
               final double maxKeySize = compact ? 110 : 140;
+              // One grid: the top row carries five keys and every row below it
+              // four, so the shared size comes from the widest row. Every key
+              // on the keypad is then the same circle, and the shorter rows
+              // simply centre themselves in the same track.
               final double keySizeByWidth =
-                  (constraints.maxWidth - 32 - keyGap * 3) / 4;
+                  (constraints.maxWidth - 32 - keyGap * 4) / 5;
               final double keySizeByHeight =
                   (constraints.maxHeight -
                       verticalPadding * 2 -
@@ -827,8 +831,12 @@ class _ExpressionLine extends StatelessWidget {
             color: isEmpty
                 ? AppColors.softText.withValues(alpha: 0.6)
                 : AppColors.primaryGreen,
-            fontSize: compact ? 16 : 20,
-            fontWeight: FontWeight.w500,
+            // The expression is the supporting line: smaller, medium weight,
+            // and never competing with the result underneath it.
+            fontSize: compact ? 15 : 19,
+            height: 1.2,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -864,9 +872,12 @@ class _ResultLine extends StatelessWidget {
           overflow: TextOverflow.clip,
           style: TextStyle(
             color: isError ? AppColors.expenseRed : AppColors.headerGreen,
+            // The result is the loudest thing on the screen: biggest type,
+            // heaviest weight, tightest tracking.
             fontSize: compact ? 44 : 60,
+            height: 1.1,
             fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
+            letterSpacing: -0.8,
           ),
         ),
       ),
@@ -1025,6 +1036,7 @@ class _Keypad extends StatelessWidget {
       circular: circular,
       foreground: AppColors.onPrimary,
       outline: AppColors.primaryGreen,
+      emphasised: true,
       child: Text(
         label,
         style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
@@ -1054,6 +1066,7 @@ class _Keypad extends StatelessWidget {
       background: AppColors.orange,
       foreground: AppColors.onPrimary,
       outline: AppColors.orange,
+      emphasised: true,
       tooltip: strings.text(AppString.equals),
       child: const Text(
         '=',
@@ -1076,9 +1089,14 @@ class _CalcKey extends StatelessWidget {
     required this.outline,
     this.tooltip,
     this.circular = false,
+    this.emphasised = false,
   });
 
   final bool circular;
+
+  /// Operators and the equals key sit one step higher than the digits, so the
+  /// arithmetic is the loudest part of one otherwise even grid.
+  final bool emphasised;
   final double size;
   final Widget child;
   final VoidCallback onPressed;
@@ -1097,8 +1115,8 @@ class _CalcKey extends StatelessWidget {
           backgroundColor: background,
           foregroundColor: foreground,
           side: BorderSide(color: outline),
-          elevation: 2,
-          shadowColor: AppColors.primaryGreen.withValues(alpha: 0.12),
+          elevation: emphasised ? 3.5 : 1.5,
+          shadowColor: AppColors.primaryGreen.withValues(alpha: 0.14),
           padding: EdgeInsets.zero,
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
