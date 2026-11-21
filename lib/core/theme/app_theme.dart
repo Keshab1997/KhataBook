@@ -2,8 +2,6 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-
-
 import 'app_colors.dart';
 
 /// The light, paper-and-forest-green design system from docs/spec/theme.md.

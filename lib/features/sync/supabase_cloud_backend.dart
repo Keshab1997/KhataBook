@@ -10,7 +10,6 @@ library;
 
 import 'dart:async';
 
-
 import 'package:http/http.dart' show ClientException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
