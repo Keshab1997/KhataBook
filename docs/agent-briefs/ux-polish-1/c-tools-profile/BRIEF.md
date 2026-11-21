@@ -15,12 +15,11 @@
 8. Update the listed tests for the changed visual contract and make all five listed test files pass.
 
 **Interface / exclusions:** Do NOT touch `lib/core/theme/**`, `lib/core/l10n/**`, `lib/features/shell/**`, `lib/features/ledger/data/**`, `pubspec.yaml`, `pubspec.lock`, `.github/**`, or any file outside `task.json` `allowed`. Use `AppColors` and `Theme.of(context)` only — no literal `Color(0x...)`, no new colour tokens, no new dependency. Do not open, merge or close a PR.
-**Gate note (Captain re-pin, batch ):** worker sandboxes in this batch have no outbound TLS to ,  or , so the Flutter gate cannot run worker-side.   is therefore  — run preflight, the credential/scope checks and  as normal. The Captain runs , full  and locked  during review, so do not claim test evidence you did not run; say  in your report.
+**Gate note (Captain re-pin, batch `ux-polish-1`):** worker sandboxes in this batch have no outbound TLS to `storage.googleapis.com`, `pub.dev` or `release-assets.githubusercontent.com`, so the Flutter gate cannot run worker-side. `task.json` `check` is therefore `{"kind":"preflight"}` — run preflight, the credential/scope checks and `publish` as normal. The Captain runs `flutter analyze`, full `flutter test` and locked `pub get` during review, so do not claim test evidence you did not run; say `gate: preflight` in your report.
 
 **Scope and gate:** See [task.json](task.json) at this same commit. Do not edit it.
 **Skill method (optional):** none — a method only; this brief and the playbook still rule.
 **Report:** worker chat (GitHub mention pending)
-
 Finish every acceptance item in this one task, deciding details yourself inside
 the allowed files; if one item truly cannot be done, push the rest and name the
 gap in your report. Use the current agent-bootstrap `captain/FASTLANE.md`.
