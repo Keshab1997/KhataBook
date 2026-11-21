@@ -1,0 +1,21 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "profile-settings-redesign",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "test/profile_settings_test.dart",
+    "test/offline_profile_test.dart",
+    "test/settings_language_test.dart",
+    "test/settings_navigation_test.dart",
+    "test/profile_settings_design_test.dart"
+  ],
+  "commit": "feat(account): profile-settings-redesign",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/profile_settings_design_test.dart"
+  },
+  "base_sha": "5ed6ad82ba50b1b3400d4e050ea17d4c9d9a7707"
+}

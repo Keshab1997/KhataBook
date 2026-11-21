@@ -1,0 +1,21 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "login-cloud-redesign",
+  "allowed": [
+    "lib/features/sync/sign_in_screen.dart",
+    "lib/features/sync/cloud_backup_screen.dart",
+    "lib/features/sync/account_card.dart",
+    "test/sign_in_screen_test.dart",
+    "test/cloud_backup_screen_test.dart",
+    "test/account_card_test.dart",
+    "test/login_cloud_design_test.dart"
+  ],
+  "commit": "feat(account): login-cloud-redesign",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/login_cloud_design_test.dart"
+  },
+  "base_sha": "5ed6ad82ba50b1b3400d4e050ea17d4c9d9a7707"
+}
