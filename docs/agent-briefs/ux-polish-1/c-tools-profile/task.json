@@ -18,9 +18,7 @@
   ],
   "commit": "style(counter,profile): polish tool screens, settings rows and sync cards",
   "check": {
-    "kind": "flutter",
-    "version": "3.50.0",
-    "test": "test/note_counter_test.dart"
+    "kind": "preflight"
   },
   "arena": {
     "branch": "auto",

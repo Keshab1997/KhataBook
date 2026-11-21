@@ -15,9 +15,7 @@
   ],
   "commit": "style(ledger,home): polish list scanning, empty states and card rhythm",
   "check": {
-    "kind": "flutter",
-    "version": "3.50.0",
-    "test": "test/home_design_test.dart"
+    "kind": "preflight"
   },
   "arena": {
     "branch": "auto",
