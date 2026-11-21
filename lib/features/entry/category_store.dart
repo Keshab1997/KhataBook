@@ -50,6 +50,10 @@ class CategoryStore extends ChangeNotifier {
   CategoryStore(this._ledger);
   final LocalLedger _ledger;
 
+  /// A full offline restore writes categories directly to the ledger. Tell
+  /// mounted pickers and lists to reload rather than show stale names.
+  void notifyDataReplaced() => notifyListeners();
+
   Future<void> _ensureTable() => _ledger.customStatement('''
     CREATE TABLE IF NOT EXISTS custom_categories (
       id TEXT PRIMARY KEY,
