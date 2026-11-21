@@ -12,6 +12,7 @@ import '../counter/note_counter_screen.dart';
 import '../counter/note_counter_store.dart';
 import '../entry/add_entry_screen.dart';
 import '../entry/category_store.dart';
+import '../entry/transaction_editor_screen.dart';
 import '../home/home_screen.dart';
 import '../home/models.dart';
 import '../ledger/data/local_ledger.dart';
@@ -62,6 +63,7 @@ class _MainShellState extends State<MainShell> {
     openingBalancePaise: 0,
   );
   bool _switching = false;
+  bool _editingRecent = false;
   int _openRequest = 0;
   late AppLanguage _language = widget.initialLanguage;
   ProfileStore? _profileStore;
@@ -312,6 +314,135 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  /// Re-read the affected khata after an edit or an undo. Never replace the
+  /// visible balance if the user has switched to another khata meanwhile.
+  Future<void> _refreshRecentKhata(LocalLedger ledger, String khataId) async {
+    try {
+      final LedgerSummary updated = await ledger.readSummary(khataId: khataId);
+      if (mounted && _activeKhata.id == khataId) {
+        setState(() {
+          _summary = updated;
+          _error = null;
+        });
+      }
+    } catch (error) {
+      if (mounted && _activeKhata.id == khataId) {
+        setState(() {
+          _summary = null;
+          _error = error;
+        });
+      }
+    }
+  }
+
+  /// A recent row opens the same editor used by All Transactions. Capture the
+  /// row's persisted id and khata, so edits and undo cannot affect a different
+  /// ledger if the active khata later changes.
+  Future<void> _editRecent(LedgerEntry entry) async {
+    final LocalLedger? ledger = _ledger;
+    final String? entryId = entry.id;
+    if (_editingRecent ||
+        ledger == null ||
+        _summary == null ||
+        entryId == null) {
+      return;
+    }
+    final String khataId = _activeKhata.id;
+    final AppStrings strings = _strings;
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    _editingRecent = true;
+    try {
+      final TransactionEditResult? result = await Navigator.of(context)
+          .push<TransactionEditResult>(
+            MaterialPageRoute<TransactionEditResult>(
+              builder: (_) => TransactionEditorScreen(
+                language: _language,
+                categoryStore: _categoryStore,
+                initial: EntryFormResult(
+                  kind: entry.type == EntryType.income
+                      ? EntryFormKind.income
+                      : EntryFormKind.expense,
+                  amountPaise: entry.amountPaise,
+                  category: entry.category,
+                  description: entry.description ?? '',
+                  occurredAt: entry.at,
+                ),
+                onUpdate: (value) async {
+                  final bool updated = await ledger.updateEntry(
+                    khataId: khataId,
+                    entryId: entryId,
+                    entry: value,
+                  );
+                  if (updated) _notifyLocalChange();
+                  return updated;
+                },
+                onDelete: () async {
+                  final bool deleted = await ledger.softDeleteEntry(
+                    khataId: khataId,
+                    entryId: entryId,
+                  );
+                  if (deleted) _notifyLocalChange();
+                  return deleted;
+                },
+              ),
+            ),
+          );
+      if (result == null || !mounted) return;
+      await _refreshRecentKhata(ledger, khataId);
+      if (!mounted || !messenger.mounted) return;
+      messenger.hideCurrentSnackBar();
+      if (result == TransactionEditResult.updated) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(strings.text(AppString.transactionUpdated))),
+        );
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(strings.text(AppString.transactionDeleted)),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: strings.text(AppString.undo),
+            onPressed: () async {
+              try {
+                final bool restored = await ledger.restoreEntry(
+                  khataId: khataId,
+                  entryId: entryId,
+                );
+                if (restored) _notifyLocalChange();
+                if (mounted) await _refreshRecentKhata(ledger, khataId);
+                if (!messenger.mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      strings.text(
+                        restored
+                            ? AppString.transactionRestored
+                            : AppString.transactionRestoreFailed,
+                      ),
+                    ),
+                  ),
+                );
+              } catch (_) {
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        strings.text(AppString.transactionRestoreFailed),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
+    } finally {
+      _editingRecent = false;
+    }
+  }
+
   Future<void> _viewAll() async {
     final LedgerSummary? current = _summary;
     if (current == null) return;
@@ -410,6 +541,7 @@ class _MainShellState extends State<MainShell> {
         summary: _summary,
         onAddEntry: _addEntry,
         onViewAll: _viewAll,
+        onRecentEntry: _editRecent,
         khataName: _activeKhata.name,
         onSwitchKhata: _switchKhata,
         onSettings: () => Navigator.of(context).push<void>(
