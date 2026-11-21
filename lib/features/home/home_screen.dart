@@ -26,6 +26,13 @@ const double _avatarSize = 40;
 const double _rowGap = 12;
 const double _rowTextInset = _rowPadding + _avatarSize + _rowGap;
 
+/// The smallest an activity row may be drawn, whatever its text scale: the
+/// row is a control once it can be edited, and 44 dp is the smallest target a
+/// finger or a switch can be expected to hit. The avatar already makes a row
+/// taller than this; the floor exists so a row never collapses below it.
+const double _rowMinHeight = 44;
+const double _rowEditSize = 18;
+
 /// The one type scale this screen uses, top down: a caption that names a
 /// figure, the figure itself, a card or section title, and a row's own title
 /// and meta line. Reference proportions are kept - the hero amount is still
@@ -83,8 +90,10 @@ TextStyle _money({
 /// S1 - Home / My Khata. See docs/spec/screens.md#s1--home--my-khata.
 ///
 /// A presentational seam: the parent supplies a live [summary] and the
-/// [onAddEntry] / [onViewAll] callbacks. With no [summary] the screen shows
-/// clearly labelled sample figures. It reads no storage and holds no state.
+/// [onAddEntry] / [onViewAll] / [onRecentEntry] callbacks. With no [summary]
+/// the screen shows clearly labelled sample figures. It reads no storage,
+/// holds no state and never edits an entry itself: a recent row only becomes a
+/// control when its entry is stored *and* the parent supplied a handler.
 ///
 /// The layout gives the active ledger and remaining balance first priority,
 /// then keeps the income/expense split, recent activity and primary action
@@ -100,6 +109,7 @@ class HomeScreen extends StatelessWidget {
     this.onSwitchKhata,
     this.categoryStore,
     this.onSettings,
+    this.onRecentEntry,
   });
 
   final AppLanguage language;
@@ -116,6 +126,14 @@ class HomeScreen extends StatelessWidget {
 
   /// *View All* action; a null callback leaves that affordance disabled.
   final VoidCallback? onViewAll;
+
+  /// Edit action for one recent row. A row is only actionable when this
+  /// callback is supplied *and* the entry it draws has a stored
+  /// [LedgerEntry.id]: sample preview rows and anything without an id stay
+  /// plain text, announce no edit affordance and never call back. The screen
+  /// itself neither edits nor navigates - the parent opens the editor from the
+  /// callback.
+  final ValueChanged<LedgerEntry>? onRecentEntry;
 
   final String? khataName;
   final VoidCallback? onSwitchKhata;
@@ -236,6 +254,7 @@ class HomeScreen extends StatelessWidget {
                         strings: _strings,
                         entries: recent,
                         preview: preview,
+                        onEntry: onRecentEntry,
                         categoryStore: categoryStore,
                       ),
                     if (preview) ...<Widget>[
@@ -410,7 +429,9 @@ class _ActiveKhataCard extends StatelessWidget {
             shape: const CircleBorder(),
             child: IconButton(
               onPressed: onSettings,
-              tooltip: 'Settings',
+              // Localized, so a Bengali screen does not announce an English
+              // control: the tooltip is the button's only accessible name.
+              tooltip: strings.text(AppString.settings),
               color: AppColors.onPrimary,
               icon: const Icon(Icons.settings),
             ),
@@ -649,9 +670,13 @@ class _EmptyTransactions extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            strings.language.name == 'Bengali'
-                ? "আপনার প্রথম লেনদেন যোগ করতে নিচের বড় '+' বাটনটি চাপুন।"
+            // Language, not a display name: `AppLanguage.bn` never equals
+            // `'Bengali'`, so comparing `.name` silently left every Bengali
+            // screen showing the English instruction.
+            strings.language == AppLanguage.bn
+                ? "শুরু করতে নিচের বড় '+' বাটনে চাপুন - প্রথম আয় বা খরচ যোগ করুন।"
                 : "Tap the big '+' button below to add your first expense or income.",
+            key: const Key('home-empty-instruction'),
             textAlign: TextAlign.center,
             style: _meta.copyWith(height: 1.4),
           ),
@@ -756,12 +781,14 @@ class _RecentList extends StatelessWidget {
     required this.strings,
     required this.entries,
     required this.preview,
+    this.onEntry,
     this.categoryStore,
   });
 
   final AppStrings strings;
   final List<LedgerEntry> entries;
   final bool preview;
+  final ValueChanged<LedgerEntry>? onEntry;
   final CategoryStore? categoryStore;
 
   @override
@@ -773,6 +800,9 @@ class _RecentList extends StatelessWidget {
         borderRadius: BorderRadius.circular(_cardRadius),
         border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
       ),
+      // The sheet clips its own corners: an actionable row paints an ink
+      // highlight, and the first and last rows must not square off the card.
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -789,11 +819,16 @@ class _RecentList extends StatelessWidget {
   /// A row's category labels come from the store, so each row is built inside
   /// its own catalog scope, exactly as before.
   Widget _row(LedgerEntry entry) {
+    // The callback is passed down unconditionally: the row decides whether it
+    // is actionable, so the rule for "editable" lives in exactly one place.
+    final Key rowKey = Key('home-recent-${entry.title}');
     if (categoryStore == null) {
       return _RecentTransactionRow(
         strings: strings,
         entry: entry,
         preview: preview,
+        onTap: onEntry,
+        rowKey: rowKey,
       );
     }
     return CategoryCatalog(
@@ -802,6 +837,10 @@ class _RecentList extends StatelessWidget {
         strings: strings,
         entry: entry,
         preview: preview,
+        onTap: onEntry,
+        // A preview row is keyed by its title, so a test can reach one row
+        // without reaching the others.
+        rowKey: rowKey,
         categories: categories,
       ),
     );
@@ -831,13 +870,22 @@ class _RecentTransactionRow extends StatelessWidget {
     required this.strings,
     required this.entry,
     required this.preview,
+    this.onTap,
+    this.rowKey,
     this.categories,
   });
 
   final AppStrings strings;
   final LedgerEntry entry;
   final bool preview;
+  final ValueChanged<LedgerEntry>? onTap;
+  final Key? rowKey;
   final List<CustomCategory>? categories;
+
+  /// A row is actionable only when the parent asked for edits *and* the entry
+  /// is stored: a preview or seed row has no id, so there is nothing an editor
+  /// could legitimately write back. Same rule as the All Transactions rows.
+  bool get _actionable => onTap != null && entry.id != null;
 
   @override
   Widget build(BuildContext context) {
@@ -857,101 +905,152 @@ class _RecentTransactionRow extends StatelessWidget {
               ? categoryName
               : entry.title);
 
+    // The one place a row becomes a control: the parent's handler plus a
+    // stored id. Everything else - preview rows, seed rows, a Home screen
+    // built without `onRecentEntry` - stays inert text that announces no edit.
+    final VoidCallback? tap = _actionable ? () => onTap!(entry) : null;
+
     // No box of its own: the list supplies the surface and the rule, the row
     // supplies only its three columns - cue, words, amount.
-    return Padding(
-      padding: const EdgeInsets.all(_rowPadding),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          Semantics(
-            label: strings.categoryLabel(categoryName),
-            child: Container(
-              width: _avatarSize,
-              height: _avatarSize,
-              decoration: BoxDecoration(
-                color: _categoryTint(entry.category),
-                shape: BoxShape.circle,
-              ),
-              child: ClipOval(
-                child: CategoryArtwork(
-                  category: entry.category,
-                  size: _avatarSize,
-                  fallbackColor: _categoryColor(entry.category),
-                  customCategory: categories == null
-                      ? null
-                      : findCustomCategory(entry.category, categories!),
+    return Semantics(
+      key: rowKey,
+      container: true,
+      button: tap != null,
+      // A stored row is an enabled control; an inert row is plain text, not a
+      // greyed-out control - so the flag is absent rather than false.
+      enabled: tap == null ? null : true,
+      onTap: tap,
+      // Title, direction, category, amount and date as one node. The amount is
+      // drawn in green or red, which is exactly why the direction must also be
+      // in words: colour alone never carries the meaning. `editable` appends
+      // the localized "Tap to edit" only where a tap really edits.
+      label: strings.transactionLabel(
+        title: title,
+        category: categoryName,
+        amountPaise: entry.amountPaise,
+        income: isIncome,
+        at: entry.at,
+        editable: tap != null,
+      ),
+      // The artwork is decorative and every word below is already in the label
+      // above, so the announcer reads the row once, not twice.
+      child: ExcludeSemantics(
+        // A transparent Material so the ink has something to paint on without
+        // adding a surface, a shadow or a second card inside the sheet.
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: tap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _rowMinHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(_rowPadding),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Container(
+                      width: _avatarSize,
+                      height: _avatarSize,
+                      decoration: BoxDecoration(
+                        color: _categoryTint(entry.category),
+                        shape: BoxShape.circle,
+                      ),
+                      child: ClipOval(
+                        child: CategoryArtwork(
+                          category: entry.category,
+                          size: _avatarSize,
+                          fallbackColor: _categoryColor(entry.category),
+                          customCategory: categories == null
+                              ? null
+                              : findCustomCategory(entry.category, categories!),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: _rowGap),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: _rowTitleSize,
+                              height: 1.25,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                          // The category is only repeated when it adds
+                          // information, so a row never shows the same words
+                          // twice. Both meta lines are the caption size, which
+                          // is what makes the amount column the only place the
+                          // eye has to stop.
+                          if (categories != null &&
+                              categoryName != title) ...<Widget>[
+                            const SizedBox(height: 2),
+                            Text(
+                              categoryName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _meta,
+                            ),
+                          ],
+                          const SizedBox(height: 1),
+                          Text(
+                            strings.dateTime(entry.at),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _meta,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // The visual half of the edit affordance, drawn only where
+                    // a tap really edits - the words are in the row's label
+                    // ("Tap to edit"), localized with the rest of the screen.
+                    if (tap != null) ...<Widget>[
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: _rowEditSize,
+                        color: AppColors.softText,
+                      ),
+                    ],
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 2,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            isIncome
+                                ? '+${strings.money(entry.amountPaise)}'
+                                : strings.money(entry.amountPaise),
+                            maxLines: 1,
+                            softWrap: false,
+                            textAlign: TextAlign.right,
+                            style: _money(
+                              size: _rowAmountSize,
+                              color: amountColor,
+                              letterSpacing: -0.2,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          const SizedBox(width: _rowGap),
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: _rowTitleSize,
-                    height: 1.25,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.darkText,
-                  ),
-                ),
-                // The category is only repeated when it adds information, so
-                // a row never shows the same words twice. Both meta lines are
-                // the caption size, which is what makes the amount column the
-                // only place the eye has to stop.
-                if (categories != null && categoryName != title) ...<Widget>[
-                  const SizedBox(height: 2),
-                  Text(
-                    categoryName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _meta,
-                  ),
-                ],
-                const SizedBox(height: 1),
-                Text(
-                  strings.dateTime(entry.at),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _meta,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  isIncome
-                      ? '+${strings.money(entry.amountPaise)}'
-                      : strings.money(entry.amountPaise),
-                  maxLines: 1,
-                  softWrap: false,
-                  textAlign: TextAlign.right,
-                  style: _money(
-                    size: _rowAmountSize,
-                    color: amountColor,
-                    letterSpacing: -0.2,
-                    height: 1.15,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

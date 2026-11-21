@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/format/money.dart';
+import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/home/home_screen.dart';
@@ -49,6 +50,72 @@ LedgerSummary liveSummary() {
   );
 }
 
+/// A long, realistic ledger: every row is *stored* (it carries an id), which is
+/// the only kind of row Home may offer to edit. The names and amounts are the
+/// long ones from the brief, so the same fixture proves the layout survives a
+/// 320 dp phone at 200% text.
+LedgerSummary persistedSummary() {
+  return LedgerSummary(
+    openingBalancePaise: 0,
+    entries: <LedgerEntry>[
+      LedgerEntry(
+        title: 'Freelance Payment',
+        category: 'Income',
+        at: DateTime(2026, 11, 19, 18, 30),
+        amountPaise: 300000,
+        type: EntryType.income,
+        id: 'entry-freelance',
+      ),
+      LedgerEntry(
+        title: 'Monthly grocery and household supplies for the whole family',
+        category: 'Shopping',
+        at: DateTime(2026, 11, 19, 17),
+        amountPaise: 45000,
+        id: 'entry-groceries',
+      ),
+      LedgerEntry(
+        title: 'Live Coffee',
+        category: 'Food',
+        at: DateTime(2026, 11, 19, 9, 15),
+        amountPaise: 8000,
+        id: 'entry-coffee',
+      ),
+      LedgerEntry(
+        title: 'Live Bus Pass',
+        category: 'Travel',
+        at: DateTime(2026, 11, 18, 8),
+        amountPaise: 12000,
+        id: 'entry-bus-pass',
+      ),
+      LedgerEntry(
+        title: 'Live Electricity',
+        category: 'Bills',
+        at: DateTime(2026, 11, 17, 16, 30),
+        amountPaise: 25000,
+        id: 'entry-electricity',
+      ),
+    ],
+  );
+}
+
+/// The same five rows without an id: what a preview or sample ledger looks
+/// like. Nothing here may be offered to an editor.
+LedgerSummary unpersistedSummary() {
+  return LedgerSummary(
+    openingBalancePaise: 0,
+    entries: <LedgerEntry>[
+      for (final LedgerEntry entry in persistedSummary().entries)
+        LedgerEntry(
+          title: entry.title,
+          category: entry.category,
+          at: entry.at,
+          amountPaise: entry.amountPaise,
+          type: entry.type,
+        ),
+    ],
+  );
+}
+
 /// A different live snapshot used to prove the widget rebuilds on new data.
 LedgerSummary replacementSummary() {
   return LedgerSummary(
@@ -78,6 +145,8 @@ Future<void> pumpLive(
   required LedgerSummary summary,
   VoidCallback? onAddEntry,
   VoidCallback? onViewAll,
+  ValueChanged<LedgerEntry>? onRecentEntry,
+  AppLanguage language = AppLanguage.en,
   Size size = const Size(320, 568),
   double scale = 1.0,
 }) async {
@@ -96,14 +165,25 @@ Future<void> pumpLive(
         );
       },
       home: HomeScreen(
+        language: language,
         summary: summary,
         onAddEntry: onAddEntry,
         onViewAll: onViewAll,
+        onRecentEntry: onRecentEntry,
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
+
+/// One recent row, found by the key the screen gives it.
+Finder recentRow(String title) => find.byKey(Key('home-recent-$title'));
+
+/// The tap target inside a row: present on every row, wired only on the ones
+/// that may be edited.
+InkWell rowInk(WidgetTester tester, String title) => tester.widget<InkWell>(
+  find.descendant(of: recentRow(title), matching: find.byType(InkWell)),
+);
 
 void expectNoLayoutErrors(WidgetTester tester) {
   expect(
@@ -260,7 +340,220 @@ void main() {
     });
   });
 
+  group('recent activity is actionable', () {
+    testWidgets('a stored row calls back once with that exact entry', (
+      WidgetTester tester,
+    ) async {
+      final LedgerSummary summary = persistedSummary();
+      final List<LedgerEntry> taps = <LedgerEntry>[];
+      await pumpLive(tester, summary: summary, onRecentEntry: taps.add);
+
+      await tester.ensureVisible(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+
+      expect(taps, hasLength(1));
+      // The exact row object, id and all: the parent needs the stored id to
+      // build its editor, and a copy would be the wrong entry.
+      expect(identical(taps.single, summary.entries[2]), isTrue);
+      expect(taps.single.id, 'entry-coffee');
+      expect(taps.single.amountPaise, 8000);
+      expect(taps.single.title, 'Live Coffee');
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('each stored row is its own target with its own payload', (
+      WidgetTester tester,
+    ) async {
+      final LedgerSummary summary = persistedSummary();
+      final List<LedgerEntry> taps = <LedgerEntry>[];
+      await pumpLive(tester, summary: summary, onRecentEntry: taps.add);
+
+      for (final int index in <int>[0, 3]) {
+        final String title = summary.entries[index].title;
+        await tester.ensureVisible(find.text(title));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(title));
+        await tester.pumpAndSettle();
+      }
+
+      expect(
+        taps.map((LedgerEntry entry) => entry.id),
+        <String?>['entry-freelance', 'entry-bus-pass'],
+      );
+      // Tapping rows never invents data or navigates: Home stays on screen.
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('rows without an id stay inert even when a handler is given', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      int taps = 0;
+      await pumpLive(
+        tester,
+        summary: unpersistedSummary(),
+        onRecentEntry: (_) => taps++,
+      );
+
+      await tester.ensureVisible(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+
+      // No callback, and the row announces nothing an editor could act on:
+      // an id-less entry is not "editable", so it carries no affordance.
+      expect(taps, 0);
+      expect(rowInk(tester, 'Live Coffee').onTap, isNull);
+      expect(
+        tester.getSemantics(recentRow('Live Coffee')).label,
+        isNot(contains('Tap to edit')),
+      );
+      semantics.dispose();
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('a stored row without a handler stays inert', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await pumpLive(tester, summary: persistedSummary());
+
+      // Stored, but Home was built without the callback: still not a control.
+      expect(rowInk(tester, 'Live Coffee').onTap, isNull);
+      expect(
+        tester.getSemantics(recentRow('Live Coffee')).label,
+        isNot(contains('Tap to edit')),
+      );
+
+      // Tapping a row with no handler must be a no-op, not a crash or a route.
+      await tester.ensureVisible(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeScreen), findsOneWidget);
+      semantics.dispose();
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('an actionable row announces that it can be edited', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await pumpLive(
+        tester,
+        summary: persistedSummary(),
+        onRecentEntry: (_) {},
+      );
+      await tester.ensureVisible(find.text('Live Coffee'));
+      await tester.pumpAndSettle();
+
+      expect(rowInk(tester, 'Live Coffee').onTap, isNotNull);
+      // The affordance is spoken, localized and tied to this row's own data -
+      // direction in words, because the amount's colour is not a label.
+      expect(
+        tester.getSemantics(recentRow('Live Coffee')).label,
+        contains('Live Coffee'),
+      );
+      expect(
+        tester.getSemantics(recentRow('Live Coffee')).label,
+        contains('expense'),
+      );
+      expect(
+        tester.getSemantics(recentRow('Live Coffee')).label,
+        contains('Tap to edit'),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('the seeded preview is never offered to the editor', (
+      WidgetTester tester,
+    ) async {
+      int taps = 0;
+      // No summary at all: every row is sample data, even with a handler that
+      // a live ledger would have honoured.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomeScreen(onRecentEntry: (_) => taps++),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Grocery Shopping'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Grocery Shopping'));
+      await tester.pumpAndSettle();
+
+      expect(taps, 0);
+      expect(rowInk(tester, 'Grocery Shopping').onTap, isNull);
+      expect(find.text('Sample ledger · preview data only'), findsOneWidget);
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('responsive live layout', () {
+    testWidgets(
+      'long titles, large amounts and the edit target survive 320dp at 200%',
+      (WidgetTester tester) async {
+        final LedgerSummary summary = LedgerSummary(
+          openingBalancePaise: 987654321,
+          entries: <LedgerEntry>[
+            LedgerEntry(
+              title:
+                  'Advance payment for the new kitchen, the plumbing and every '
+                  'labour charge the contractor billed',
+              category: 'Shopping',
+              at: DateTime(2026, 11, 19, 18, 30),
+              amountPaise: 123456789,
+              id: 'entry-long-expense',
+            ),
+            LedgerEntry(
+              title:
+                  'Freelance invoice settled by the client for the festival '
+                  'campaign and the extra revisions',
+              category: 'Income',
+              at: DateTime(2026, 11, 19, 12),
+              amountPaise: 876543210,
+              type: EntryType.income,
+              id: 'entry-long-income',
+            ),
+          ],
+        );
+        int taps = 0;
+
+        for (final AppLanguage language in AppLanguage.values) {
+          await pumpLive(
+            tester,
+            summary: summary,
+            language: language,
+            onRecentEntry: (_) => taps++,
+            scale: 2.0,
+          );
+
+          expectNoLayoutErrors(tester);
+          // The action and the rows stay reachable; the amounts are still
+          // findable, and the target itself is never thinner than 44 dp.
+          final Finder cta = find.text(
+            AppStrings(language).text(AppString.addNewEntry),
+          );
+          expect(cta.hitTestable(), findsOneWidget);
+          final Finder row = recentRow(
+            'Freelance invoice settled by the client for the festival '
+            'campaign and the extra revisions',
+          );
+          await tester.ensureVisible(row);
+          await tester.pumpAndSettle();
+          expect(tester.getSize(row).height, greaterThanOrEqualTo(44));
+          expect(row.hitTestable(), findsOneWidget);
+          expectNoLayoutErrors(tester);
+        }
+        expect(taps, 0, reason: 'laying out a row must not call its handler');
+      },
+    );
+
     testWidgets('200% text scale keeps live rows and controls reachable', (
       WidgetTester tester,
     ) async {

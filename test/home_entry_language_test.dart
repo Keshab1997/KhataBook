@@ -27,7 +27,152 @@ Future<void> _reveal(WidgetTester tester, Finder target) async {
   expect(target.hitTestable(), findsOneWidget);
 }
 
+/// The English and Bengali empty-state instructions, spelled out rather than
+/// derived: the bug was that Bengali silently fell back to the English one, so
+/// a test that recomputed the expectation could not have caught it.
+const String emptyInstructionEn =
+    "Tap the big '+' button below to add your first expense or income.";
+const String emptyInstructionBn =
+    "শুরু করতে নিচের বড় '+' বাটনে চাপুন - প্রথম আয় বা খরচ যোগ করুন।";
+
 void main() {
+  testWidgets('the empty state instructs in the screen’s own language', (
+    tester,
+  ) async {
+    const LedgerSummary empty = LedgerSummary(
+      openingBalancePaise: 0,
+      entries: <LedgerEntry>[],
+    );
+    for (final AppLanguage language in AppLanguage.values) {
+      final AppStrings strings = AppStrings(language);
+      await _show(tester, HomeScreen(language: language, summary: empty));
+
+      expect(
+        find.text(strings.text(AppString.homeEmpty)),
+        findsOneWidget,
+        reason: 'the empty headline is localized for $language',
+      );
+      final bool bengali = language == AppLanguage.bn;
+      expect(
+        find.text(bengali ? emptyInstructionBn : emptyInstructionEn),
+        findsOneWidget,
+        reason: 'the instruction must be written in $language',
+      );
+      expect(
+        find.text(bengali ? emptyInstructionEn : emptyInstructionBn),
+        findsNothing,
+        reason: 'the other language must not leak through',
+      );
+      // A Bengali screen may not borrow the English instruction, which was the
+      // actual defect: `_EmptyTransactions` compared `.name` with a display
+      // name that can never match.
+      expect(
+        find.byKey(const Key('home-empty-instruction')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('the settings control is named in the screen’s language', (
+    tester,
+  ) async {
+    for (final AppLanguage language in AppLanguage.values) {
+      final AppStrings strings = AppStrings(language);
+      int taps = 0;
+      await _show(
+        tester,
+        HomeScreen(
+          language: language,
+          khataName: 'Personal Khata',
+          onSwitchKhata: () {},
+          onSettings: () => taps++,
+        ),
+      );
+
+      // The tooltip is the button's only accessible name, so a hard-coded
+      // English string left Bengali users with an English control.
+      final Finder tooltip = find.byTooltip(strings.text(AppString.settings));
+      expect(
+        tooltip,
+        findsOneWidget,
+        reason: 'tooltip localized for $language',
+      );
+      if (language == AppLanguage.bn) {
+        expect(find.byTooltip('Settings'), findsNothing);
+      }
+      await tester.tap(tooltip);
+      await tester.pumpAndSettle();
+      expect(taps, 1);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('the empty state reads cleanly at 320dp and 200% text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    for (final AppLanguage language in AppLanguage.values) {
+      final AppStrings strings = AppStrings(language);
+      await _show(
+        tester,
+        HomeScreen(
+          language: language,
+          summary: const LedgerSummary(
+            openingBalancePaise: 0,
+            entries: <LedgerEntry>[],
+          ),
+        ),
+        scale: 2,
+      );
+      await _reveal(tester, find.text(strings.text(AppString.homeEmpty)));
+      expect(
+        find.byKey(const Key('home-empty-instruction')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('a Bengali stored row is announced as editable in Bengali', (
+    tester,
+  ) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    final AppStrings strings = AppStrings(AppLanguage.bn);
+    await _show(
+      tester,
+      HomeScreen(
+        language: AppLanguage.bn,
+        summary: LedgerSummary(
+          openingBalancePaise: 0,
+          entries: <LedgerEntry>[
+            LedgerEntry(
+              title: 'দুপুরের খাবার',
+              category: 'Food',
+              at: DateTime(2026, 11, 19, 13, 15),
+              amountPaise: 58000,
+              id: 'entry-bn-food',
+            ),
+          ],
+        ),
+        onRecentEntry: (_) {},
+      ),
+    );
+    await _reveal(tester, find.text('দুপুরের খাবার'));
+
+    final String label = tester
+        .getSemantics(find.byKey(const Key('home-recent-দুপুরের খাবার')))
+        .label;
+    // Direction and the edit hint are both localized: the row reads as one
+    // Bengali sentence, not a Bengali title followed by English controls.
+    expect(label, contains(strings.text(AppString.expense)));
+    expect(label, contains(strings.text(AppString.tapToEdit)));
+    semantics.dispose();
+  });
+
   testWidgets('Home defaults to English; Bengali scales and keeps user copy', (
     tester,
   ) async {
@@ -54,7 +199,17 @@ void main() {
     expect(find.text('অবশিষ্ট টাকা'), findsOneWidget);
     expect(find.text('Personal Khata'), findsOneWidget);
     await _reveal(tester, find.text('Grocery Shopping'));
-    expect(find.bySemanticsLabel(RegExp('বিভাগ: কেনাকাটা')), findsOneWidget);
+    // The translated category is still announced - now inside the row's own
+    // label, because the avatar that used to carry it is decorative.
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const Key('home-recent-Grocery Shopping')),
+          )
+          .label,
+      contains('কেনাকাটা'),
+    );
+    expect(find.bySemanticsLabel(RegExp('বিভাগ: কেনাকাটা')), findsNothing);
     expect(tester.takeException(), isNull);
     semantics.dispose();
   });
