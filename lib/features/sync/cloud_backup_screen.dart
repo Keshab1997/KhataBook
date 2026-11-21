@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart' show AppLanguage;
 import '../../core/theme/app_colors.dart';
+import '../ledger/data/local_ledger.dart';
 import 'account_card.dart';
 import 'cloud_backend.dart';
 import 'cloud_sync.dart';
 import 'sign_in_screen.dart';
+import 'sync_diagnostics_screen.dart';
 
 /// The single soft card shadow from `theme.md` (blur 14, offset 0/4).
 List<BoxShadow> _cardShadow() => <BoxShadow>[
@@ -37,11 +39,19 @@ class CloudBackupScreen extends StatelessWidget {
     super.key,
     this.language = AppLanguage.en,
     this.cloudSync,
+    this.ledger,
     this.isOnline,
   });
 
   final AppLanguage language;
   final CloudSync? cloudSync;
+
+  /// Local ledger backing the Diagnostics screen. When present, a quiet
+  /// "Diagnostics" row below the notes opens [SyncDiagnosticsScreen], which
+  /// shows `sync_metadata.last_error` — including a `CloudSync.start`
+  /// failure recorded at app startup, which otherwise has no UI at all.
+  final LocalLedger? ledger;
+
   final Future<bool> Function()? isOnline;
 
   bool get _bn => language == AppLanguage.bn;
@@ -58,6 +68,15 @@ class CloudBackupScreen extends StatelessWidget {
     if (signedInUser != null) {
       await service.backupNow();
     }
+  }
+
+  void _openDiagnostics(BuildContext context, LocalLedger ledger) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SyncDiagnosticsScreen(ledger: ledger, language: language),
+      ),
+    );
   }
 
   @override
@@ -103,6 +122,13 @@ class CloudBackupScreen extends StatelessWidget {
                   ],
                   const SizedBox(height: 14),
                   _LocalFirstNoteCard(bn: _bn),
+                  if (ledger != null) ...<Widget>[
+                    const SizedBox(height: 14),
+                    _DiagnosticsRow(
+                      bn: _bn,
+                      onOpen: () => _openDiagnostics(context, ledger!),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -269,6 +295,63 @@ class _LocalFirstNoteCard extends StatelessWidget {
       body: _pair(
         'Entries work offline first and sync automatically when connected. Logging out never deletes local data.',
         'লেনদেন আগে অফলাইনে সংরক্ষিত হয় এবং ইন্টারনেট পেলে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়। লগ আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
+      ),
+    );
+  }
+}
+
+/// Quiet tappable row opening [SyncDiagnosticsScreen]: the only place in the
+/// UI where a recorded sync failure (`sync_metadata.last_error`) can be read.
+class _DiagnosticsRow extends StatelessWidget {
+  const _DiagnosticsRow({required this.bn, required this.onOpen});
+
+  final bool bn;
+  final VoidCallback onOpen;
+
+  String _pair(String en, String bnText) => bn ? bnText : en;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.creamBackground,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        key: const Key('cloud-backup-diagnostics-row'),
+        borderRadius: BorderRadius.circular(20),
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.outline),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(
+                Icons.troubleshoot_outlined,
+                size: 20,
+                color: AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _pair('Diagnostics', 'ডায়াগনস্টিকস'),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.darkText,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColors.navigationGrey,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
