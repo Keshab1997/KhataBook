@@ -10,6 +10,7 @@ import 'package:khatabook/features/counter/note_counter_store.dart';
 import 'package:khatabook/features/ledger/data/ledger_backup.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/profile/backup_screen.dart';
+import 'package:khatabook/features/profile/profile_screen.dart';
 
 void main() {
   testWidgets(
@@ -89,9 +90,29 @@ CREATE TABLE IF NOT EXISTS custom_categories (
       expect(find.text('Old Shop'), findsOneWidget);
       await t.tap(find.text('Profile').last);
       await t.pumpAndSettle();
-      await t.drag(find.byType(ListView).last, const Offset(0, -300));
+      // Scroll the Profile list until the backup row is really on screen. A
+      // fixed drag is not enough on the 800x600 test surface: the row lands
+      // under the NavigationBar, the tap is swallowed by the shell and the
+      // "Export Backup" lookups below then fail on a screen that never opened.
+      await t.scrollUntilVisible(
+        find.byKey(const Key('profile-backup-row')),
+        120,
+        scrollable: find.descendant(
+          of: find.byType(ProfileScreen),
+          matching: find.byType(Scrollable),
+        ),
+      );
       await t.pumpAndSettle();
       await t.tap(find.byKey(const Key('profile-backup-row')));
+      await t.pumpAndSettle();
+      await t.scrollUntilVisible(
+        find.text('Export Backup'),
+        120,
+        scrollable: find.descendant(
+          of: find.byType(BackupScreen),
+          matching: find.byType(Scrollable),
+        ),
+      );
       await t.pumpAndSettle();
       await t.tap(find.text('Export Backup'));
       await t.pumpAndSettle();
