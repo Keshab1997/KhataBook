@@ -183,12 +183,13 @@ void main() {
 }
 
 /// Opens the filter panels, which start collapsed: the list is the first
-/// screenful now, not the blank filter area.
+/// screenful now, not the blank filter area. The summary card's search
+/// button is the way in; the tune cap only exists once the panels are open.
 Future<void> openFilters(WidgetTester tester) async {
   if (find.byKey(const Key('date-filter-from')).evaluate().isNotEmpty) {
     return;
   }
-  await tester.tap(find.byKey(const Key('filters-tune')));
+  await tester.tap(find.byKey(const Key('transactions-search')));
   await tester.pumpAndSettle();
 }
 

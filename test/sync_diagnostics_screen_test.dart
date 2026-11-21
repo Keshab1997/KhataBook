@@ -56,10 +56,7 @@ void main() {
     await _pump(tester, SyncDiagnosticsScreen(ledger: ledger));
 
     expect(find.byKey(const Key('sync-diagnostics-screen')), findsOneWidget);
-    expect(
-      find.text('Cloud sync failed to start: bad config'),
-      findsOneWidget,
-    );
+    expect(find.text('Cloud sync failed to start: bad config'), findsOneWidget);
     expect(find.textContaining('2026-11-20T06:30:00'), findsOneWidget);
     expect(find.text('user-1'), findsOneWidget);
   });
@@ -71,10 +68,7 @@ void main() {
 
     await _pump(tester, SyncDiagnosticsScreen(ledger: ledger));
 
-    expect(
-      find.text('No sync errors recorded on this phone.'),
-      findsOneWidget,
-    );
+    expect(find.text('No sync errors recorded on this phone.'), findsOneWidget);
     expect(find.text('Never'), findsOneWidget);
   });
 
@@ -87,7 +81,10 @@ void main() {
     );
 
     expect(find.text('ডায়াগনস্টিকস'), findsOneWidget);
-    expect(find.text('এই ফোনে কোনো সিঙ্ক ত্রুটি রেকর্ড হয়নি।'), findsOneWidget);
+    expect(
+      find.text('এই ফোনে কোনো সিঙ্ক ত্রুটি রেকর্ড হয়নি।'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -99,14 +96,9 @@ void main() {
       );
 
       // cloudSync: null is exactly the state after a CloudSync.start failure.
-      await _pump(
-        tester,
-        CloudBackupScreen(cloudSync: null, ledger: ledger),
-      );
+      await _pump(tester, CloudBackupScreen(cloudSync: null, ledger: ledger));
 
-      final Finder row = find.byKey(
-        const Key('cloud-backup-diagnostics-row'),
-      );
+      final Finder row = find.byKey(const Key('cloud-backup-diagnostics-row'));
       await tester.scrollUntilVisible(row, 120);
       await tester.tap(row);
       await tester.pump();
@@ -123,9 +115,6 @@ void main() {
   ) async {
     await _pump(tester, const CloudBackupScreen(cloudSync: null));
 
-    expect(
-      find.byKey(const Key('cloud-backup-diagnostics-row')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('cloud-backup-diagnostics-row')), findsNothing);
   });
 }

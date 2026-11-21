@@ -162,28 +162,32 @@ void main() {
         );
       }
       String? editedId;
-      backend.beforeUpsertTransactions = (List<CloudTransactionRow> batch) async {
-        if (editedId != null) return;
-        editedId = batch.first.id;
-        await ledger.updateEntry(
-          khataId: 'personal',
-          entryId: editedId!,
-          entry: _entry(
-            kind: EntryFormKind.expense,
-            amountPaise: 999,
-            category: 'Food',
-            description: 'Changed in flight',
-            occurredAt: DateTime.utc(2026, 11, 20),
-          ),
-        );
-      };
+      backend.beforeUpsertTransactions =
+          (List<CloudTransactionRow> batch) async {
+            if (editedId != null) return;
+            editedId = batch.first.id;
+            await ledger.updateEntry(
+              khataId: 'personal',
+              entryId: editedId!,
+              entry: _entry(
+                kind: EntryFormKind.expense,
+                amountPaise: 999,
+                category: 'Food',
+                description: 'Changed in flight',
+                occurredAt: DateTime.utc(2026, 11, 20),
+              ),
+            );
+          };
 
       expect(await engine.syncNow(), SyncOutcome.synced);
       final List<CloudTransactionRow> sent = backend.pushedTransactionBatches
           .expand((List<CloudTransactionRow> batch) => batch)
           .toList();
       expect(sent, hasLength(7));
-      expect(sent.map((CloudTransactionRow row) => row.id).toSet(), hasLength(7));
+      expect(
+        sent.map((CloudTransactionRow row) => row.id).toSet(),
+        hasLength(7),
+      );
       expect(
         backend.pushedTransactionBatches.every(
           (List<CloudTransactionRow> batch) => batch.length <= 2,

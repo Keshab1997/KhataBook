@@ -964,10 +964,7 @@ void main() {
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      expect(
-        find.byKey(const Key('note-counter-save')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('note-counter-save')), findsNothing);
       expect(find.text('No changes to save yet'), findsOneWidget);
 
       // Typing a value persists the count on its own.

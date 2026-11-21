@@ -21,7 +21,6 @@ const double _cardRadius = 20;
 const double _cardGap = 12;
 const double _groupGap = 16;
 const double _labelGap = 8;
-const double _separator = 1;
 const double _edge = 0.85;
 const double _softEdge = 0.6;
 
@@ -34,7 +33,6 @@ const double _avatarSize = 40;
 const double _labelSize = 12;
 const double _rowTitleSize = 15;
 const double _cardTitleSize = 16;
-const double _valueSize = 20;
 const double _rowAmountSize = 18;
 const double _headerTitleSize = 23;
 
@@ -746,200 +744,233 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           Expanded(
             child: SafeArea(
               top: false,
-              child: LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: (constraints.maxHeight - 40).clamp(0.0, double.infinity)),
-                  child: IntrinsicHeight(child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                  _SummaryCard(
-                    totalCount: allEntries.length,
-                    entries: visible,
-                    strings: strings,
-                    copy: _copy,
-                    onSearch: _toggleFilters,
-                  ),
-                  const SizedBox(height: _cardGap + 2),
-                  _QuickFilters(
-                    strings: strings,
-                    type: _typeFilter,
-                    category: _categoryFilter,
-                    categories: _categoryOptions,
-                    categoryLabel: (category) => categories == null
-                        ? _categoryLabel(strings, category)
-                        : categoryDisplayName(widget.language, category, categories),
-                    dateLabel: hasDates ? '$fromLabel - $toLabel' :
-                        (widget.language == AppLanguage.bn ? 'থেকে - পর্যন্ত' : 'From - To'),
-                    onType: _selectType,
-                    onCategory: _selectCategory,
-                    onDate: _toggleFilters,
-                  ),
-                  if (_filtersOpen) ...<Widget>[
-                    const SizedBox(height: _cardGap),
-                  _SearchPill(
-                    controller: _searchController,
-                    focusNode: _searchFocus,
-                    onChanged: _onQueryChanged,
-                    clearButton: _query.isEmpty ? null : _clearSearchButton(),
-                    hint: strings.text(AppString.searchHint),
-                    label: strings.text(AppString.searchTransactions),
-                    tuneTooltip: _filtersOpen
-                        ? _copy.closeFilters
-                        : _copy.showFilters,
-                    filtersOpen: _filtersOpen,
-                    onTune: _toggleFilters,
-                    onTuneLongPress: _toggleFilters,
-                  ),
-                  ],
-                  if (_filtersOpen) ...<Widget>[
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.date),
-                      icon: Icons.event_outlined,
-                      action: hasDates
-                          ? _FilterClearAction(
-                              key: const Key('date-filter-clear'),
-                              label: strings.text(AppString.clearDates),
-                              semanticsLabel: strings.text(
-                                AppString.clearDatesFilter,
-                              ),
-                              onTap: _clearDates,
-                            )
-                          : null,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('date-filter-from'),
-                          label: fromLabel,
-                          semanticLabel: fromSemantics,
-                          icon: Icons.calendar_today_outlined,
-                          selected: fromDay != null,
-                          onTap: _pickFromDay,
-                        ),
-                        _FilterChip(
-                          key: const Key('date-filter-to'),
-                          label: toLabel,
-                          semanticLabel: toSemantics,
-                          icon: Icons.calendar_month_outlined,
-                          selected: toDay != null,
-                          onTap: _pickToDay,
-                        ),
-                      ],
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: (constraints.maxHeight - 40).clamp(
+                        0.0,
+                        double.infinity,
+                      ),
                     ),
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.type),
-                      icon: Icons.swap_vert,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('type-filter-all'),
-                          label: strings.text(AppString.all),
-                          semanticLabel: strings.text(AppString.allTypesFilter),
-                          selected: _typeFilter == null,
-                          onTap: () => _selectType(null),
-                        ),
-                        _FilterChip(
-                          key: const Key('type-filter-income'),
-                          label: strings.text(AppString.income),
-                          semanticLabel: strings.text(AppString.incomeFilter),
-                          icon: Icons.trending_up_rounded,
-                          iconColor: AppColors.incomeGreen,
-                          selected: _typeFilter == EntryType.income,
-                          onTap: () => _selectType(EntryType.income),
-                        ),
-                        _FilterChip(
-                          key: const Key('type-filter-expense'),
-                          label: strings.text(AppString.expense),
-                          semanticLabel: strings.text(AppString.expenseFilter),
-                          icon: Icons.trending_down_rounded,
-                          iconColor: AppColors.expenseRed,
-                          selected: _typeFilter == EntryType.expense,
-                          onTap: () => _selectType(EntryType.expense),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.category),
-                      icon: Icons.sell_outlined,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('category-filter-all'),
-                          label: strings.text(AppString.all),
-                          semanticLabel: strings.text(
-                            AppString.allCategoriesFilter,
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          _SummaryCard(
+                            totalCount: allEntries.length,
+                            entries: visible,
+                            strings: strings,
+                            copy: _copy,
+                            onSearch: _toggleFilters,
                           ),
-                          selected: _categoryFilter == null,
-                          onTap: () => _selectCategory(null),
-                        ),
-                        // The key and the filter value stay the canonical
-                        // stored category; only the visible label is
-                        // translated, so a tapped chip still matches the same
-                        // rows in either language.
-                        for (final String category in _categoryOptions)
-                          _FilterChip(
-                            key: Key('category-filter-$category'),
-                            label: categories == null
+                          const SizedBox(height: _cardGap + 2),
+                          _QuickFilters(
+                            strings: strings,
+                            type: _typeFilter,
+                            category: _categoryFilter,
+                            categories: _categoryOptions,
+                            categoryLabel: (category) => categories == null
                                 ? _categoryLabel(strings, category)
                                 : categoryDisplayName(
                                     widget.language,
                                     category,
                                     categories,
                                   ),
-                            customCategory: categories == null
-                                ? null
-                                : findCustomCategory(category, categories),
-                            semanticLabel: strings.categoryLabel(
-                              categories == null
-                                  ? _categoryLabel(strings, category)
-                                  : categoryDisplayName(
-                                      widget.language,
-                                      category,
-                                      categories,
-                                    ),
-                              filter: true,
+                            dateLabel: hasDates
+                                ? '$fromLabel - $toLabel'
+                                : (widget.language == AppLanguage.bn
+                                      ? 'থেকে - পর্যন্ত'
+                                      : 'From - To'),
+                            onType: _selectType,
+                            onCategory: _selectCategory,
+                            onDate: _toggleFilters,
+                          ),
+                          if (_filtersOpen) ...<Widget>[
+                            const SizedBox(height: _cardGap),
+                            _SearchPill(
+                              controller: _searchController,
+                              focusNode: _searchFocus,
+                              onChanged: _onQueryChanged,
+                              clearButton: _query.isEmpty
+                                  ? null
+                                  : _clearSearchButton(),
+                              hint: strings.text(AppString.searchHint),
+                              label: strings.text(AppString.searchTransactions),
+                              tuneTooltip: _filtersOpen
+                                  ? _copy.closeFilters
+                                  : _copy.showFilters,
+                              filtersOpen: _filtersOpen,
+                              onTune: _toggleFilters,
+                              onTuneLongPress: _toggleFilters,
                             ),
-                            selected: _categoryFilter == category,
-                            onTap: () => _selectCategory(category),
-                          ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: _groupGap),
-                  if (groups.isEmpty)
-                    _NoMatches(strings: strings, onClear: _clearFilters)
-                  else ...<Widget>[
-                    for (final _MonthGroup group in groups) ...<Widget>[
-                      _MonthHeader(group: group, strings: strings),
-                      for (final _DayGroup day in group.days) ...<Widget>[
-                        _DayHeader(day: day.day, strings: strings),
-                        // One card per row: a transaction is the object being
-                        // scanned here, so it is the object that is framed.
-                        for (final LedgerEntry entry
-                            in day.entries) ...<Widget>[
-                          _EntryCard(
-                            entry: entry,
-                            strings: strings,
-                            categories: categories,
-                            onTap: widget.ledger == null || entry.id == null
-                                ? null
-                                : _edit,
-                          ),
-                          const SizedBox(height: 10),
+                          ],
+                          if (_filtersOpen) ...<Widget>[
+                            const SizedBox(height: _cardGap),
+                            _FilterPanel(
+                              title: strings.text(AppString.date),
+                              icon: Icons.event_outlined,
+                              action: hasDates
+                                  ? _FilterClearAction(
+                                      key: const Key('date-filter-clear'),
+                                      label: strings.text(AppString.clearDates),
+                                      semanticsLabel: strings.text(
+                                        AppString.clearDatesFilter,
+                                      ),
+                                      onTap: _clearDates,
+                                    )
+                                  : null,
+                              children: <Widget>[
+                                _FilterChip(
+                                  key: const Key('date-filter-from'),
+                                  label: fromLabel,
+                                  semanticLabel: fromSemantics,
+                                  icon: Icons.calendar_today_outlined,
+                                  selected: fromDay != null,
+                                  onTap: _pickFromDay,
+                                ),
+                                _FilterChip(
+                                  key: const Key('date-filter-to'),
+                                  label: toLabel,
+                                  semanticLabel: toSemantics,
+                                  icon: Icons.calendar_month_outlined,
+                                  selected: toDay != null,
+                                  onTap: _pickToDay,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: _cardGap),
+                            _FilterPanel(
+                              title: strings.text(AppString.type),
+                              icon: Icons.swap_vert,
+                              children: <Widget>[
+                                _FilterChip(
+                                  key: const Key('type-filter-all'),
+                                  label: strings.text(AppString.all),
+                                  semanticLabel: strings.text(
+                                    AppString.allTypesFilter,
+                                  ),
+                                  selected: _typeFilter == null,
+                                  onTap: () => _selectType(null),
+                                ),
+                                _FilterChip(
+                                  key: const Key('type-filter-income'),
+                                  label: strings.text(AppString.income),
+                                  semanticLabel: strings.text(
+                                    AppString.incomeFilter,
+                                  ),
+                                  icon: Icons.trending_up_rounded,
+                                  iconColor: AppColors.incomeGreen,
+                                  selected: _typeFilter == EntryType.income,
+                                  onTap: () => _selectType(EntryType.income),
+                                ),
+                                _FilterChip(
+                                  key: const Key('type-filter-expense'),
+                                  label: strings.text(AppString.expense),
+                                  semanticLabel: strings.text(
+                                    AppString.expenseFilter,
+                                  ),
+                                  icon: Icons.trending_down_rounded,
+                                  iconColor: AppColors.expenseRed,
+                                  selected: _typeFilter == EntryType.expense,
+                                  onTap: () => _selectType(EntryType.expense),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: _cardGap),
+                            _FilterPanel(
+                              title: strings.text(AppString.category),
+                              icon: Icons.sell_outlined,
+                              children: <Widget>[
+                                _FilterChip(
+                                  key: const Key('category-filter-all'),
+                                  label: strings.text(AppString.all),
+                                  semanticLabel: strings.text(
+                                    AppString.allCategoriesFilter,
+                                  ),
+                                  selected: _categoryFilter == null,
+                                  onTap: () => _selectCategory(null),
+                                ),
+                                // The key and the filter value stay the canonical
+                                // stored category; only the visible label is
+                                // translated, so a tapped chip still matches the same
+                                // rows in either language.
+                                for (final String category in _categoryOptions)
+                                  _FilterChip(
+                                    key: Key('category-filter-$category'),
+                                    label: categories == null
+                                        ? _categoryLabel(strings, category)
+                                        : categoryDisplayName(
+                                            widget.language,
+                                            category,
+                                            categories,
+                                          ),
+                                    customCategory: categories == null
+                                        ? null
+                                        : findCustomCategory(
+                                            category,
+                                            categories,
+                                          ),
+                                    semanticLabel: strings.categoryLabel(
+                                      categories == null
+                                          ? _categoryLabel(strings, category)
+                                          : categoryDisplayName(
+                                              widget.language,
+                                              category,
+                                              categories,
+                                            ),
+                                      filter: true,
+                                    ),
+                                    selected: _categoryFilter == category,
+                                    onTap: () => _selectCategory(category),
+                                  ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: _groupGap),
+                          if (groups.isEmpty)
+                            _NoMatches(strings: strings, onClear: _clearFilters)
+                          else ...<Widget>[
+                            for (final _MonthGroup group in groups) ...<Widget>[
+                              _MonthHeader(group: group, strings: strings),
+                              for (final _DayGroup day
+                                  in group.days) ...<Widget>[
+                                _DayHeader(day: day.day, strings: strings),
+                                // One card per row: a transaction is the object being
+                                // scanned here, so it is the object that is framed.
+                                for (final LedgerEntry entry
+                                    in day.entries) ...<Widget>[
+                                  _EntryCard(
+                                    entry: entry,
+                                    strings: strings,
+                                    categories: categories,
+                                    onTap:
+                                        widget.ledger == null ||
+                                            entry.id == null
+                                        ? null
+                                        : _edit,
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                              ],
+                            ],
+                            // The end of the list says so quietly, so "there is
+                            // nothing below" is never mistaken for "the list is still
+                            // there".
+                            _EndOfList(
+                              strings: strings,
+                              hasFilters: _hasFilters,
+                            ),
+                          ],
+                          const Spacer(),
+                          _FooterArtwork(copy: _copy),
                         ],
-                      ],
-                    ],
-                    // The end of the list says so quietly, so "there is
-                    // nothing below" is never mistaken for "the list is still
-                    // there".
-                    _EndOfList(strings: strings, hasFilters: _hasFilters),
-                  ],
-                  const Spacer(),
-                  _FooterArtwork(copy: _copy),
-                ],
-              )),
+                      ),
+                    ),
+                  ),
                 ),
-              )),
+              ),
             ),
           ),
         ],
@@ -1200,46 +1231,114 @@ class _SummaryCard extends StatelessWidget {
     final double scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     return Semantics(
       container: true,
-      label: '$countText. $totalsText ${strings.text(AppString.filteredTotalsExplanation)}',
+      label:
+          '$countText. $totalsText ${strings.text(AppString.filteredTotalsExplanation)}',
       child: Column(
-          children: <Widget>[
-            Container(
-              key: const Key('transactions-summary'),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(_cardRadius),
-                border: Border.all(color: AppColors.outline),
-                boxShadow: _cardShadow(),
-              ),
-              child: scale > 1.45
-                  ? Column(children: <Widget>[
-                      _TotalTile(label: strings.text(AppString.income), value: strings.money(incomePaise), color: AppColors.incomeGreen, icon: Icons.trending_up_rounded, income: true),
-                      const Divider(),
-                      _TotalTile(label: strings.text(AppString.expense), value: strings.money(expensePaise), color: AppColors.expenseRed, icon: Icons.trending_down_rounded, income: false),
-                    ])
-                  : Row(children: <Widget>[
-                      Expanded(child: _TotalTile(label: strings.text(AppString.income), value: strings.money(incomePaise), color: AppColors.incomeGreen, icon: Icons.trending_up_rounded, income: true)),
-                      Container(key: const Key('transactions-summary-rule'), width: 1, height: 48, margin: const EdgeInsets.symmetric(horizontal: 10), color: AppColors.outline),
-                      Expanded(child: _TotalTile(label: strings.text(AppString.expense), value: strings.money(expensePaise), color: AppColors.expenseRed, icon: Icons.trending_down_rounded, income: false)),
-                      Image.asset('assets/illustrations/counter_header_coins.png', key: const Key('transactions-summary-art'), width: 48, height: 48, fit: BoxFit.contain, excludeFromSemantics: true),
-                    ]),
+        children: <Widget>[
+          Container(
+            key: const Key('transactions-summary'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(_cardRadius),
+              border: Border.all(color: AppColors.outline),
+              boxShadow: _cardShadow(),
             ),
-            const SizedBox(height: 10),
-            Row(children: <Widget>[
-              Expanded(child: Container(height: 1, color: AppColors.primaryGreen)),
+            child: scale > 1.45
+                ? Column(
+                    children: <Widget>[
+                      _TotalTile(
+                        label: strings.text(AppString.income),
+                        value: strings.money(incomePaise),
+                        color: AppColors.incomeGreen,
+                        icon: Icons.trending_up_rounded,
+                        income: true,
+                      ),
+                      const Divider(),
+                      _TotalTile(
+                        label: strings.text(AppString.expense),
+                        value: strings.money(expensePaise),
+                        color: AppColors.expenseRed,
+                        icon: Icons.trending_down_rounded,
+                        income: false,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: _TotalTile(
+                          label: strings.text(AppString.income),
+                          value: strings.money(incomePaise),
+                          color: AppColors.incomeGreen,
+                          icon: Icons.trending_up_rounded,
+                          income: true,
+                        ),
+                      ),
+                      Container(
+                        key: const Key('transactions-summary-rule'),
+                        width: 1,
+                        height: 48,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: AppColors.outline,
+                      ),
+                      Expanded(
+                        child: _TotalTile(
+                          label: strings.text(AppString.expense),
+                          value: strings.money(expensePaise),
+                          color: AppColors.expenseRed,
+                          icon: Icons.trending_down_rounded,
+                          income: false,
+                        ),
+                      ),
+                      Image.asset(
+                        'assets/illustrations/counter_header_coins.png',
+                        key: const Key('transactions-summary-art'),
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.contain,
+                        excludeFromSemantics: true,
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Container(height: 1, color: AppColors.primaryGreen),
+              ),
               const SizedBox(width: 10),
-              Flexible(flex: 4, child: _CountRibbon(label: countText, copy: copy)),
+              Flexible(
+                flex: 4,
+                child: _CountRibbon(label: countText, copy: copy),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: Container(height: 1, color: AppColors.primaryGreen)),
-              Semantics(button: true, label: strings.text(AppString.searchTransactions), child: GestureDetector(
-                onTap: onSearch,
-                behavior: HitTestBehavior.opaque,
-                child: const SizedBox(width: 40, height: 40, child: Icon(Icons.search, size: 20, color: AppColors.primaryGreen)),
-              )),
-            ]),
-          ],
-        ),
+              Expanded(
+                child: Container(height: 1, color: AppColors.primaryGreen),
+              ),
+              Semantics(
+                button: true,
+                label: strings.text(AppString.searchTransactions),
+                child: GestureDetector(
+                  key: const Key('transactions-search'),
+                  onTap: onSearch,
+                  behavior: HitTestBehavior.opaque,
+                  child: const SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1253,6 +1352,11 @@ class _CountRibbon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // At large text the badge would starve the count of room and push the
+    // ribbon past its edge, so the badge steps aside and the count keeps the
+    // capsule to itself — the same trade the totals card makes at this scale.
+    final double scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final bool compact = scale > 1.45;
     return Container(
       key: const Key('transactions-summary-ribbon'),
       constraints: const BoxConstraints(maxWidth: 300),
@@ -1271,24 +1375,26 @@ class _CountRibbon extends StatelessWidget {
             color: AppColors.onPrimary,
           ),
           const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: AppColors.golden,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              copy.live,
-              style: const TextStyle(
-                fontSize: 9.5,
-                height: 1.25,
-                letterSpacing: 0.6,
-                fontWeight: FontWeight.w800,
-                color: AppColors.headerGreen,
+          if (!compact) ...<Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.golden,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                copy.live,
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  height: 1.25,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.headerGreen,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
           Flexible(
             child: Text(
               label,
@@ -1332,17 +1438,45 @@ class _TotalTile extends StatelessWidget {
     return Row(
       children: <Widget>[
         Container(
-          width: 34, height: 34,
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+          ),
           child: Icon(icon, size: 20, color: color),
         ),
         const SizedBox(width: 8),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-          Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontFamily: 'serif', fontSize: 14, color: AppColors.darkText)),
-          FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-            child: Text(value, maxLines: 1, style: _money(size: 20, color: color, weight: FontWeight.w600).copyWith(fontFamily: 'serif'))),
-        ])),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 14,
+                  color: AppColors.darkText,
+                ),
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: _money(
+                    size: 20,
+                    color: color,
+                    weight: FontWeight.w600,
+                  ).copyWith(fontFamily: 'serif'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1351,10 +1485,17 @@ class _TotalTile extends StatelessWidget {
 /// Compact controls keep the most common filters visible, while the search
 /// and date controls reveal the full filter panel when needed.
 class _QuickFilters extends StatelessWidget {
-  const _QuickFilters({required this.strings, required this.type,
-    required this.category, required this.categories, required this.categoryLabel,
-    required this.dateLabel, required this.onType, required this.onCategory,
-    required this.onDate});
+  const _QuickFilters({
+    required this.strings,
+    required this.type,
+    required this.category,
+    required this.categories,
+    required this.categoryLabel,
+    required this.dateLabel,
+    required this.onType,
+    required this.onCategory,
+    required this.onDate,
+  });
 
   final AppStrings strings;
   final EntryType? type;
@@ -1376,26 +1517,60 @@ class _QuickFilters extends StatelessWidget {
       children: <Widget>[
         PopupMenuButton<String>(
           tooltip: strings.text(AppString.type),
-          onSelected: (value) => onType(value == 'income' ? EntryType.income : value == 'expense' ? EntryType.expense : null),
+          onSelected: (value) => onType(
+            value == 'income'
+                ? EntryType.income
+                : value == 'expense'
+                ? EntryType.expense
+                : null,
+          ),
           itemBuilder: (_) => <PopupMenuEntry<String>>[
             PopupMenuItem(value: 'all', child: Text(all)),
-            PopupMenuItem(value: 'income', child: Text(strings.text(AppString.income))),
-            PopupMenuItem(value: 'expense', child: Text(strings.text(AppString.expense))),
+            PopupMenuItem(
+              value: 'income',
+              child: Text(strings.text(AppString.income)),
+            ),
+            PopupMenuItem(
+              value: 'expense',
+              child: Text(strings.text(AppString.expense)),
+            ),
           ],
-          child: _QuickFilterPill(icon: Icons.check, label: type == null ? all : strings.text(type == EntryType.income ? AppString.income : AppString.expense)),
+          child: _QuickFilterPill(
+            icon: Icons.check,
+            label: type == null
+                ? all
+                : strings.text(
+                    type == EntryType.income
+                        ? AppString.income
+                        : AppString.expense,
+                  ),
+          ),
         ),
         PopupMenuButton<int>(
           tooltip: strings.text(AppString.category),
-          onSelected: (index) => onCategory(index == -1 ? null : categories[index]),
+          onSelected: (index) =>
+              onCategory(index == -1 ? null : categories[index]),
           itemBuilder: (_) => <PopupMenuEntry<int>>[
             PopupMenuItem(value: -1, child: Text(all)),
             for (var i = 0; i < categories.length; i++)
-              PopupMenuItem(value: i, child: Text(categoryLabel(categories[i]))),
+              PopupMenuItem(
+                value: i,
+                child: Text(categoryLabel(categories[i])),
+              ),
           ],
-          child: _QuickFilterPill(icon: Icons.sell_outlined, label: category == null ? all : categoryLabel(category!)),
+          child: _QuickFilterPill(
+            icon: Icons.sell_outlined,
+            label: category == null ? all : categoryLabel(category!),
+          ),
         ),
-        InkWell(onTap: onDate, borderRadius: BorderRadius.circular(40),
-          child: _QuickFilterPill(icon: Icons.calendar_month_outlined, label: dateLabel)),
+        InkWell(
+          onTap: onDate,
+          borderRadius: BorderRadius.circular(40),
+          child: _QuickFilterPill(
+            icon: Icons.calendar_month_outlined,
+            label: dateLabel,
+          ),
+        ),
       ],
     );
   }
@@ -1410,14 +1585,43 @@ class _QuickFilterPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     constraints: const BoxConstraints(minHeight: 44, maxWidth: 175),
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(40), border: Border.all(color: AppColors.outline)),
-    child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
-      Container(padding: const EdgeInsets.all(5), decoration: const BoxDecoration(color: AppColors.lightGreen, shape: BoxShape.circle), child: Icon(icon, size: 19, color: AppColors.primaryGreen)),
-      const SizedBox(width: 5),
-      Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'serif', fontSize: 14, color: AppColors.darkText))),
-      const SizedBox(width: 3),
-      const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.darkText),
-    ]),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(40),
+      border: Border.all(color: AppColors.outline),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: const BoxDecoration(
+            color: AppColors.lightGreen,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 19, color: AppColors.primaryGreen),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: 'serif',
+              fontSize: 14,
+              color: AppColors.darkText,
+            ),
+          ),
+        ),
+        const SizedBox(width: 3),
+        const Icon(
+          Icons.keyboard_arrow_down,
+          size: 20,
+          color: AppColors.darkText,
+        ),
+      ],
+    ),
   );
 }
 
@@ -1803,11 +2007,29 @@ class _MonthHeader extends StatelessWidget {
       child: Container(
         key: Key(_monthKey(group.month)),
         margin: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Row(children: <Widget>[
-          Container(width: 4, height: 20, decoration: BoxDecoration(color: AppColors.primaryGreen, borderRadius: BorderRadius.circular(4))),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: const TextStyle(fontFamily: 'serif', fontSize: 18, color: AppColors.headerGreen))),
-        ]),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 4,
+              height: 20,
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 18,
+                  color: AppColors.headerGreen,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1842,7 +2064,11 @@ class _DayHeader extends StatelessWidget {
               strings.day(day),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontFamily: 'serif', fontSize: 16, color: AppColors.darkText),
+              style: const TextStyle(
+                fontFamily: 'serif',
+                fontSize: 16,
+                color: AppColors.darkText,
+              ),
             ),
           ),
         ],
@@ -1886,9 +2112,20 @@ class _EndOfList extends StatelessWidget {
             color: AppColors.navigationGrey,
           ),
           const SizedBox(width: 6),
-          Flexible(child: Text(message, maxLines: 2, textAlign: TextAlign.center, style: _meta.copyWith(fontFamily: 'serif', fontSize: 15))),
+          Flexible(
+            child: Text(
+              message,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: _meta.copyWith(fontFamily: 'serif', fontSize: 15),
+            ),
+          ),
           const SizedBox(width: 6),
-          const Icon(Icons.horizontal_rule, size: 16, color: AppColors.navigationGrey),
+          const Icon(
+            Icons.horizontal_rule,
+            size: 16,
+            color: AppColors.navigationGrey,
+          ),
         ],
       ),
     );
@@ -1995,7 +2232,12 @@ class _EntryCard extends StatelessWidget {
                       income: isIncome,
                       strings: strings,
                     ),
-                    Container(width: 1, height: 48, margin: const EdgeInsets.symmetric(horizontal: 9), color: AppColors.outline),
+                    Container(
+                      width: 1,
+                      height: 48,
+                      margin: const EdgeInsets.symmetric(horizontal: 9),
+                      color: AppColors.outline,
+                    ),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2017,7 +2259,11 @@ class _EntryCard extends StatelessWidget {
                             rowMeta,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: _meta.copyWith(height: 1.35, fontFamily: 'serif', fontSize: 14),
+                            style: _meta.copyWith(
+                              height: 1.35,
+                              fontFamily: 'serif',
+                              fontSize: 14,
+                            ),
                           ),
                         ],
                       ),

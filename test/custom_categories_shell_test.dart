@@ -100,8 +100,9 @@ void main() {
     );
     expect(identical(transactions.categoryStore, store), isTrue);
     // The filter panels start collapsed; only open them before looking for
-    // chips, which live inside them.
-    await revealTap(tester, find.byKey(const Key('filters-tune')));
+    // chips, which live inside them. The summary card's search button is
+    // the way in now.
+    await revealTap(tester, find.byKey(const Key('transactions-search')));
     await waitFor(tester, find.byKey(Key('category-filter-$id')));
     await tester.scrollUntilVisible(
       find.text('Morning bus'),

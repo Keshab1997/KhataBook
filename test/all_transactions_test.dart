@@ -127,21 +127,14 @@ Future<void> tapControl(WidgetTester tester, Finder finder) async {
 }
 
 /// Opens the filter panels, which start collapsed (the list is the first
-/// screenful now, not the blank filter area).
+/// screenful now, not the blank filter area). The summary card's search
+/// button is the way in; the search pill only exists once the panels are
+/// open, so it cannot be the thing that opens them.
 Future<void> openFilters(WidgetTester tester) async {
   if (find.byKey(const Key('date-filter-from')).evaluate().isNotEmpty) {
     return;
   }
-  if (find.byKey(const Key('filters-tune')).evaluate().isEmpty) {
-    // The search pill can sit below the fold on small screens.
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('search-pill')),
-      160,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pumpAndSettle();
-  }
-  await tester.tap(find.byKey(const Key('filters-tune')));
+  await tester.tap(find.byKey(const Key('transactions-search')));
   await tester.pumpAndSettle();
 }
 
@@ -203,6 +196,14 @@ String searchText(WidgetTester tester) {
 Finder chipCheck(String key) => find.descendant(
   of: find.byKey(Key(key)),
   matching: find.byIcon(Icons.check),
+);
+
+/// The month heading whose accessible label carries [totals]. The redesign
+/// draws only the month name and keeps the figures for a screen reader, so
+/// the totals are asserted on the label, not on a visible [Text].
+Finder monthTotals(String month, String totals) => find.byWidgetPredicate(
+  (Widget widget) =>
+      widget is Semantics && widget.properties.label == '$month. $totals',
 );
 
 void main() {
@@ -306,28 +307,35 @@ void main() {
       expect(find.text('-₹1,200'), findsOneWidget);
       expect(find.text('+₹5,000'), findsOneWidget);
 
-      final Finder november = find.byKey(const Key('month-2026-11'));
+      // The month heading carries its totals in its accessible label: the
+      // figures are not drawn as text, but a screen reader hears them.
       expect(
-        find.descendant(of: november, matching: find.text('₹5,000')),
+        monthTotals('Nov 2026', 'Income ₹5,000, Expense ₹2,280.'),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: november, matching: find.text('₹2,280')),
+        monthTotals('Oct 2026', 'Income ₹7,500, Expense ₹2,500.50.'),
         findsOneWidget,
       );
-
-      final Finder october = find.byKey(const Key('month-2026-10'));
       expect(
-        find.descendant(of: october, matching: find.text('₹7,500')),
+        monthTotals('Sep 2026', 'Income ₹0, Expense ₹25.'),
         findsOneWidget,
       );
-      // Paise survive: ₹2,500.50 is not rounded to ₹2,501.
-      expect(find.text('₹2,500.50'), findsOneWidget);
+      // Paise survive: the row keeps its exact figure, not a rounded one.
+      expect(find.text('-₹2,500.50'), findsOneWidget);
       expect(find.textContaining('₹2,501'), findsNothing);
 
-      // The opening balance never leaks into any total.
+      // The opening balance never leaks into any total. The card's accessible
+      // label says so in words; the figure itself appears nowhere.
       expect(find.textContaining('₹10,000'), findsNothing);
-      expect(find.textContaining('remaining balance.'), findsWidgets);
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics &&
+              (widget.properties.label ?? '').contains('remaining balance.'),
+        ),
+        findsWidgets,
+      );
     });
   });
 
@@ -346,13 +354,9 @@ void main() {
       // September holds no income, so that month disappears entirely.
       expect(find.text('Sep 2026'), findsNothing);
 
-      final Finder november = find.byKey(const Key('month-2026-11'));
+      // The month heading's accessible label carries the filtered totals.
       expect(
-        find.descendant(of: november, matching: find.text('₹5,000')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: november, matching: find.text('₹0')),
+        monthTotals('Nov 2026', 'Income ₹5,000, Expense ₹0.'),
         findsOneWidget,
       );
       expect(
@@ -377,17 +381,11 @@ void main() {
       expect(find.text('Showing 2 of 8 transactions'), findsOneWidget);
       expect(find.byKey(const Key('month-2026-10')), findsNothing);
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-11')),
-          matching: find.text('₹580'),
-        ),
+        monthTotals('Nov 2026', 'Income ₹0, Expense ₹580.'),
         findsOneWidget,
       );
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-09')),
-          matching: find.text('₹25'),
-        ),
+        monthTotals('Sep 2026', 'Income ₹0, Expense ₹25.'),
         findsOneWidget,
       );
 
@@ -442,6 +440,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
+      await openFilters(tester);
       expect(find.byKey(const Key('search-clear')), findsNothing);
 
       await tester.enterText(
@@ -467,17 +466,11 @@ void main() {
       expect(find.text('Sep 2026'), findsOneWidget);
       // Counts, month totals and the card describe exactly those two rows.
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-11')),
-          matching: find.text('₹580'),
-        ),
+        monthTotals('Nov 2026', 'Income ₹0, Expense ₹580.'),
         findsOneWidget,
       );
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-09')),
-          matching: find.text('₹25'),
-        ),
+        monthTotals('Sep 2026', 'Income ₹0, Expense ₹25.'),
         findsOneWidget,
       );
       expect(
@@ -505,6 +498,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
+      await openFilters(tester);
 
       await tester.enterText(find.byKey(const Key('search-field')), 'zzz');
       await tester.pumpAndSettle();
@@ -533,6 +527,7 @@ void main() {
           ],
         ),
       );
+      await openFilters(tester);
 
       await tester.enterText(find.byKey(const Key('search-field')), 'খাবার');
       await tester.pumpAndSettle();
@@ -614,10 +609,7 @@ void main() {
       expect(find.text('Showing 3 of 8 transactions'), findsOneWidget);
       // The month total follows the three rows that are left.
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-11')),
-          matching: find.text('₹1,979'),
-        ),
+        monthTotals('Nov 2026', 'Income ₹0, Expense ₹1,979.'),
         findsOneWidget,
       );
     });
@@ -659,10 +651,7 @@ void main() {
       expect(find.text('Tea Stall'), findsNothing);
       expect(find.text('Showing 1 of 8 transactions'), findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byKey(const Key('month-2026-11')),
-          matching: find.text('₹580'),
-        ),
+        monthTotals('Nov 2026', 'Income ₹0, Expense ₹580.'),
         findsOneWidget,
       );
 
@@ -804,6 +793,7 @@ void main() {
         khataId: 'personal',
       );
 
+      await openFilters(tester);
       await tester.enterText(find.byKey(const Key('search-field')), 'lunch');
       await tester.pumpAndSettle();
       await tapChip(tester, 'category-filter-Food');
@@ -879,6 +869,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
 
+      await openFilters(tester);
       await reveal(tester, find.byKey(const Key('search-field')));
       await tester.enterText(find.byKey(const Key('search-field')), 'food');
       await tester.pumpAndSettle();
@@ -1034,14 +1025,15 @@ void main() {
       }
 
       // The totals in the cards are set the same way, so a figure is one
-      // kind of thing anywhere on the screen.
-      // The month's own totals, inside the month header they belong to.
-      final Finder november = find.byKey(const Key('month-2026-11'));
-      for (final String total in <String>['₹5,000', '₹2,280']) {
+      // kind of thing anywhere on the screen. The month headings carry their
+      // totals in the accessible label now, so the visible totals to check
+      // are the summary card's.
+      final Finder summary = find.byKey(const Key('transactions-summary'));
+      for (final String total in <String>['₹12,500', '₹4,805.50']) {
         expect(
           tester
               .widget<Text>(
-                find.descendant(of: november, matching: find.text(total)),
+                find.descendant(of: summary, matching: find.text(total)),
               )
               .style!
               .fontFeatures,
@@ -1056,19 +1048,20 @@ void main() {
 
       double sizeOf(String text) =>
           tester.widget<Text>(find.text(text)).style!.fontSize!;
-      expect(sizeOf('Nov 2026'), 16);
-      expect(sizeOf('19 Nov 2026'), 12);
+      expect(sizeOf('Nov 2026'), 18);
+      expect(sizeOf('19 Nov 2026'), 16);
       // The count moved into the green ribbon on the totals card, where it is
       // the small caption of that card rather than its heading.
       expect(sizeOf('Showing 8 transactions'), 12);
       expect(sizeOf('Grocery Shopping'), 15);
-      expect(sizeOf('Bills · 10:20 AM'), 12);
+      expect(sizeOf('Bills · 10:20 AM'), 14);
     });
 
     testWidgets('the search box and the chips use the entry screen chrome', (
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
+      await openFilters(tester);
 
       // The search box is the reference's rounded pill: its frame is the
       // capsule around it, so the field itself draws no box. It keeps the
@@ -1091,8 +1084,8 @@ void main() {
         AppColors.outline.withValues(alpha: 0.85),
       );
 
-      // Panels start collapsed; open them, then check the chip chrome. The
-      // chip gap is deliberately tight — the list is the thing on this screen.
+      // The panels are open now; check the chip chrome. The chip gap is
+      // deliberately tight — the list is the thing on this screen.
       await openFilters(tester);
       for (final Wrap wrap in tester.widgetList<Wrap>(find.byType(Wrap))) {
         expect(wrap.spacing, 8);

@@ -167,7 +167,7 @@ void main() {
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
         // Panels start collapsed; open them, then pick a date.
-        await tester.tap(find.byKey(const Key('filters-tune')));
+        await tester.tap(find.byKey(const Key('transactions-search')));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('date-filter-to')));
         await tester.pumpAndSettle();
@@ -269,32 +269,30 @@ void main() {
       );
       expect(card.color, AppColors.surface);
       expect(card.borderRadius, BorderRadius.circular(20));
-      expect(
-        (card.border! as Border).top.color,
-        AppColors.outline.withValues(alpha: 0.85),
-      );
+      expect((card.border! as Border).top.color, AppColors.outline);
       expect(card.boxShadow, hasLength(1));
 
-      // The green ribbon straddles the card's top edge, above the figures.
+      // The green ribbon sits below the card now, between the figures and
+      // the quick filters, with the live count inside it.
       final Finder ribbon = find.byKey(
         const Key('transactions-summary-ribbon'),
       );
       expect(ribbon, findsOneWidget);
       expect(find.text('LIVE'), findsOneWidget);
       expect(find.text('Showing 3 transactions'), findsOneWidget);
-      final double cardTop = tester
-          .getTopLeft(find.byKey(const Key('transactions-summary')))
+      final double cardBottom = tester
+          .getBottomLeft(find.byKey(const Key('transactions-summary')))
           .dy;
-      expect(tester.getTopLeft(ribbon).dy, lessThan(cardTop));
-      expect(tester.getBottomLeft(ribbon).dy, greaterThan(cardTop));
+      expect(tester.getTopLeft(ribbon).dy, greaterThan(cardBottom));
 
-      // One vertical hairline between the two figures at normal text.
-      expect(
-        tester
-            .getSize(find.byKey(const Key('transactions-summary-rule')))
-            .width,
-        1,
+      // One vertical hairline between the two figures at normal text. The
+      // frame's own constraint is the hairline; its margins are not part of
+      // it, so the constraint — not the rendered size — is what to read.
+      final Finder rule = find.byKey(const Key('transactions-summary-rule'));
+      final ConstrainedBox hairline = tester.widget<ConstrainedBox>(
+        find.descendant(of: rule, matching: find.byType(ConstrainedBox)).first,
       );
+      expect(hairline.constraints.maxWidth, 1);
 
       // Income and expense are still the real figures of the shown rows: the
       // card's own totals, not a month's subset, and never the opening balance.
@@ -307,27 +305,41 @@ void main() {
         find.descendant(of: totals, matching: find.text('₹3,000.50')),
         findsOneWidget,
       );
-      // ...and the opening balance is still nowhere on the screen.
+      // ...and the opening balance is still nowhere on the screen. The card
+      // says so in its accessible label now, not in visible words.
       expect(find.textContaining('₹10,000'), findsNothing);
-      expect(find.textContaining('not the remaining balance'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics &&
+              (widget.properties.label ?? '').contains(
+                'not the remaining balance',
+              ),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the coin artwork never sits over the totals note', (
+    testWidgets('the coin artwork never sits over the totals figures', (
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen());
 
       final Finder art = find.byKey(const Key('transactions-summary-art'));
       expect(art, findsOneWidget);
-      final Finder note = find.textContaining('Totals count only');
-      expect(note, findsOneWidget);
-      // Side by side, not stacked: the decorative asset starts to the right
-      // of the words it must never cover.
-      expect(
-        tester.getTopLeft(art).dx,
-        greaterThanOrEqualTo(tester.getTopRight(note).dx - 1),
-      );
+      // The totals note lives in the card's accessible label now; the
+      // figures it must never cover are the two totals themselves. The
+      // decorative asset sits to the right of both, side by side.
+      final Rect artRect = tester.getRect(art);
+      for (final String figure in <String>['₹1,000', '₹3,000.50']) {
+        final Rect figureRect = tester.getRect(find.text(figure));
+        expect(
+          artRect.left,
+          greaterThanOrEqualTo(figureRect.right - 1),
+          reason: 'artwork covers $figure',
+        );
+      }
       expect(tester.takeException(), isNull);
     });
   });
@@ -337,6 +349,8 @@ void main() {
       'rounded pill with the real controller and a pale-green tune cap',
       (WidgetTester tester) async {
         await _pump(tester, _screen());
+        await tester.tap(find.byKey(const Key('transactions-search')));
+        await tester.pumpAndSettle();
 
         final BoxDecoration pill = _decorationOf(
           tester,
@@ -367,9 +381,10 @@ void main() {
       await _pump(tester, _screen());
 
       // Collapsed by default: the search box, the totals and the rows are the
-      // first thing on the screen, not the filter area. The tune button is
-      // always visible, so a filter is never one tap too far away.
-      expect(find.byKey(const Key('filters-tune')), findsOneWidget);
+      // first thing on the screen, not the filter area. The summary card's
+      // search button is always visible, so a filter is never one tap away.
+      expect(find.byKey(const Key('transactions-search')), findsOneWidget);
+      expect(find.byKey(const Key('search-pill')), findsNothing);
       expect(find.byKey(const Key('date-filter-from')), findsNothing);
       expect(find.byKey(const Key('type-filter-all')), findsNothing);
       expect(find.text('Salary'), findsOneWidget);
@@ -381,21 +396,21 @@ void main() {
     ) async {
       await _pump(tester, _screen());
 
-      // One tap opens them.
-      await tester.tap(find.byKey(const Key('filters-tune')));
+      // One tap on the summary search button opens them.
+      await tester.tap(find.byKey(const Key('transactions-search')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
       expect(find.byKey(const Key('type-filter-all')), findsOneWidget);
 
-      // One more closes them, and the rows are untouched.
+      // One more on the tune cap closes them, and the rows are untouched.
       await tester.tap(find.byKey(const Key('filters-tune')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsNothing);
       expect(find.byKey(const Key('category-filter-all')), findsNothing);
       expect(find.text('Salary'), findsOneWidget);
 
-      // And one more reopens them.
-      await tester.tap(find.byKey(const Key('filters-tune')));
+      // And one more on the search button reopens them.
+      await tester.tap(find.byKey(const Key('transactions-search')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -405,7 +420,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen());
-      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.tap(find.byKey(const Key('transactions-search')));
       await tester.pumpAndSettle();
 
       for (final String key in <String>[
@@ -457,14 +472,16 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(bengali: true));
-      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.tap(find.byKey(const Key('transactions-search')));
       await tester.pumpAndSettle();
 
       // The chip key stays the stored category token even though the label is
       // translated, so a tap still matches the same rows.
       expect(find.byKey(const Key('category-filter-Food')), findsOneWidget);
       expect(find.text('খাবার'), findsWidgets);
-      expect(find.text('সব'), findsNWidgets(2));
+      // The quick-filter pills say "সব" too, so the word appears more than
+      // once; what matters is the panels carry it.
+      expect(find.text('সব'), findsWidgets);
       expect(find.byKey(const Key('filters-tune')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -580,6 +597,8 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen());
+      await tester.tap(find.byKey(const Key('transactions-search')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('search-field')), 'zzz');
       await tester.pumpAndSettle();
 
@@ -721,10 +740,10 @@ void main() {
           size: _smallPhone,
           textScale: _largeText,
         );
-        // The pill can sit below the fold at this scale: scroll it in view
-        // first, then open the panels.
-        await _reveal(tester, find.byKey(const Key('search-pill')));
-        await tester.tap(find.byKey(const Key('filters-tune')));
+        // The search button can sit below the fold at this scale: scroll it
+        // in view first, then open the panels.
+        await _reveal(tester, find.byKey(const Key('transactions-search')));
+        await tester.tap(find.byKey(const Key('transactions-search')));
         await tester.pumpAndSettle();
         // The title ellipsizes instead of pushing the header apart.
         final Text title = tester.widget<Text>(
@@ -771,7 +790,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(), size: _reference);
-      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.tap(find.byKey(const Key('transactions-search')));
       await tester.pumpAndSettle();
 
       final double headerBottom = tester

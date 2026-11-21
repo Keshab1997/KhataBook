@@ -54,7 +54,10 @@ class _SyncDiagnosticsScreenState extends State<SyncDiagnosticsScreen> {
         children: <Widget>[
           AccountPageHeader(
             title: _pair('Diagnostics', 'ডায়াগনস্টিকস'),
-            subtitle: _pair('Sync state on this phone', 'এই ফোনের সিঙ্ক অবস্থা'),
+            subtitle: _pair(
+              'Sync state on this phone',
+              'এই ফোনের সিঙ্ক অবস্থা',
+            ),
             icon: Icons.troubleshoot_outlined,
             backTooltip: _pair('Back', 'পেছনে'),
             onBack: canPop ? () => Navigator.of(context).maybePop() : null,

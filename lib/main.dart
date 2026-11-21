@@ -52,8 +52,7 @@ Future<void> _run() async {
       ledger
           .writeSyncMetadata(lastError: reason)
           .catchError(
-            (Object e) =>
-                debugPrint('Could not record startup sync error: $e'),
+            (Object e) => debugPrint('Could not record startup sync error: $e'),
           ),
     );
   }

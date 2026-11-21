@@ -273,7 +273,9 @@ class SupabaseCloudBackend implements CloudBackend {
       }
       if (cursorId != null) {
         if (cursorTimestamp == null) {
-          filter = filter.isFilter('server_updated_at', null).gt('id', cursorId);
+          filter = filter
+              .isFilter('server_updated_at', null)
+              .gt('id', cursorId);
         } else {
           final String timestamp = _postgrestQuoted(cursorTimestamp);
           final String id = _postgrestQuoted(cursorId);

@@ -6,6 +6,8 @@
 //   v1  schema.sql only (khatas, transactions, indexes)
 //   v2  + active_khata_preference
 //   v3  + sync_metadata
+//   v4  + pending-cursor indexes (idx_khatas_pending_cursor,
+//       idx_transactions_pending_cursor)
 
 import 'dart:io';
 
@@ -18,7 +20,7 @@ import 'package:khatabook/features/ledger/data/local_ledger.dart';
 /// A ledger frozen at an old schema version. `onCreate` writes exactly what
 /// that version shipped: the schema.sql DDL, plus `active_khata_preference`
 /// from v2 on. Opening a file created by this class with [LocalLedger] forces
-/// the real `onUpgrade(from: version, to: 3)` to run.
+/// the real `onUpgrade(from: version, to: 4)` to run.
 class _LegacyLedger extends GeneratedDatabase {
   _LegacyLedger(super.executor, {required this.version})
     : assert(version == 1 || version == 2, 'legacy versions are 1 and 2');
@@ -96,7 +98,7 @@ void main() {
     await dir.delete(recursive: true);
   });
 
-  test('v1 database upgrades to v3 and keeps every legacy row', () async {
+  test('v1 database upgrades to v4 and keeps every legacy row', () async {
     final File file = File('${dir.path}/ledger.sqlite');
 
     final _LegacyLedger legacy = _LegacyLedger(
@@ -111,7 +113,7 @@ void main() {
       await ledger.initialize();
 
       // onUpgrade stamped the new version.
-      expect(await _userVersion(ledger), 3);
+      expect(await _userVersion(ledger), 4);
 
       // The v2 table exists and works: the fallback selection resolves to the
       // default personal khata that initialize() re-confirms.
@@ -119,6 +121,23 @@ void main() {
 
       // The v3 table exists and starts empty.
       expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
+
+      // The v4 pending-cursor indexes exist: the v3→v4 step ran, not just
+      // the version stamp.
+      final List<QueryRow> indexRows = await ledger
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'index' "
+            "AND name IN ('idx_khatas_pending_cursor', "
+            "'idx_transactions_pending_cursor')",
+          )
+          .get();
+      expect(
+        indexRows.map((QueryRow r) => r.read<String>('name')),
+        containsAll(<String>[
+          'idx_khatas_pending_cursor',
+          'idx_transactions_pending_cursor',
+        ]),
+      );
 
       // Legacy rows survived the upgrade byte for byte.
       final List<LocalKhata> khatas = await ledger.listKhatas();
@@ -142,37 +161,40 @@ void main() {
     }
   });
 
-  test('v2 database upgrades to v3 and keeps the active-khata choice', () async {
-    final File file = File('${dir.path}/ledger.sqlite');
+  test(
+    'v2 database upgrades to v4 and keeps the active-khata choice',
+    () async {
+      final File file = File('${dir.path}/ledger.sqlite');
 
-    final _LegacyLedger legacy = _LegacyLedger(
-      NativeDatabase(file),
-      version: 2,
-    );
-    await _seedLegacyData(legacy);
-    await legacy.customStatement(
-      'INSERT INTO active_khata_preference (singleton, khata_id) '
-      "VALUES (1, 'khata-legacy')",
-    );
-    await legacy.close();
+      final _LegacyLedger legacy = _LegacyLedger(
+        NativeDatabase(file),
+        version: 2,
+      );
+      await _seedLegacyData(legacy);
+      await legacy.customStatement(
+        'INSERT INTO active_khata_preference (singleton, khata_id) '
+        "VALUES (1, 'khata-legacy')",
+      );
+      await legacy.close();
 
-    final LocalLedger ledger = LocalLedger(NativeDatabase(file));
-    try {
-      await ledger.initialize();
+      final LocalLedger ledger = LocalLedger(NativeDatabase(file));
+      try {
+        await ledger.initialize();
 
-      expect(await _userVersion(ledger), 3);
+        expect(await _userVersion(ledger), 4);
 
-      // The stored selection survived: no reset to 'personal'.
-      expect(await ledger.readActiveKhataId(), 'khata-legacy');
+        // The stored selection survived: no reset to 'personal'.
+        expect(await ledger.readActiveKhataId(), 'khata-legacy');
 
-      // sync_metadata was created by the v2→v3 step and persists writes.
-      expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
-      await ledger.writeSyncMetadata(lastError: 'probe');
-      expect((await ledger.readSyncMetadata()).lastError, 'probe');
-    } finally {
-      await ledger.close();
-    }
-  });
+        // sync_metadata was created by the v2→v3 step and persists writes.
+        expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
+        await ledger.writeSyncMetadata(lastError: 'probe');
+        expect((await ledger.readSyncMetadata()).lastError, 'probe');
+      } finally {
+        await ledger.close();
+      }
+    },
+  );
 
   test('an already-migrated database reopens without data loss', () async {
     final File file = File('${dir.path}/ledger.sqlite');
@@ -193,7 +215,7 @@ void main() {
     ledger = LocalLedger(NativeDatabase(file));
     try {
       await ledger.initialize();
-      expect(await _userVersion(ledger), 3);
+      expect(await _userVersion(ledger), 4);
       expect((await ledger.readSyncMetadata()).lastError, 'first-open error');
       expect(
         (await ledger.listKhatas()).map((LocalKhata k) => k.id),

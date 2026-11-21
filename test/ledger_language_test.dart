@@ -83,12 +83,19 @@ Future<void> pumpScreen(
 }
 
 /// Opens the All Transactions filter panels when the target is inside them.
+/// The summary card's search button is the way in; the tune cap only exists
+/// once the panels are already open. On any other screen this is a no-op, so
+/// [tapKey] can call it unconditionally.
 Future<void> openFilters(WidgetTester tester) async {
-  if (find.byKey(const Key('filters-tune')).evaluate().isNotEmpty &&
-      find.byKey(const Key('date-filter-from')).evaluate().isEmpty) {
-    await tester.tap(find.byKey(const Key('filters-tune')));
-    await tester.pumpAndSettle();
+  if (find.byKey(const Key('date-filter-from')).evaluate().isNotEmpty) {
+    return;
   }
+  final Finder search = find.byKey(const Key('transactions-search'));
+  if (search.evaluate().isEmpty) {
+    return;
+  }
+  await tester.tap(search);
+  await tester.pumpAndSettle();
 }
 
 Future<void> tapKey(WidgetTester tester, String key) async {
@@ -143,7 +150,9 @@ void main() {
       expect(find.text('Category'), findsOneWidget);
       expect(find.text('From: any date'), findsOneWidget);
       expect(find.text('To: any date'), findsOneWidget);
-      expect(find.text('All'), findsNWidgets(2));
+      // The quick-filter pills say "All" too, so the word appears more than
+      // once; what matters is the panels carry it.
+      expect(find.text('All'), findsWidgets);
       expect(find.text('Food'), findsOneWidget); // canonical category chip
       expect(find.text('Grocery Shopping'), findsOneWidget);
       // A row card shows `category · time`; the date itself is the calendar
@@ -176,7 +185,8 @@ void main() {
       expect(find.text(bn.text(AppString.date)), findsOneWidget);
       expect(find.text(bn.text(AppString.type)), findsOneWidget);
       expect(find.text(bn.text(AppString.category)), findsOneWidget);
-      expect(find.text(bn.text(AppString.all)), findsNWidgets(2));
+      // The quick-filter pills say "সব" too; the panels carry it as well.
+      expect(find.text(bn.text(AppString.all)), findsWidgets);
       expect(find.text(bn.text(AppString.food)), findsOneWidget);
       expect(find.text(bn.text(AppString.fromAnyDate)), findsOneWidget);
 
@@ -225,7 +235,9 @@ void main() {
         find.text(bn.transactionCount(shown: 1, total: 4)),
         findsOneWidget,
       );
-      expect(find.text(bn.text(AppString.food)), findsOneWidget);
+      // The chosen category reads in Bengali on both the quick pill and the
+      // panel chip, so the word appears twice.
+      expect(find.text(bn.text(AppString.food)), findsWidgets);
 
       // Clearing the filter brings every row back, still in Bengali.
       await tapKey(tester, 'category-filter-all');
@@ -246,6 +258,7 @@ void main() {
           language: AppLanguage.bn,
         ),
       );
+      await openFilters(tester);
 
       await tester.enterText(find.byKey(const Key('search-field')), 'lunch');
       await tester.pumpAndSettle();

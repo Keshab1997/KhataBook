@@ -637,7 +637,9 @@ void main() {
     expect(changes.cursor, t2);
     expect(khataRequests, hasLength(3));
     expect(
-      khataRequests.every((Uri uri) => !uri.queryParameters.containsKey('offset')),
+      khataRequests.every(
+        (Uri uri) => !uri.queryParameters.containsKey('offset'),
+      ),
       isTrue,
     );
     expect(khataRequests[1].queryParameters['or'], contains('id.gt."k-2"'));
