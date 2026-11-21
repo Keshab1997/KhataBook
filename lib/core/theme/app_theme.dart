@@ -44,7 +44,8 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.warmIvory,
-        indicatorColor: AppColors.lightGreen,
+        indicatorColor: AppColors.primaryGreen,
+        indicatorShape: const StadiumBorder(),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         height: 74,
@@ -53,15 +54,15 @@ class AppTheme {
           final bool selected = states.contains(WidgetState.selected);
           return TextStyle(
             color: selected ? AppColors.primaryGreen : AppColors.softText,
-            fontSize: 11,
+            fontSize: 11.5,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>((states) {
           final bool selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: selected ? AppColors.primaryGreen : AppColors.navigationGrey,
-            size: 22,
+            color: selected ? AppColors.onPrimary : AppColors.softText,
+            size: 24,
           );
         }),
       ),

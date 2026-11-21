@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/l10n/language_preference.dart';
+import '../../core/theme/app_colors.dart';
 import '../calculator/calculator_screen.dart';
 import '../counter/note_counter_screen.dart';
 import '../counter/note_counter_store.dart';
@@ -602,34 +603,49 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (int value) {
-          HapticFeedback.selectionClick();
-          setState(() => _index = value);
-        },
-        destinations: <NavigationDestination>[
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
-            label: strings.text(AppString.home),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppColors.warmIvory,
+          border: Border(
+            top: BorderSide(color: AppColors.beige.withValues(alpha: 0.8)),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.calculate_outlined),
-            selectedIcon: const Icon(Icons.calculate),
-            label: strings.text(AppString.calculator),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.grid_view_outlined),
-            selectedIcon: const Icon(Icons.grid_view_rounded),
-            label: strings.text(AppString.counter),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline),
-            selectedIcon: const Icon(Icons.person),
-            label: strings.text(AppString.profile),
-          ),
-        ],
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: AppColors.darkText.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (int value) {
+            HapticFeedback.selectionClick();
+            setState(() => _index = value);
+          },
+          destinations: <NavigationDestination>[
+            NavigationDestination(
+              icon: const Icon(Icons.home_outlined),
+              selectedIcon: const Icon(Icons.home),
+              label: strings.text(AppString.home),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.calculate_outlined),
+              selectedIcon: const Icon(Icons.calculate),
+              label: strings.text(AppString.calculator),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.grid_view_outlined),
+              selectedIcon: const Icon(Icons.grid_view_rounded),
+              label: strings.text(AppString.counter),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.person_outline),
+              selectedIcon: const Icon(Icons.person),
+              label: strings.text(AppString.profile),
+            ),
+          ],
+        ),
       ),
     );
   }
