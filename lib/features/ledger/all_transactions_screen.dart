@@ -854,7 +854,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 }
 
-
 /// Top card: how many rows are shown and their income/expense totals, with the
 /// definition of those totals spelled out underneath.
 class _SummaryCard extends StatelessWidget {
@@ -1000,11 +999,7 @@ class _TotalTile extends StatelessWidget {
             value,
             maxLines: 1,
             softWrap: false,
-            style: _money(
-              size: _valueSize,
-              color: color,
-              letterSpacing: -0.3,
-            ),
+            style: _money(size: _valueSize, color: color, letterSpacing: -0.3),
           ),
         ),
       ],
@@ -1388,9 +1383,7 @@ class _EndOfList extends StatelessWidget {
             color: AppColors.navigationGrey,
           ),
           const SizedBox(width: 6),
-          Expanded(
-            child: Text(message, maxLines: 2, style: _meta),
-          ),
+          Expanded(child: Text(message, maxLines: 2, style: _meta)),
         ],
       ),
     );
@@ -1474,10 +1467,11 @@ class _EntryRow extends StatelessWidget {
                   width: _avatarSize,
                   height: _avatarSize,
                   decoration: BoxDecoration(
-                    color: (categories == null
-                            ? amountColor
-                            : _categoryAccent(entry.category, custom))
-                        .withValues(alpha: 0.14),
+                    color:
+                        (categories == null
+                                ? amountColor
+                                : _categoryAccent(entry.category, custom))
+                            .withValues(alpha: 0.14),
                     shape: BoxShape.circle,
                   ),
                   child: categories == null
@@ -1674,10 +1668,7 @@ class _MessageCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            message,
-            style: _metaBlock,
-          ),
+          Text(message, style: _metaBlock),
           if (action != null) ...<Widget>[
             const SizedBox(height: 12),
             Align(alignment: Alignment.centerLeft, child: action!),

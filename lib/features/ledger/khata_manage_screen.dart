@@ -422,9 +422,7 @@ class _EmptyGroup extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Text(message, style: _metaBlock),
-          ),
+          Expanded(child: Text(message, style: _metaBlock)),
         ],
       ),
     );

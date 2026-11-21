@@ -179,7 +179,10 @@ class HomeScreen extends StatelessWidget {
               icon: const Icon(Icons.add, size: 30),
               label: Text(
                 _strings.text(AppString.addNewEntry),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -646,7 +649,9 @@ class _EmptyTransactions extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            strings.language.name == 'Bengali' ? "আপনার প্রথম লেনদেন যোগ করতে নিচের বড় '+' বাটনটি চাপুন।" : "Tap the big '+' button below to add your first expense or income.",
+            strings.language.name == 'Bengali'
+                ? "আপনার প্রথম লেনদেন যোগ করতে নিচের বড় '+' বাটনটি চাপুন।"
+                : "Tap the big '+' button below to add your first expense or income.",
             textAlign: TextAlign.center,
             style: _meta.copyWith(height: 1.4),
           ),

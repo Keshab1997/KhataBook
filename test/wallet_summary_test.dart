@@ -202,13 +202,13 @@ void main() {
       final Finder personal = find.byKey(const Key('wallet-khata-personal'));
       final Finder shop = find.byKey(Key('wallet-khata-${business.id}'));
 
-      final Set<BorderRadius> radii = <BorderRadius>{
+      final Set<BorderRadiusGeometry> radii = <BorderRadiusGeometry>{
         boxOf(combined).borderRadius!,
         boxOf(personal).borderRadius!,
         boxOf(shop).borderRadius!,
       };
       // One card radius for the hero and for every khata, as on Home.
-      expect(radii, <BorderRadius>{BorderRadius.circular(20)});
+      expect(radii, <BorderRadiusGeometry>{BorderRadius.circular(20)});
 
       // One gap between cards, and the same 16 dp page grid.
       expect(
@@ -234,7 +234,7 @@ void main() {
       );
       expect(figures, hasLength(2));
       for (final Text figure in figures) {
-        expect(figure.style?.textAlign, TextAlign.right);
+        expect(figure.textAlign, TextAlign.right);
         expect(
           figure.style?.fontFeatures,
           contains(FontFeature.tabularFigures()),

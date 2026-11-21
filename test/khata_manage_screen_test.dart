@@ -405,10 +405,7 @@ void main() {
         emptyBox.border!.top.color,
         AppColors.outline.withValues(alpha: 0.6),
       );
-      expect(
-        rowShape.side.color,
-        AppColors.outline.withValues(alpha: 0.85),
-      );
+      expect(rowShape.side.color, AppColors.outline.withValues(alpha: 0.85));
 
       // One gap between rows, matching every other ledger surface. A Card's
       // margin is its gap, so the contract is the margin itself.

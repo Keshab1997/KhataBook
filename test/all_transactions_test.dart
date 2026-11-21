@@ -937,8 +937,7 @@ void main() {
       expect(
         boxes.where(
           (DecoratedBox box) =>
-              (box.decoration! as BoxDecoration).boxShadow?.isNotEmpty ??
-              false,
+              (box.decoration as BoxDecoration).boxShadow?.isNotEmpty ?? false,
         ),
         isEmpty,
       );
@@ -973,7 +972,7 @@ void main() {
           contains(FontFeature.tabularFigures()),
           reason: '$amount must use tabular figures',
         );
-        expect(figure.style?.textAlign, TextAlign.right, reason: amount);
+        expect(figure.textAlign, TextAlign.right, reason: amount);
         expect(figure.style?.fontSize, 18, reason: amount);
       }
 
@@ -1086,11 +1085,13 @@ void main() {
       );
 
       BoxDecoration cardOf(Finder key) =>
-          tester.widget<Container>(
-            find
-                .descendant(of: key, matching: find.byType(Container))
-                .first,
-          ).decoration!
+          tester
+                  .widget<Container>(
+                    find
+                        .descendant(of: key, matching: find.byType(Container))
+                        .first,
+                  )
+                  .decoration!
               as BoxDecoration;
 
       final Finder empty = find.byKey(const Key('transactions-empty'));

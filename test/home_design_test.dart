@@ -391,11 +391,14 @@ void main() {
       expect(cta.right, midPhone.width - 16);
       // One inter-card gap, everywhere: 12 dp between the hero and the tiles.
       expect(tiles.top - hero.bottom, 12);
-      // The header title and the hero's caption share a left column, so the
-      // header, its list and the CTA read as one grid rather than three blocks.
+      // The section header sits on the page column, one card inset (12 dp)
+      // further in than the card edges above it - so it lines up with the
+      // card *interiors*, not with their outer frames. `Remaining Balance` is
+      // not part of that column at all: it is the caption inside the balance
+      // card, set right of the card's gold bar.
       expect(
         tester.getTopLeft(find.text('Recent Transactions')).dx,
-        tester.getTopLeft(find.text('Remaining Balance')).dx,
+        hero.left + 12,
       );
     });
 
@@ -429,14 +432,12 @@ void main() {
       expect(
         boxes.where(
           (DecoratedBox box) =>
-              (box.decoration! as BoxDecoration).boxShadow?.isNotEmpty ??
-              false,
+              (box.decoration as BoxDecoration).boxShadow?.isNotEmpty ?? false,
         ),
         isEmpty,
       );
-      final BoxDecoration sheetBox = tester
-          .widget<Container>(sheet)
-          .decoration! as BoxDecoration;
+      final BoxDecoration sheetBox =
+          tester.widget<Container>(sheet).decoration! as BoxDecoration;
       expect(sheetBox.color, AppColors.surface);
       expect(sheetBox.borderRadius, BorderRadius.circular(20));
     });
@@ -447,9 +448,8 @@ void main() {
       await pumpHome(tester);
 
       final Finder row = find.byKey(const Key('home-summary-row'));
-      final BoxDecoration box = tester
-          .widget<Container>(row)
-          .decoration! as BoxDecoration;
+      final BoxDecoration box =
+          tester.widget<Container>(row).decoration! as BoxDecoration;
       // One frame for income and expense, framed like every other card.
       expect(box.color, AppColors.surface);
       expect(box.borderRadius, BorderRadius.circular(20));
@@ -465,27 +465,34 @@ void main() {
         ),
         findsOneWidget,
       );
+      // The frame above is the only boxed thing here: neither half may carry
+      // its own border or shadow (the row's own decoration is skipped, since
+      // that is the frame the check is made against).
+      // The row's own Container decoration is the frame itself, so it is not
+      // one of the halves under test: everything else that paints a
+      // BoxDecoration must be flat (an icon chip), never bordered or lifted.
+      final BoxDecoration frame = box;
       final Iterable<DecoratedBox> halves = tester
           .widgetList<DecoratedBox>(
             find.descendant(of: row, matching: find.byType(DecoratedBox)),
           )
           .where(
-            (DecoratedBox decorated) => decorated.decoration is BoxDecoration,
+            (DecoratedBox decorated) =>
+                decorated.decoration is BoxDecoration &&
+                !identical(decorated.decoration, frame),
           );
       expect(
         halves.where(
           (DecoratedBox decorated) =>
-              (decorated.decoration! as BoxDecoration).border != null ||
-              ((decorated.decoration! as BoxDecoration).boxShadow?.isNotEmpty ??
+              (decorated.decoration as BoxDecoration).border != null ||
+              ((decorated.decoration as BoxDecoration).boxShadow?.isNotEmpty ??
                   false),
         ),
         isEmpty,
       );
     });
 
-    testWidgets('every amount is drawn with tabular figures', (
-      tester,
-    ) async {
+    testWidgets('every amount is drawn with tabular figures', (tester) async {
       await pumpHome(tester);
       // The fourth row's amount is the lowest figure, so revealing it brings
       // every amount in this loop into the tree.
