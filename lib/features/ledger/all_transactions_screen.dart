@@ -1510,65 +1510,73 @@ class _QuickFilters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final all = strings.text(AppString.all);
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
+    // One line, always: the pills share the width and shrink (the label
+    // ellipsizes) rather than wrapping onto a second row.
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        PopupMenuButton<String>(
-          tooltip: strings.text(AppString.type),
-          onSelected: (value) => onType(
-            value == 'income'
-                ? EntryType.income
-                : value == 'expense'
-                ? EntryType.expense
-                : null,
-          ),
-          itemBuilder: (_) => <PopupMenuEntry<String>>[
-            PopupMenuItem(value: 'all', child: Text(all)),
-            PopupMenuItem(
-              value: 'income',
-              child: Text(strings.text(AppString.income)),
+        Flexible(
+          child: PopupMenuButton<String>(
+            tooltip: strings.text(AppString.type),
+            onSelected: (value) => onType(
+              value == 'income'
+                  ? EntryType.income
+                  : value == 'expense'
+                  ? EntryType.expense
+                  : null,
             ),
-            PopupMenuItem(
-              value: 'expense',
-              child: Text(strings.text(AppString.expense)),
-            ),
-          ],
-          child: _QuickFilterPill(
-            icon: Icons.check,
-            label: type == null
-                ? all
-                : strings.text(
-                    type == EntryType.income
-                        ? AppString.income
-                        : AppString.expense,
-                  ),
-          ),
-        ),
-        PopupMenuButton<int>(
-          tooltip: strings.text(AppString.category),
-          onSelected: (index) =>
-              onCategory(index == -1 ? null : categories[index]),
-          itemBuilder: (_) => <PopupMenuEntry<int>>[
-            PopupMenuItem(value: -1, child: Text(all)),
-            for (var i = 0; i < categories.length; i++)
+            itemBuilder: (_) => <PopupMenuEntry<String>>[
+              PopupMenuItem(value: 'all', child: Text(all)),
               PopupMenuItem(
-                value: i,
-                child: Text(categoryLabel(categories[i])),
+                value: 'income',
+                child: Text(strings.text(AppString.income)),
               ),
-          ],
-          child: _QuickFilterPill(
-            icon: Icons.sell_outlined,
-            label: category == null ? all : categoryLabel(category!),
+              PopupMenuItem(
+                value: 'expense',
+                child: Text(strings.text(AppString.expense)),
+              ),
+            ],
+            child: _QuickFilterPill(
+              icon: Icons.check,
+              label: type == null
+                  ? all
+                  : strings.text(
+                      type == EntryType.income
+                          ? AppString.income
+                          : AppString.expense,
+                    ),
+            ),
           ),
         ),
-        InkWell(
-          onTap: onDate,
-          borderRadius: BorderRadius.circular(40),
-          child: _QuickFilterPill(
-            icon: Icons.calendar_month_outlined,
-            label: dateLabel,
+        const SizedBox(width: 8),
+        Flexible(
+          child: PopupMenuButton<int>(
+            tooltip: strings.text(AppString.category),
+            onSelected: (index) =>
+                onCategory(index == -1 ? null : categories[index]),
+            itemBuilder: (_) => <PopupMenuEntry<int>>[
+              PopupMenuItem(value: -1, child: Text(all)),
+              for (var i = 0; i < categories.length; i++)
+                PopupMenuItem(
+                  value: i,
+                  child: Text(categoryLabel(categories[i])),
+                ),
+            ],
+            child: _QuickFilterPill(
+              icon: Icons.sell_outlined,
+              label: category == null ? all : categoryLabel(category!),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: InkWell(
+            onTap: onDate,
+            borderRadius: BorderRadius.circular(40),
+            child: _QuickFilterPill(
+              icon: Icons.calendar_month_outlined,
+              label: dateLabel,
+            ),
           ),
         ),
       ],
