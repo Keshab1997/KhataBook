@@ -427,6 +427,58 @@ void main() {
     });
   });
 
+  group('polish-r1 calculator contracts', () {
+    testWidgets('C label (not AC), expression above monospace result', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester);
+      expect(find.text('C'), findsOneWidget);
+      expect(find.text('AC'), findsNothing);
+      // Empty expression shows the neutral hint, result stays 0 below it.
+      expect(expressionText(tester), 'Enter an amount or expression');
+
+      await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
+      expect(expressionText(tester), '250 × 4');
+      expect(resultText(tester), '1,000');
+      final Rect expressionRect = tester.getRect(
+        find.byKey(const Key('calculator-expression')),
+      );
+      final Rect resultRect = tester.getRect(
+        find.byKey(const Key('calculator-result')),
+      );
+      expect(expressionRect.bottom, lessThanOrEqualTo(resultRect.top));
+      final Text result = tester.widget<Text>(
+        find.byKey(const Key('calculator-result')),
+      );
+      expect(result.style?.fontFamily, 'monospace');
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('C clears everything and backspace deletes one character', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester);
+      await tapKeys(tester, <String>['1', '2', '3']);
+      await tester.tap(find.byKey(const Key('calc-key-backspace')));
+      await tester.pumpAndSettle();
+      expect(expressionText(tester), '12');
+      await tester.tap(find.byKey(const Key('calc-key-C')));
+      await tester.pumpAndSettle();
+      expect(expressionText(tester), 'Enter an amount or expression');
+      expect(resultText(tester), '0');
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('no overflow at 320x568 with 200% text', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester, scale: 2.0, size: const Size(320, 568));
+      await tapKeys(tester, <String>['2', '5', '0', '×', '4']);
+      expect(resultText(tester), '1,000');
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('use in entry', () {
     testWidgets('hidden without the callback', (WidgetTester tester) async {
       await pumpCalculator(tester);

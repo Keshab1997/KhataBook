@@ -823,7 +823,7 @@ void main() {
 
       await typeFiveHundreds(tester, '99999');
       await tester.drag(
-        find.byType(SingleChildScrollView),
+        find.byType(SingleChildScrollView).first,
         const Offset(0, -300),
       );
       await tester.pumpAndSettle();
@@ -1240,6 +1240,108 @@ void main() {
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
       await typeFiveHundreds(tester, '2');
       expect(find.byKey(const Key('note-counter-add-to-khata')), findsNothing);
+    });
+  });
+
+  group('polish-r1 counter contracts', () {
+    testWidgets('hero shows selected denomination and steppers bound at zero', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester, size: const Size(390, 844));
+      expect(find.byKey(const Key('note-counter-hero')), findsOneWidget);
+      expect(find.text('₹500 Note'), findsOneWidget);
+      expect(find.text('Enter Quantity'), findsOneWidget);
+
+      // Stepper hit targets are at least 48 dp.
+      for (final String kind in <String>['increment', 'decrement']) {
+        final Size size = tester.getSize(
+          find.byKey(Key('note-counter-$kind-50000')),
+        );
+        expect(size.width, greaterThanOrEqualTo(48));
+        expect(size.height, greaterThanOrEqualTo(48));
+      }
+
+      // Decrement floors at zero.
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-decrement-50000')),
+      );
+      expect(fieldText(tester, 50000), '0');
+      expect(grandTotalText('₹0'), findsOneWidget);
+
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-increment-50000')),
+      );
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-increment-50000')),
+      );
+      expect(fieldText(tester, 50000), '2');
+      expect(grandTotalText('₹1,000'), findsOneWidget);
+
+      // Selecting another row moves the hero to that denomination.
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-increment-20000')),
+      );
+      expect(find.text('₹200 Note'), findsOneWidget);
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('direct edit of empty and huge values, mixed total', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester, size: const Size(390, 844));
+      await typeQuantity(tester, 50000, '2'); // ₹1,000
+      await typeQuantity(tester, 20000, '3'); // ₹600
+      await typeQuantity(tester, 10000, '1'); // ₹100
+      await typeQuantity(tester, 100, '50'); // ₹50 coins
+      expect(grandTotalText('₹1,750'), findsOneWidget);
+
+      await typeQuantity(tester, 50000, '');
+      expect(grandTotalText('₹750'), findsOneWidget);
+
+      await typeQuantity(tester, 50000, '999999999999999999999');
+      expect(fieldText(tester, 50000), '99999');
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('copy summary enabled exactly when total is non-zero', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester, size: const Size(390, 844));
+      OutlinedButton copy = tester.widget<OutlinedButton>(
+        find.byKey(const Key('note-counter-copy-summary')),
+      );
+      expect(copy.onPressed, isNull);
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-increment-1000')),
+      );
+      copy = tester.widget<OutlinedButton>(
+        find.byKey(const Key('note-counter-copy-summary')),
+      );
+      expect(copy.onPressed, isNotNull);
+      // Grand total is pinned: hittable without scrolling at 390x844.
+      expect(
+        find.byKey(const Key('note-counter-grand-total')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.text('In-memory session - nothing is saved or added to a khata'),
+        findsOneWidget,
+      );
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('no overflow at 320x568 with 200% text', (
+      WidgetTester tester,
+    ) async {
+      await pumpCounter(tester, size: smallPhone, scale: 2.0);
+      await typeFiveHundreds(tester, '10');
+      expect(grandTotalText('₹5,000'), findsOneWidget);
+      expectNoLayoutErrors(tester);
     });
   });
 

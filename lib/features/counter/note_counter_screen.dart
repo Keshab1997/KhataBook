@@ -94,6 +94,15 @@ class _Copy {
 
   String get grandTotalLabel => _bn ? 'সর্বমোট' : 'Grand Total';
 
+  String heroCaption(AppStrings strings, int denominationPaise) =>
+      denominationPaise == kCoinDenominationPaise
+      ? (_bn ? 'কয়েন' : 'Coins')
+      : (_bn
+            ? '${strings.money(denominationPaise)} নোট'
+            : '${strings.money(denominationPaise)} Note');
+
+  String get enterQuantity => _bn ? 'পরিমাণ দিন' : 'Enter Quantity';
+
   String get savedHint => _bn
       ? 'এই খাতার জন্য এই ডিভাইসে সংরক্ষিত — লেজার এন্ট্রি নয়; ব্যাকআপ ফাইলের সাথে যায়'
       : 'Saved on this device for this khata - not a ledger entry; it travels in the backup file';
@@ -190,6 +199,10 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           denomination: TextEditingController(text: '0'),
       };
 
+  /// Denomination shown in the hero card: the row last tapped, typed in
+  /// or stepped. Defaults to ₹500, as in the reference.
+  int _selectedDenominationPaise = kDefaultDenominationPaise;
+
   /// Per-row error message keyed by denomination, shown as helper text.
   final Map<int, String?> _inputErrors = <int, String?>{
     for (final int denomination in kAllDenominationsPaise) denomination: null,
@@ -263,6 +276,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
 
   /// Returns this screen to the empty session.
   void _resetSession() {
+    _selectedDenominationPaise = kDefaultDenominationPaise;
     for (final int denomination in _quantities.keys.toList()) {
       _quantities[denomination] = 0;
       _controllers[denomination]!.text = '0';
@@ -326,6 +340,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   /// documented maximum *and the field is rewritten*, so the visible number
   /// and the counted number always agree.
   void _onRowChanged(String raw, int denomination) {
+    _selectedDenominationPaise = denomination;
     final AppStrings strings = AppStrings(widget.language);
     if (raw.isEmpty) {
       setState(() {
@@ -352,6 +367,21 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     if (parsed == null || clamped != parsed) {
       _setRowText(denomination, clamped);
     }
+    _schedulePersist();
+  }
+
+  /// Steps [denomination] by [delta], clamped to 0…[kMaxNoteQuantity].
+  void _step(int denomination, int delta) {
+    final int next = ((_quantities[denomination] ?? 0) + delta).clamp(
+      0,
+      kMaxNoteQuantity,
+    );
+    setState(() {
+      _selectedDenominationPaise = denomination;
+      _quantities[denomination] = next;
+      _inputErrors[denomination] = null;
+    });
+    _setRowText(denomination, next);
     _schedulePersist();
   }
 
@@ -643,218 +673,342 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     }
     final bool addToKhataVisible =
         widget.onAddToKhata != null && _grandTotalPaise > 0;
-    // The whole body scrolls: at large system text scales the fixed chrome
-    // below the rows (total card, buttons, hint) no longer fits on small
-    // phones — a pinned column overflows instead of scrolling.
+    // Rows scroll in the Expanded list; the grand total, actions and hint
+    // stay pinned above the bottom navigation, so no dead band opens
+    // between Copy summary and the navigation at 390x844, and large text
+    // scales scroll the rows instead of overflowing the pinned chrome.
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Container(
-              height: 56,
-              margin: const EdgeInsets.only(bottom: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: <Color>[
-                    AppColors.primaryGreen,
-                    AppColors.headerGreen,
-                  ],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(22),
-                ),
-                border: const Border(
-                  bottom: BorderSide(color: AppColors.golden, width: 3),
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Container(
+            height: 56,
+            margin: const EdgeInsets.only(bottom: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
               ),
-              child: Row(
-                children: <Widget>[
-                  ClipOval(
-                    child: Image.asset(
-                      'assets/illustrations/counter_header_coins.png',
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      excludeFromSemantics: true,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(22),
+              ),
+              border: const Border(
+                bottom: BorderSide(color: AppColors.golden, width: 3),
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                ClipOval(
+                  child: Image.asset(
+                    'assets/illustrations/counter_header_coins.png',
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    excludeFromSemantics: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          strings.text(AppString.counter),
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                        Text(
+                          widget.language == AppLanguage.bn
+                              ? 'গুনুন সহজে • সঞ্চয় করুন'
+                              : 'Count Smart • Save More',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FittedBox(
-                      alignment: Alignment.centerLeft,
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            strings.text(AppString.counter),
-                            style: const TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                          Text(
-                            widget.language == AppLanguage.bn
-                                ? 'গুনুন সহজে • সঞ্চয় করুন'
-                                : 'Count Smart • Save More',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontStyle: FontStyle.italic,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                ),
+                IconButton(
+                  key: const Key('note-counter-new-count'),
+                  onPressed: _confirmNewCount,
+                  tooltip: strings.text(AppString.newCount),
+                  color: AppColors.onPrimary,
+                  icon: const Icon(Icons.refresh),
+                ),
+                if (widget.onSettings != null)
                   IconButton(
-                    key: const Key('note-counter-new-count'),
-                    onPressed: _confirmNewCount,
-                    tooltip: strings.text(AppString.newCount),
+                    onPressed: widget.onSettings,
+                    tooltip: 'Settings',
                     color: AppColors.onPrimary,
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(Icons.settings),
                   ),
-                  if (widget.onSettings != null)
-                    IconButton(
-                      onPressed: widget.onSettings,
-                      tooltip: 'Settings',
-                      color: AppColors.onPrimary,
-                      icon: const Icon(Icons.settings),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _HeroCard(
+                    strings: strings,
+                    copy: copy,
+                    denominationPaise: _selectedDenominationPaise,
+                    isCoin:
+                        _selectedDenominationPaise == kCoinDenominationPaise,
+                  ),
+                  const SizedBox(height: 4),
+                  for (final int denomination in _rowOrderPaise) ...<Widget>[
+                    _DenominationRow(
+                      strings: strings,
+                      denominationPaise: denomination,
+                      isCoinRow: denomination == kCoinDenominationPaise,
+                      controller: _controllers[denomination]!,
+                      errorText: _inputErrors[denomination],
+                      rowTotalPaise:
+                          denomination * (_quantities[denomination] ?? 0),
+                      counted: (_quantities[denomination] ?? 0) > 0,
+                      onChanged: (String raw) =>
+                          _onRowChanged(raw, denomination),
+                      onIncrement: () => _step(denomination, 1),
+                      onDecrement: () => _step(denomination, -1),
+                      onSelected: () => setState(
+                        () => _selectedDenominationPaise = denomination,
+                      ),
+                      onTapSelectAll: () {
+                        final TextEditingController controller =
+                            _controllers[denomination]!;
+                        if (controller.text.isEmpty) return;
+                        controller.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: controller.text.length,
+                        );
+                      },
                     ),
+                    // One gap value between every row, so the denomination list
+                    // reads as an even grid rather than a stack of uneven cards.
+                    // One step, not six: seven rows plus this gap have to share a
+                    // 390x770 screen with the total card and four actions.
+                    const SizedBox(height: _rowGap),
+                  ],
                 ],
               ),
             ),
-            for (final int denomination in _rowOrderPaise) ...<Widget>[
-              _DenominationRow(
-                strings: strings,
-                denominationPaise: denomination,
-                isCoinRow: denomination == kCoinDenominationPaise,
-                controller: _controllers[denomination]!,
-                errorText: _inputErrors[denomination],
-                rowTotalPaise: denomination * (_quantities[denomination] ?? 0),
-                counted: (_quantities[denomination] ?? 0) > 0,
-                onChanged: (String raw) => _onRowChanged(raw, denomination),
-                onTapSelectAll: () {
-                  final TextEditingController controller =
-                      _controllers[denomination]!;
-                  if (controller.text.isEmpty) return;
-                  controller.selection = TextSelection(
-                    baseOffset: 0,
-                    extentOffset: controller.text.length,
-                  );
-                },
-              ),
-              // One gap value between every row, so the denomination list
-              // reads as an even grid rather than a stack of uneven cards.
-              // One step, not six: seven rows plus this gap have to share a
-              // 390x770 screen with the total card and four actions.
-              const SizedBox(height: _rowGap),
-            ],
-            const SizedBox(height: _rowGap),
-            _GrandTotalCard(strings: strings, amountPaise: _grandTotalPaise),
-            const SizedBox(height: 8),
-            if (addToKhataVisible) ...<Widget>[
-              FilledButton.icon(
-                key: const Key('note-counter-add-to-khata'),
-                onPressed: _addToKhata,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                  minimumSize: const Size.fromHeight(44),
-                  shape: const StadiumBorder(),
-                ),
-                icon: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 20,
-                ),
-                label: Text(
-                  copy.addToKhata,
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 5),
-            ],
-            if (_persistent) ...<Widget>[
-              _ActionButton.filled(
-                buttonKey: const Key('note-counter-save'),
-                onPressed: _isEmpty ? null : _saveSession,
-                icon: Icons.save_outlined,
-                label: strings.text(AppString.save),
-              ),
-              const SizedBox(height: 5),
-              Row(
+          ),
+          const SizedBox(height: _rowGap),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Expanded(
-                    child: _ActionButton.tonal(
-                      buttonKey: const Key('note-counter-saved-sessions'),
-                      onPressed: _showSessions,
-                      icon: Icons.bookmark_outline,
-                      label: copy.savedSessions,
-                    ),
+                  _GrandTotalCard(
+                    strings: strings,
+                    amountPaise: _grandTotalPaise,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionButton.outlined(
+                  const SizedBox(height: 8),
+                  if (addToKhataVisible) ...<Widget>[
+                    FilledButton.icon(
+                      key: const Key('note-counter-add-to-khata'),
+                      onPressed: _addToKhata,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        minimumSize: const Size.fromHeight(44),
+                        shape: const StadiumBorder(),
+                      ),
+                      icon: const Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 20,
+                      ),
+                      label: Text(
+                        copy.addToKhata,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                  if (_persistent) ...<Widget>[
+                    _ActionButton.filled(
+                      buttonKey: const Key('note-counter-save'),
+                      onPressed: _isEmpty ? null : _saveSession,
+                      icon: Icons.save_outlined,
+                      label: strings.text(AppString.save),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _ActionButton.tonal(
+                            buttonKey: const Key('note-counter-saved-sessions'),
+                            onPressed: _showSessions,
+                            icon: Icons.bookmark_outline,
+                            label: copy.savedSessions,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ActionButton.outlined(
+                            buttonKey: const Key('note-counter-copy-summary'),
+                            onPressed: _isEmpty ? null : _copySummary,
+                            icon: Icons.content_copy,
+                            label: copy.copySummary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                  ] else ...<Widget>[
+                    _ActionButton.outlined(
                       buttonKey: const Key('note-counter-copy-summary'),
                       onPressed: _isEmpty ? null : _copySummary,
                       icon: Icons.content_copy,
                       label: copy.copySummary,
                     ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (_persistent) ...<Widget>[
+                    const SizedBox(height: 2),
+                    _SaveStatus(
+                      strings: strings,
+                      phase: _savePhase,
+                      error: _saveError,
+                      onRetry: _schedulePersist,
+                    ),
+                    if (_unreadableRows) ...<Widget>[
+                      const SizedBox(height: 6),
+                      Text(
+                        copy.unreadableRows,
+                        key: const Key('note-counter-unreadable-warning'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 2),
+                  Center(
+                    child: Text(
+                      _persistent
+                          ? copy.savedHint
+                          : strings.text(AppString.counterSession),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        height: 1.1,
+                        color: AppColors.softText,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-            ] else ...<Widget>[
-              _ActionButton.outlined(
-                buttonKey: const Key('note-counter-copy-summary'),
-                onPressed: _isEmpty ? null : _copySummary,
-                icon: Icons.content_copy,
-                label: copy.copySummary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hero card for the selected denomination, as in the reference: real
+/// note artwork above a `₹500 Note` caption and the Enter Quantity label.
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({
+    required this.strings,
+    required this.copy,
+    required this.denominationPaise,
+    required this.isCoin,
+  });
+
+  final AppStrings strings;
+  final _Copy copy;
+  final int denominationPaise;
+  final bool isCoin;
+
+  @override
+  Widget build(BuildContext context) {
+    final String asset = isCoin
+        ? 'assets/notes/coins.png'
+        : 'assets/notes/note_${denominationPaise ~/ 100}.png';
+    return Container(
+      key: const Key('note-counter-hero'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          ExcludeSemantics(
+            child: Image.asset(
+              asset,
+              key: const Key('note-counter-hero-artwork'),
+              width: 104,
+              height: 52,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.payments_outlined,
+                size: 32,
+                color: AppColors.primaryGreen,
               ),
-              const SizedBox(height: 8),
-            ],
-            if (_persistent) ...<Widget>[
-              const SizedBox(height: 2),
-              _SaveStatus(
-                strings: strings,
-                phase: _savePhase,
-                error: _saveError,
-                onRetry: _schedulePersist,
-              ),
-              if (_unreadableRows) ...<Widget>[
-                const SizedBox(height: 6),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    copy.heroCaption(strings, denominationPaise),
+                    key: const Key('note-counter-hero-caption'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  copy.unreadableRows,
-                  key: const Key('note-counter-unreadable-warning'),
-                  textAlign: TextAlign.center,
+                  copy.enterQuantity,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.softText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.darkText,
                   ),
                 ),
               ],
-            ],
-            const SizedBox(height: 2),
-            Center(
-              child: Text(
-                _persistent
-                    ? copy.savedHint
-                    : strings.text(AppString.counterSession),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  height: 1.1,
-                  color: AppColors.softText,
-                ),
-              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -998,6 +1152,9 @@ class _DenominationRow extends StatefulWidget {
     required this.counted,
     required this.onChanged,
     required this.onTapSelectAll,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onSelected,
   });
 
   final AppStrings strings;
@@ -1012,6 +1169,9 @@ class _DenominationRow extends StatefulWidget {
   final bool counted;
   final ValueChanged<String> onChanged;
   final VoidCallback onTapSelectAll;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final VoidCallback onSelected;
 
   @override
   State<_DenominationRow> createState() => _DenominationRowState();
@@ -1038,6 +1198,7 @@ class _DenominationRowState extends State<_DenominationRow> {
 
   void _handleFocusChange() {
     if (!mounted || _focused == _focusNode.hasFocus) return;
+    if (_focusNode.hasFocus) widget.onSelected();
     setState(() => _focused = _focusNode.hasFocus);
   }
 
@@ -1087,8 +1248,8 @@ class _DenominationRowState extends State<_DenominationRow> {
         children: <Widget>[
           ExcludeSemantics(
             child: SizedBox(
-              width: 84,
-              height: 42,
+              width: 64,
+              height: 36,
               child: Image.asset(
                 _asset,
                 fit: BoxFit.contain,
@@ -1114,31 +1275,39 @@ class _DenominationRowState extends State<_DenominationRow> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.darkText,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                KeyedSubtree(
-                  key: Key(
-                    'note-counter-row-total-${widget.denominationPaise}',
-                  ),
-                  child: Text(
-                    strings.money(widget.rowTotalPaise),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryGreen,
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.darkText,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: KeyedSubtree(
+                        key: Key(
+                          'note-counter-row-total-${widget.denominationPaise}',
+                        ),
+                        child: Text(
+                          strings.money(widget.rowTotalPaise),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryGreen,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (widget.isCoinRow) ...<Widget>[
                   const SizedBox(height: 1),
@@ -1156,10 +1325,19 @@ class _DenominationRowState extends State<_DenominationRow> {
             ),
           ),
           const SizedBox(width: 8),
-          // The quantity stepper: the same fixed width in every row, so all
-          // seven fields line up down the screen.
+          // Stepper: − / direct-edit field / + with 48 dp hit targets.
           SizedBox(
-            width: 90,
+            key: Key('note-counter-decrement-${widget.denominationPaise}'),
+            width: 48,
+            height: 48,
+            child: IconButton(
+              onPressed: widget.onDecrement,
+              tooltip: '−',
+              icon: const Icon(Icons.remove),
+            ),
+          ),
+          SizedBox(
+            width: 64,
             child: Semantics(
               textField: true,
               label: fieldLabel,
@@ -1168,7 +1346,10 @@ class _DenominationRowState extends State<_DenominationRow> {
                 controller: widget.controller,
                 focusNode: _focusNode,
                 onChanged: widget.onChanged,
-                onTap: widget.onTapSelectAll,
+                onTap: () {
+                  widget.onSelected();
+                  widget.onTapSelectAll();
+                },
                 textAlign: TextAlign.center,
                 textInputAction: TextInputAction.next,
                 // No filtering formatters: the controller is the single
@@ -1210,6 +1391,16 @@ class _DenominationRowState extends State<_DenominationRow> {
                   hintText: '0',
                 ),
               ),
+            ),
+          ),
+          SizedBox(
+            key: Key('note-counter-increment-${widget.denominationPaise}'),
+            width: 48,
+            height: 48,
+            child: IconButton(
+              onPressed: widget.onIncrement,
+              tooltip: '+',
+              icon: const Icon(Icons.add),
             ),
           ),
         ],

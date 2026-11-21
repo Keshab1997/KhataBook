@@ -874,6 +874,7 @@ class _ResultLine extends StatelessWidget {
             color: isError ? AppColors.expenseRed : AppColors.headerGreen,
             // The result is the loudest thing on the screen: biggest type,
             // heaviest weight, tightest tracking.
+            fontFamily: 'monospace',
             fontSize: compact ? 44 : 60,
             height: 1.1,
             fontWeight: FontWeight.w800,
@@ -1001,7 +1002,7 @@ class _Keypad extends StatelessWidget {
       outline: AppColors.beige,
       circular: true,
       child: const Text(
-        'AC',
+        'C',
         style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
       ),
     );
