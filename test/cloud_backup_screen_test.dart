@@ -78,6 +78,17 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Saved on this phone'), findsOneWidget);
+        // No unconditional sync promise while unconfigured: the note says
+        // what must happen first, and states the coverage limits.
+        expect(
+          find.textContaining('sync automatically when connected'),
+          findsNothing,
+        );
+        expect(
+          find.textContaining('Nothing syncs until cloud backup is set up'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('note counts stay on this phone'), findsOneWidget);
         expect(find.byType(AlertDialog), findsNothing);
         expect(tester.takeException(), isNull);
       },
@@ -220,6 +231,59 @@ void main() {
     );
 
     testWidgets(
+      'configured signed-in state makes sync contingent and names its limits',
+      (WidgetTester tester) async {
+        final LocalLedger ledger = await _openLedger(tester);
+        final FakeCloudBackend backend = FakeCloudBackend(
+          initialUser: CloudUser(id: 'u-alice', email: 'alice@example.com'),
+        );
+        late CloudSync sync;
+        await tester.runAsync(() async {
+          sync = CloudSync(
+            ledger: ledger,
+            backend: backend,
+            observeAppLifecycle: false,
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 40));
+        });
+
+        await _pumpScreen(tester, CloudBackupScreen(cloudSync: sync));
+        await tester.pump();
+
+        // AccountCard keeps its real status; the note under it describes
+        // automatic sync only as contingent on sign-in and connection, and
+        // names what cloud sync does not carry.
+        expect(find.text('alice@example.com'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('cloud-backup-local-note')),
+          120,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('When you are signed in and online'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Custom category names and icons'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('are not synced'), findsOneWidget);
+        expect(
+          find.textContaining('Signing out never deletes local data'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+
+        await _tearDownService(
+          tester,
+          sync: sync,
+          backend: backend,
+          ledger: ledger,
+        );
+      },
+    );
+
+    testWidgets(
       'the unconfigured layout stacks the state card above the local note',
       (WidgetTester tester) async {
         // Unconfigured: the note sits under the "not set up" card.
@@ -259,6 +323,9 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('এই ফোনে সংরক্ষিত'), findsOneWidget);
+        // Bengali gets the same conditional promise, not an automatic one.
+        expect(find.textContaining('কিছুই সিঙ্ক হয় না'), findsOneWidget);
+        expect(find.textContaining('নোট গণনার তথ্য'), findsOneWidget);
         expect(tester.takeException(), isNull);
 
         // 2. Configured signed-in Bengali at 320dp / 200%.

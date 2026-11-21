@@ -26,7 +26,8 @@ List<BoxShadow> _cardShadow() => <BoxShadow>[
 ///   `Log out`, and `Sign in` pushing [SignInScreen]).
 /// * When [cloudSync] is `null`, clearly explains in English and Bengali that
 ///   cloud backup is not set up in this build and that all khatas and entries
-///   stay saved on this phone.
+///   stay saved on this phone. Automatic sync is only ever described as
+///   contingent on setup, sign-in and connection - never as already active.
 /// * Never shows a blocking progress dialog and wraps cleanly at 320 dp width
 ///   and 200 % text scale.
 ///
@@ -102,7 +103,7 @@ class CloudBackupScreen extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 14),
-                  _LocalFirstNoteCard(bn: _bn),
+                  _LocalFirstNoteCard(bn: _bn, configured: service != null),
                 ],
               ),
             ),
@@ -252,10 +253,20 @@ class _UnconfiguredCard extends StatelessWidget {
 
 /// The quiet reassurance under the account card: one warm surface, one short
 /// statement, no action - it is the last thing read, so it asks for nothing.
+///
+/// The sync sentence is conditional on the build actually having a service:
+/// unconfigured, it promises nothing and says what must happen first; either
+/// way it states the coverage limit - cloud sync carries khatas and
+/// transactions, not custom-category names/icons, the local profile or
+/// note-counter data.
 class _LocalFirstNoteCard extends StatelessWidget {
-  const _LocalFirstNoteCard({required this.bn});
+  const _LocalFirstNoteCard({required this.bn, required this.configured});
 
   final bool bn;
+
+  /// Whether a cloud service exists at all. Even then, sync still needs
+  /// sign-in and a connection, which the copy says.
+  final bool configured;
 
   String _pair(String en, String bnText) => bn ? bnText : en;
 
@@ -266,10 +277,15 @@ class _LocalFirstNoteCard extends StatelessWidget {
       quiet: true,
       icon: Icons.shield_outlined,
       title: _pair('Your phone is the primary copy', 'আপনার ফোনই মূল কপি'),
-      body: _pair(
-        'Entries work offline first and sync automatically when connected. Logging out never deletes local data.',
-        'লেনদেন আগে অফলাইনে সংরক্ষিত হয় এবং ইন্টারনেট পেলে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়। লগ আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
-      ),
+      body: configured
+          ? _pair(
+              'Entries are saved on this phone first and work fully offline. When you are signed in and online, khatas and transactions sync automatically. Custom category names and icons, your local profile and note counts are not synced. Signing out never deletes local data.',
+              'লেনদেন আগে এই ফোনে সংরক্ষিত হয় এবং সম্পূর্ণ অফলাইনে চলে। সাইন-ইন ও অনলাইন থাকলে খাতা ও লেনদেন স্বয়ংক্রিয়ভাবে সিঙ্ক হয়। কাস্টম বিভাগের নাম ও আইকন, আপনার স্থানীয় প্রোফাইল ও নোট গণনার তথ্য সিঙ্ক হয় না। সাইন আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
+            )
+          : _pair(
+              'Entries are saved on this phone first and work fully offline. Nothing syncs until cloud backup is set up and you sign in. When it is, khatas and transactions sync; custom category names and icons, your local profile and note counts stay on this phone only. Signing out never deletes local data.',
+              'লেনদেন আগে এই ফোনে সংরক্ষিত হয় এবং সম্পূর্ণ অফলাইনে চলে। ক্লাউড ব্যাকআপ সেট আপ করে সাইন-ইন না করা পর্যন্ত কিছুই সিঙ্ক হয় না। সেট আপ হলে খাতা ও লেনদেন সিঙ্ক হয়; কাস্টম বিভাগের নাম ও আইকন, আপনার স্থানীয় প্রোফাইল ও নোট গণনার তথ্য শুধু এই ফোনেই থাকে। সাইন আউট করলে ফোনের কোনো তথ্য মুছে যায় না।',
+            ),
     );
   }
 }

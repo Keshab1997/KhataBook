@@ -86,18 +86,29 @@ Future<void> revealAndTap(
 
 void main() {
   group('ProfileScreen', () {
-    testWidgets('states the offline local-only truth and shows no fake user', (
+    testWidgets('describes the local profile neutrally and shows no fake user', (
       WidgetTester tester,
     ) async {
       await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
 
-      expect(find.text('Offline & local-only'), findsOneWidget);
-      expect(find.text('Not signed in'), findsOneWidget);
+      expect(find.text('Works without internet'), findsOneWidget);
+      expect(find.text('Local profile'), findsOneWidget);
+      expect(find.text('On this device'), findsOneWidget);
       expect(
-        find.textContaining('stays in the local database on this device'),
+        find.textContaining('local profile stored on this device'),
         findsOneWidget,
       );
-      expect(find.textContaining('nothing is uploaded'), findsOneWidget);
+      expect(
+        find.textContaining('open Cloud Backup below'),
+        findsWidgets,
+      );
+
+      // This screen receives no account state, so it must not assert one:
+      // no sign-in verdict, no upload verdict, no cloud-copy verdict.
+      expect(find.text('Not signed in'), findsNothing);
+      expect(find.textContaining('nothing is uploaded'), findsNothing);
+      expect(find.textContaining('no cloud copy'), findsNothing);
+      expect(find.textContaining('No account is linked'), findsNothing);
 
       // Existing wallet artwork backs the signed-out identity avatar.
       final Finder identityImages = find.descendant(
@@ -115,6 +126,69 @@ void main() {
       expect(find.textContaining('@'), findsNothing);
       expect(find.textContaining('Last synced'), findsNothing);
       expect(find.textContaining('Keshab'), findsNothing);
+    });
+
+    testWidgets('Bengali profile is equally neutral about account state', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        const ProfileScreen(language: AppLanguage.bn),
+        size: tallPhone,
+      );
+
+      expect(find.text('ইন্টারনেট ছাড়াই চলে'), findsOneWidget);
+      expect(find.text('এই ডিভাইসে'), findsOneWidget);
+      expect(find.textContaining('ক্লাউড ব্যাকআপ খুলুন'), findsWidgets);
+      // No Bengali sign-in/upload/cloud verdict either.
+      expect(find.text('সাইন ইন করা হয়নি'), findsNothing);
+      expect(find.textContaining('কিছু আপলোড হয় না'), findsNothing);
+      expect(find.textContaining('@'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('cloud row is live only when the host wires it', (
+      WidgetTester tester,
+    ) async {
+      int cloudCalls = 0;
+      await pumpScreen(
+        tester,
+        ProfileScreen(onCloudBackup: () => cloudCalls++),
+        size: tallPhone,
+      );
+
+      // Wired: chevron, no unavailable chip, tap reaches the host - this is
+      // the same screen the browser build renders with its callbacks.
+      final Finder cloudRow = find.byKey(const Key('profile-sign-in-row'));
+      expect(
+        find.descendant(of: cloudRow, matching: find.byIcon(Icons.chevron_right)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: cloudRow, matching: find.text('Not available yet')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: cloudRow,
+          matching: find.textContaining('Cloud Backup screen'),
+        ),
+        findsOneWidget,
+      );
+
+      // Unwired neighbours stay visibly unavailable, file backup included.
+      final Finder backupRow = find.byKey(const Key('profile-backup-row'));
+      expect(
+        find.descendant(of: backupRow, matching: find.text('Not available yet')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: backupRow, matching: find.byType(InkWell)),
+        findsNothing,
+      );
+
+      await revealAndTap(tester, cloudRow, screen: ProfileScreen);
+      expect(cloudCalls, 1);
     });
 
     testWidgets(
@@ -245,7 +319,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Where your data lives'), findsOneWidget);
-      expect(find.text('This device only'), findsOneWidget);
+      expect(find.text('Saved on this device first'), findsOneWidget);
       expect(find.textContaining('Indian rupees (INR)'), findsOneWidget);
       expect(find.text('Open-source licences'), findsOneWidget);
     });
@@ -286,7 +360,7 @@ void main() {
 
       // Back through the Navigator, not a replaced tab.
       expect(find.byType(SettingsScreen), findsNothing);
-      expect(find.text('Offline & local-only'), findsOneWidget);
+      expect(find.text('Works without internet'), findsOneWidget);
     });
 
     testWidgets('the header gear opens the same settings screen', (
@@ -376,7 +450,7 @@ void main() {
 
       // The offline state is one readable announcement, not two icons.
       expect(
-        find.bySemanticsLabel(RegExp('Offline and local-only')),
+        find.bySemanticsLabel(RegExp('Works without internet')),
         findsWidgets,
       );
       handle.dispose();
@@ -465,10 +539,12 @@ void main() {
       await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
 
       expect(find.text(ProfileScreen.versionLabel), findsOneWidget);
-      expect(find.text('This device only'), findsOneWidget);
+      expect(find.text('Saved on this device first'), findsOneWidget);
       expect(find.text('Light only'), findsOneWidget);
       // An About row's value is its heading: same 15 dp / w700 as a menu title.
-      final Text value = tester.widget<Text>(find.text('This device only'));
+      final Text value = tester.widget<Text>(
+        find.text('Saved on this device first'),
+      );
       expect(value.style?.fontSize, 15);
       expect(value.style?.fontWeight, FontWeight.w700);
       expect(
@@ -502,15 +578,25 @@ void main() {
         expect(find.text('English'), findsOneWidget);
         expect(find.textContaining('Bengali'), findsOneWidget);
         expect(find.text('Fixed in v1'), findsNWidgets(2));
-        expect(find.text('Not available yet'), findsNWidgets(2));
+        expect(find.text('Not available yet'), findsOneWidget);
 
         // It never claims a working language switch or a saved preference.
         expect(find.textContaining('no preference is saved'), findsOneWidget);
         expect(find.textContaining('not possible yet'), findsOneWidget);
 
-        // The local-only storage state is stated here too.
+        // Cloud state is not invented here either: no fake "Off", just a
+        // pointer to the screen that knows the live status.
         expect(find.text('This device'), findsOneWidget);
-        expect(find.text('Off'), findsOneWidget);
+        expect(find.text('Off'), findsNothing);
+        expect(find.text('Check in Cloud Backup'), findsOneWidget);
+        expect(
+          find.textContaining('status on the Cloud Backup screen'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('cloud sync are unavailable'),
+          findsNothing,
+        );
         expect(find.bySemanticsLabel(RegExp('Currency. INR')), findsWidgets);
         handle.dispose();
       },
@@ -632,6 +718,60 @@ void main() {
       expect(find.text(bn.text(AppString.storage)), findsOneWidget);
       expect(find.text(bn.text(AppString.currencyInr)), findsOneWidget);
       expect(find.text(bn.buildLabel('1.0.0', 1)), findsOneWidget);
+    });
+
+    testWidgets('Bengali settings point at Cloud Backup and describe v2 backup', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        const SettingsScreen(language: AppLanguage.bn),
+        size: tallPhone,
+      );
+
+      expect(find.text('ক্লাউড ব্যাকআপে দেখুন'), findsOneWidget);
+      expect(find.text('বন্ধ'), findsNothing);
+      await reveal(
+        tester,
+        find.byKey(const Key('settings-offline-backup-row')),
+        screen: SettingsScreen,
+      );
+      // The version-2 file includes profile, custom categories and note
+      // counts, and is unencrypted - the old exclusion claim is gone.
+      expect(find.textContaining('কাস্টম বিভাগ ও নোট গণনার তথ্য থাকে'), findsOneWidget);
+      expect(find.textContaining('এনক্রিপ্ট করা নয়'), findsOneWidget);
+      expect(find.textContaining('থাকে না'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('settings with a language callback works at 320 dp / 200%', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        SettingsScreen(onLanguageChanged: (_) async => true),
+        size: smallPhone,
+        scale: 2.0,
+      );
+      expect(tester.takeException(), isNull);
+      // The real settings screen - not a preview - with the picker reachable.
+      expect(find.byKey(const Key('settings-screen')), findsOneWidget);
+      await reveal(
+        tester,
+        find.byKey(const Key('settings-change-language')),
+        screen: SettingsScreen,
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('settings-change-language'))).height,
+        greaterThanOrEqualTo(44),
+      );
+      await reveal(
+        tester,
+        find.byKey(const Key('settings-backup-row')),
+        screen: SettingsScreen,
+      );
+      expect(find.text('Check in Cloud Backup'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

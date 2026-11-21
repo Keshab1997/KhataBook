@@ -1,11 +1,17 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+
+/// Private English/Bengali copy for guidance the shared l10n layer states
+/// too absolutely (it predates configurable cloud sync and the version-2
+/// backup file). Screens here must not claim cloud is off, that nothing is
+/// ever uploaded, or that the backup file excludes data it now includes.
+String _settingsText(AppLanguage language, String en, String bn) =>
+    language == AppLanguage.bn ? bn : en;
 
 /// The single soft card shadow from `theme.md` (blur 14, offset 0/4), shared
 /// across the Profile and App Settings panels so every surface matches.
@@ -47,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _failed = false;
 
   Future<void> _chooseLanguage(AppStrings strings) async {
-    if (_picking || _busy || kIsWeb || widget.onLanguageChanged == null) return;
+    if (_picking || _busy || widget.onLanguageChanged == null) return;
     _picking = true;
     final AppLanguage? choice = await showDialog<AppLanguage>(
       context: context,
@@ -113,54 +119,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final String Function(AppString) text = strings.text;
     final bool canChoose = widget.onLanguageChanged != null;
     final String subtitle = text(AppString.settingsDescription);
-    if (kIsWeb) {
-      return Scaffold(
-        body: Column(
-          children: <Widget>[
-            AccountPageHeader(
-              key: const Key('settings-header'),
-              title: text(AppString.appSettings),
-              subtitle: subtitle,
-              icon: Icons.settings_outlined,
-              leading: const _HeaderBackButton(),
-            ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: AccountSurfaceCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const AccountIconBadge(
-                            icon: Icons.info_outline,
-                            size: 52,
-                            radius: 16,
-                            iconSize: 26,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            text(AppString.webSettings),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              height: 1.4,
-                              color: AppColors.softText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    // One screen on every platform, web included: the browser build opens
+    // the real ledger, so the normal capability-gated settings apply. The
+    // language row works when the host supplies its callback and stays
+    // honestly labelled when it does not.
     return Scaffold(
       key: const Key('settings-screen'),
       body: Column(
@@ -280,11 +242,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const AccountRowDivider(),
                       AccountRow(
                         key: const Key('settings-backup-row'),
-                        icon: Icons.cloud_off_outlined,
+                        icon: Icons.cloud_outlined,
                         title: text(AppString.cloudBackup),
-                        subtitle: text(AppString.cloudDetail),
-                        value: text(AppString.off),
-                        status: text(AppString.notAvailable),
+                        // This screen knows no live cloud state, so it must
+                        // not report one: it points at the screen that does.
+                        subtitle: _settingsText(
+                          widget.language,
+                          'See live sign-in, backup and sync status on the Cloud Backup screen.',
+                          'সাইন-ইন, ব্যাকআপ ও সিঙ্কের বর্তমান অবস্থা ক্লাউড ব্যাকআপ পর্দায় দেখুন।',
+                        ),
+                        status: _settingsText(
+                          widget.language,
+                          'Check in Cloud Backup',
+                          'ক্লাউড ব্যাকআপে দেখুন',
+                        ),
                         mergeReadOnlySemantics: true,
                       ),
                     ],
@@ -299,14 +270,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: text(AppString.storageTitle),
                         subtitle: text(AppString.storageDetail),
                         value: text(AppString.thisDevice),
-                        status: text(AppString.localOnly),
+                        status: _settingsText(
+                          widget.language,
+                          'Saved here first',
+                          'আগে এখানে সংরক্ষিত',
+                        ),
                         mergeReadOnlySemantics: true,
                       ),
                       const AccountRowDivider(),
                       AccountRow(
                         icon: Icons.wifi_off_outlined,
                         title: text(AppString.internetRequired),
-                        subtitle: text(AppString.internetDetail),
+                        subtitle: _settingsText(
+                          widget.language,
+                          'The app works fully offline. Data uploads only if you set up cloud sync, sign in and are online.',
+                          'অ্যাপটি সম্পূর্ণ অফলাইনে চলে। ক্লাউড সিঙ্ক সেট আপ করে সাইন-ইন ও অনলাইন থাকলেই কেবল তথ্য আপলোড হয়।',
+                        ),
                         value: text(AppString.no),
                         status: text(AppString.offlineFirst),
                         mergeReadOnlySemantics: true,
@@ -316,7 +295,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         key: const Key('settings-offline-backup-row'),
                         icon: Icons.save_alt,
                         title: text(AppString.offlineBackupRestore),
-                        subtitle: text(AppString.androidBackupDetail),
+                        // The version-2 file includes more than khatas and
+                        // transactions, and it is not encrypted.
+                        subtitle: _settingsText(
+                          widget.language,
+                          'Android can export or restore a version-2 offline backup file. It includes khatas, transactions, your local profile, custom categories and note counts, and it is not encrypted - keep the file private.',
+                          'অ্যান্ড্রয়েডে সংস্করণ-২ অফলাইন ব্যাকআপ ফাইল রপ্তানি বা পুনরুদ্ধার করা যায়। এতে খাতা, লেনদেন, আপনার স্থানীয় প্রোফাইল, কাস্টম বিভাগ ও নোট গণনার তথ্য থাকে, এবং এটি এনক্রিপ্ট করা নয় - ফাইলটি ব্যক্তিগত স্থানে রাখুন।',
+                        ),
                         value: text(AppString.androidBackup),
                         mergeReadOnlySemantics: true,
                       ),

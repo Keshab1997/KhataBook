@@ -51,7 +51,13 @@ Future<void> _selectBengali(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('web preview is read-only even with a callback', (tester) async {
+  testWidgets('browser build renders the real settings, language included', (
+    tester,
+  ) async {
+    // Runs only in a browser test: the web build opens the real ledger, so
+    // there is no read-only preview - the normal screen renders, the
+    // language picker works when its callback is supplied, and the file
+    // backup row stays honestly labelled for Android.
     var calls = 0;
     await _pump(
       tester,
@@ -63,10 +69,11 @@ void main() {
       ),
       small: true,
     );
-    expect(find.text(_en.text(AppString.webSettings)), findsOneWidget);
-    expect(find.byKey(_changeKey), findsNothing);
-    expect(find.byKey(_backupKey), findsNothing);
-    expect(calls, 0);
+    expect(find.text(_en.text(AppString.webSettings)), findsNothing);
+    expect(find.byKey(_changeKey), findsOneWidget);
+    expect(find.byKey(_backupKey), findsOneWidget);
+    await _selectBengali(tester);
+    expect(calls, 1);
     expect(tester.takeException(), isNull);
   }, skip: !kIsWeb);
 
@@ -80,18 +87,25 @@ void main() {
     expect(find.text('INR (₹)'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Fixed in v1'), findsNWidgets(2));
-    expect(find.textContaining('cloud sync are unavailable'), findsOneWidget);
+    // Cloud is no longer declared off/unavailable: settings knows no live
+    // state and points at the Cloud Backup screen instead.
+    expect(find.text('Off'), findsNothing);
+    expect(find.text('Check in Cloud Backup'), findsOneWidget);
+    expect(
+      find.textContaining('status on the Cloud Backup screen'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('cloud sync are unavailable'), findsNothing);
     await tester.scrollUntilVisible(find.byKey(_backupKey), 200);
-    expect(find.textContaining('unencrypted offline JSON'), findsOneWidget);
+    // The version-2 file includes profile, custom categories and note
+    // counts, and is unencrypted - the old exclusion claim is gone.
+    expect(find.textContaining('version-2 offline backup file'), findsOneWidget);
     expect(
-      find.textContaining('contains khatas and transactions'),
+      find.textContaining('custom categories and note counts'),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('excludes profile and note-count data'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('somewhere private'), findsOneWidget);
+    expect(find.textContaining('excludes profile'), findsNothing);
+    expect(find.textContaining('keep the file private'), findsOneWidget);
   }, skip: kIsWeb);
 
   testWidgets(
@@ -203,7 +217,23 @@ void main() {
     await tester.scrollUntilVisible(find.byKey(_changeKey), 120);
     await _selectBengali(tester);
     await tester.scrollUntilVisible(find.byKey(_backupKey), 120);
-    expect(find.textContaining('unencrypted offline JSON'), findsOneWidget);
+    expect(find.textContaining('version-2 offline backup file'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: kIsWeb);
+
+  testWidgets('Bengali settings carry the same corrected guidance', (
+    tester,
+  ) async {
+    await _pump(tester, const SettingsScreen(language: AppLanguage.bn));
+    expect(find.text('বন্ধ'), findsNothing);
+    expect(find.text('ক্লাউড ব্যাকআপে দেখুন'), findsOneWidget);
+    expect(
+      find.textContaining('ক্লাউড ব্যাকআপ পর্দায় দেখুন'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(find.byKey(_backupKey), 200);
+    expect(find.textContaining('কাস্টম বিভাগ ও নোট গণনার তথ্য থাকে'), findsOneWidget);
+    expect(find.textContaining('এনক্রিপ্ট করা নয়'), findsOneWidget);
     expect(tester.takeException(), isNull);
   }, skip: kIsWeb);
 }

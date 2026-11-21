@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
@@ -19,8 +18,8 @@ String _profileText(AppLanguage language, String en, String bn) =>
 ///
 /// The honest, offline-first profile for this build, aligned with the S5
 /// reference layout (`docs/design/ui-preview.png`): branded account header,
-/// identity card (avatar with existing artwork, display name and signed-out
-/// account line), offline notice, and the reference action order:
+/// identity card (avatar with existing artwork, display name and a neutral
+/// local-profile line), offline-first notice, and the reference action order:
 ///   1. My Wallet Summary (`profile-wallet-row`)
 ///   2. Offline backup / restore (`profile-backup-row`) + Cloud backup & sync
 ///      (`profile-sign-in-row`)
@@ -52,7 +51,9 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback? onWalletSummary;
   final VoidCallback? onBackup;
 
-  /// Opens the cloud backup & sync screen; `null` in the web preview.
+  /// Opens the cloud backup & sync screen, where the live sign-in and sync
+  /// status lives; `null` leaves the row honestly unavailable. This screen
+  /// receives no account state, so it never asserts one itself.
   final VoidCallback? onCloudBackup;
 
   /// Static build label, kept in step with `pubspec.yaml` by hand: this build
@@ -91,72 +92,14 @@ class ProfileScreen extends StatelessWidget {
     final String notAvailable = strings.text(AppString.notAvailable);
     final String headerSubtitle = _profileText(
       language,
-      'Account on this device',
-      'এই ডিভাইসের অ্যাকাউন্ট',
+      'Profile on this device',
+      'এই ডিভাইসের প্রোফাইল',
     );
 
-    if (kIsWeb) {
-      return Scaffold(
-        body: Column(
-          children: <Widget>[
-            AccountPageHeader(
-              key: const Key('profile-header'),
-              title: strings.text(AppString.profile),
-              subtitle: headerSubtitle,
-              icon: Icons.person_outline,
-              action: _SettingsGear(
-                language: language,
-                onPressed: () => _openSettings(context),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: AccountSurfaceCard(
-                    child: Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const AccountIconBadge(
-                            icon: Icons.info_outline,
-                            size: 56,
-                            radius: 18,
-                            iconSize: 28,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _profileText(
-                              language,
-                              'Web design preview only. Local ledger storage and backup are not available on the web.',
-                              'শুধু ওয়েব ডিজাইন প্রিভিউ। ওয়েবে স্থানীয় খাতা ও ব্যাকআপ নেই।',
-                            ),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 13.5,
-                              height: 1.4,
-                              color: AppColors.softText,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          FilledButton.icon(
-                            onPressed: () => _openSettings(context),
-                            icon: const Icon(Icons.settings_outlined),
-                            label: Text(strings.text(AppString.appSettings)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+    // One screen on every platform, web included: the host opens the real
+    // browser ledger and supplies the same callbacks, so each row simply
+    // enables what it was given and labels the rest unavailable. Browser
+    // storage is never described as a durable cloud backup.
     return Scaffold(
       body: Column(
         children: <Widget>[
@@ -226,8 +169,8 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         subtitle: _profileText(
                           language,
-                          'Sign in with Google to back up khatas and sync across phones.',
-                          'গুগল দিয়ে সাইন ইন করে খাতা ব্যাকআপ করুন ও অন্য ফোনে সিঙ্ক করুন।',
+                          'Open the Cloud Backup screen for sign-in, backup and sync status.',
+                          'সাইন-ইন, ব্যাকআপ ও সিঙ্কের অবস্থা দেখতে ক্লাউড ব্যাকআপ পর্দা খুলুন।',
                         ),
                         status: onCloudBackup == null ? notAvailable : null,
                         onTap: onCloudBackup,
@@ -263,8 +206,8 @@ class ProfileScreen extends StatelessWidget {
                         title: _profileText(language, 'Logout', 'লগ আউট'),
                         subtitle: _profileText(
                           language,
-                          'Sign-out applies only after an account is connected.',
-                          'অ্যাকাউন্ট যুক্ত হলে তবেই সাইন আউট প্রযোজ্য হবে।',
+                          'Sign-in and sign-out are managed on the Cloud Backup screen.',
+                          'সাইন-ইন ও সাইন-আউট ক্লাউড ব্যাকআপ পর্দা থেকে পরিচালিত হয়।',
                         ),
                         status: notAvailable,
                         destructive: true,
@@ -315,7 +258,11 @@ class ProfileScreen extends StatelessWidget {
                           'Where your data lives',
                           'তথ্য কোথায় থাকে',
                         ),
-                        title: strings.text(AppString.thisDeviceOnly),
+                        title: _profileText(
+                          language,
+                          'Saved on this device first',
+                          'আগে এই ডিভাইসে সংরক্ষিত',
+                        ),
                       ),
                       const AccountRowDivider(),
                       AccountRow(
@@ -572,13 +519,13 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
                 ),
                 const SizedBox(height: 8),
                 AccountStatusChip(
-                  label: _text('Not signed in', 'সাইন ইন করা হয়নি'),
+                  label: _text('On this device', 'এই ডিভাইসে'),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   _text(
-                    'Saved on this device only. Add a name and a photo if you like - nothing is uploaded.',
-                    'শুধু এই ডিভাইসে সংরক্ষিত। চাইলে নাম ও ছবি যোগ করুন - কিছু আপলোড হয় না।',
+                    'Saved on this device. Add a name and a photo if you like. For cloud copy status, open Cloud Backup below.',
+                    'এই ডিভাইসে সংরক্ষিত। চাইলে নাম ও ছবি যোগ করুন। ক্লাউড কপির অবস্থা জানতে নিচে ক্লাউড ব্যাকআপ খুলুন।',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -652,8 +599,8 @@ class _EditableIdentityCardState extends State<_EditableIdentityCard> {
   }
 }
 
-/// Signed-out identity header card with the existing wallet artwork, display
-/// name, and local-only account line stacked vertically so 320 dp / 200% text
+/// Local identity header card with the existing wallet artwork, display
+/// name, and neutral on-device line stacked vertically so 320 dp / 200% text
 /// gets the full card width instead of wrapping beside a fixed image.
 class _IdentityCard extends StatelessWidget {
   const _IdentityCard({required this.language});
@@ -722,18 +669,14 @@ class _IdentityCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 AccountStatusChip(
-                  label: _profileText(
-                    language,
-                    'Not signed in',
-                    'সাইন ইন করা হয়নি',
-                  ),
+                  label: _profileText(language, 'On this device', 'এই ডিভাইসে'),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   _profileText(
                     language,
-                    'No account is linked to KhataBook. Everything you enter stays in the local database on this device.',
-                    'খাতাবুকে কোনো অ্যাকাউন্ট যুক্ত নেই। আপনার সব তথ্য এই ডিভাইসের ডেটাবেসে থাকে।',
+                    'This is a local profile stored on this device. KhataBook works offline first; for sign-in and cloud copy status, open Cloud Backup below.',
+                    'এটি এই ডিভাইসে সংরক্ষিত একটি স্থানীয় প্রোফাইল। খাতাবুক আগে অফলাইনে কাজ করে; সাইন-ইন ও ক্লাউড কপির বর্তমান অবস্থা জানতে নিচে ক্লাউড ব্যাকআপ খুলুন।',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -751,7 +694,9 @@ class _IdentityCard extends StatelessWidget {
   }
 }
 
-/// The truthful sync state, given its own card so it cannot be missed.
+/// The offline-first behaviour, given its own card so it cannot be missed.
+/// It describes what this screen knows - entries land on this device first -
+/// and points at Cloud Backup for the live cloud state it cannot know.
 class _OfflineNotice extends StatelessWidget {
   const _OfflineNotice({required this.language});
   final AppLanguage language;
@@ -762,8 +707,8 @@ class _OfflineNotice extends StatelessWidget {
       container: true,
       label: _profileText(
         language,
-        'Offline and local-only. KhataBook works without internet. Entries are saved on this device only, and nothing is uploaded.',
-        'অফলাইন এবং স্থানীয়। খাতাবুক ইন্টারনেট ছাড়াই চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না।',
+        'Works without internet. KhataBook works offline first, and entries are saved on this device first. Cloud Backup shows whether a cloud copy is set up and up to date.',
+        'ইন্টারনেট ছাড়াই চলে। খাতাবুক আগে অফলাইনে কাজ করে, আর লেনদেন আগে এই ডিভাইসে সংরক্ষিত হয়। ক্লাউড কপি সেট আপ করা আছে কি না ও তা হালনাগাদ কি না, ক্লাউড ব্যাকআপে দেখা যায়।',
       ),
       child: ExcludeSemantics(
         child: AccountSurfaceCard(
@@ -775,7 +720,7 @@ class _OfflineNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const AccountIconBadge(
-                  icon: Icons.cloud_off_outlined,
+                  icon: Icons.cloud_sync_outlined,
                   size: 40,
                   radius: 12,
                   iconSize: 21,
@@ -789,8 +734,8 @@ class _OfflineNotice extends StatelessWidget {
                       Text(
                         _profileText(
                           language,
-                          'Offline & local-only',
-                          'অফলাইন ও শুধু স্থানীয়',
+                          'Works without internet',
+                          'ইন্টারনেট ছাড়াই চলে',
                         ),
                         style: const TextStyle(
                           fontSize: 15,
@@ -803,8 +748,8 @@ class _OfflineNotice extends StatelessWidget {
                       Text(
                         _profileText(
                           language,
-                          'KhataBook works without internet. Entries are written to this device only - nothing is uploaded, and there is no cloud copy to restore.',
-                          'খাতাবুক ইন্টারনেট ছাড়া চলে। এন্ট্রি শুধু এই ডিভাইসে থাকে; কিছু আপলোড হয় না এবং পুনরুদ্ধারের জন্য ক্লাউড কপি নেই।',
+                          'KhataBook works offline first, and entries are saved on this device first. Cloud Backup shows whether a cloud copy is set up and up to date - open it below for the current status.',
+                          'খাতাবুক আগে অফলাইনে কাজ করে, আর লেনদেন আগে এই ডিভাইসে সংরক্ষিত হয়। ক্লাউড কপি সেট আপ করা আছে কি না ও তা হালনাগাদ কি না জানতে নিচে ক্লাউড ব্যাকআপ খুলুন।',
                         ),
                         style: const TextStyle(
                           fontSize: 12.5,
