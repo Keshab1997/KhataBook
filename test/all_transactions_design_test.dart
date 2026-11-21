@@ -166,6 +166,9 @@ void main() {
         expect(tester.takeException(), isNull);
         await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
+        // Panels start collapsed; open them, then pick a date.
+        await tester.tap(find.byKey(const Key('filters-tune')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('date-filter-to')));
         await tester.pumpAndSettle();
         expect(find.byType(DatePickerDialog), findsOneWidget);
@@ -358,23 +361,40 @@ void main() {
       },
     );
 
-    testWidgets('the tune control collapses the panels and can restore them', (
+    testWidgets('filters start collapsed — the list is the first screenful', (
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen());
 
-      // Visible by default, as the reference shows them.
+      // Collapsed by default: the search box, the totals and the rows are the
+      // first thing on the screen, not the filter area. The tune button is
+      // always visible, so a filter is never one tap too far away.
+      expect(find.byKey(const Key('filters-tune')), findsOneWidget);
+      expect(find.byKey(const Key('date-filter-from')), findsNothing);
+      expect(find.byKey(const Key('type-filter-all')), findsNothing);
+      expect(find.text('Salary'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the tune control toggles the panels open and shut', (
+      WidgetTester tester,
+    ) async {
+      await _pump(tester, _screen());
+
+      // One tap opens them.
+      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
       expect(find.byKey(const Key('type-filter-all')), findsOneWidget);
 
+      // One more closes them, and the rows are untouched.
       await tester.tap(find.byKey(const Key('filters-tune')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsNothing);
       expect(find.byKey(const Key('category-filter-all')), findsNothing);
-      // The rows stay: collapsing filters must never hide the data.
       expect(find.text('Salary'), findsOneWidget);
 
-      // ...and one more press brings them back, with the cursor in search.
+      // And one more reopens them.
       await tester.tap(find.byKey(const Key('filters-tune')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
@@ -385,6 +405,8 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen());
+      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.pumpAndSettle();
 
       for (final String key in <String>[
         'date-filter-from',
@@ -435,6 +457,8 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(bengali: true));
+      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.pumpAndSettle();
 
       // The chip key stays the stored category token even though the label is
       // translated, so a tap still matches the same rows.
@@ -697,6 +721,11 @@ void main() {
           size: _smallPhone,
           textScale: _largeText,
         );
+        // The pill can sit below the fold at this scale: scroll it in view
+        // first, then open the panels.
+        await _reveal(tester, find.byKey(const Key('search-pill')));
+        await tester.tap(find.byKey(const Key('filters-tune')));
+        await tester.pumpAndSettle();
         // The title ellipsizes instead of pushing the header apart.
         final Text title = tester.widget<Text>(
           find.byKey(const Key('all-transactions-title')),
@@ -742,6 +771,8 @@ void main() {
       WidgetTester tester,
     ) async {
       await _pump(tester, _screen(), size: _reference);
+      await tester.tap(find.byKey(const Key('filters-tune')));
+      await tester.pumpAndSettle();
 
       final double headerBottom = tester
           .getBottomLeft(find.byKey(const Key('all-transactions-header')))

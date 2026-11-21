@@ -126,8 +126,29 @@ Future<void> tapControl(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> tapChip(WidgetTester tester, String key) =>
-    tapControl(tester, find.byKey(Key(key)));
+/// Opens the filter panels, which start collapsed (the list is the first
+/// screenful now, not the blank filter area).
+Future<void> openFilters(WidgetTester tester) async {
+  if (find.byKey(const Key('date-filter-from')).evaluate().isNotEmpty) {
+    return;
+  }
+  if (find.byKey(const Key('filters-tune')).evaluate().isEmpty) {
+    // The search pill can sit below the fold on small screens.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('search-pill')),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.byKey(const Key('filters-tune')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> tapChip(WidgetTester tester, String key) async {
+  await openFilters(tester);
+  await tapControl(tester, find.byKey(Key(key)));
+}
 
 /// Taps something already on screen, without scrolling the list to it.
 Future<void> revealTap(WidgetTester tester, Finder finder) async {
@@ -142,6 +163,7 @@ Future<void> revealTap(WidgetTester tester, Finder finder) async {
 /// The picker opens on the newest entry's month (Nov 2026 for [sampleSummary]),
 /// so a two-digit day there is unambiguous.
 Future<void> pickDate(WidgetTester tester, String key, String day) async {
+  await openFilters(tester);
   await revealTap(tester, find.byKey(Key(key)));
   expect(find.byType(DatePickerDialog), findsOneWidget);
   await tester.tap(
@@ -605,6 +627,7 @@ void main() {
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
 
+      await openFilters(tester);
       await revealTap(tester, find.byKey(const Key('date-filter-from')));
       await dismissDatePicker(tester);
       expect(find.text('From: any date'), findsOneWidget);
@@ -813,6 +836,7 @@ void main() {
       final SemanticsHandle handle = tester.ensureSemantics();
 
       await pumpAllTransactions(tester, sampleSummary());
+      await openFilters(tester);
 
       for (final String key in <String>[
         'type-filter-all',
@@ -902,6 +926,8 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
+
+      await openFilters(tester);
 
       final Finder card = find.byKey(const Key('transactions-summary'));
       final Finder field = find.byKey(const Key('search-field'));
@@ -1065,10 +1091,12 @@ void main() {
         AppColors.outline.withValues(alpha: 0.85),
       );
 
-      // One gap for every chip group, and the entry screen's chip caption.
+      // Panels start collapsed; open them, then check the chip chrome. The
+      // chip gap is deliberately tight — the list is the thing on this screen.
+      await openFilters(tester);
       for (final Wrap wrap in tester.widgetList<Wrap>(find.byType(Wrap))) {
-        expect(wrap.spacing, 12);
-        expect(wrap.runSpacing, 12);
+        expect(wrap.spacing, 8);
+        expect(wrap.runSpacing, 8);
       }
       final Text label = tester.widget<Text>(
         find.descendant(

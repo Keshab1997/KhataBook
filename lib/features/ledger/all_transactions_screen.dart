@@ -166,7 +166,6 @@ class _ScreenCopy {
       ? 'স্মার্ট হিসাব… সুন্দর পরিকল্পনা…'
       : 'Smart Tracking… Better Planning…';
   String get calendarTooltip => bn ? 'তারিখ বেছে নিন' : 'Pick a date';
-  String get filters => bn ? 'ফিল্টার ও অনুসন্ধান' : 'Filters & search';
   String get closeFilters => bn ? 'ফিল্টার গোপন করুন' : 'Hide filters';
   String get showFilters => bn ? 'ফিল্টার দেখান' : 'Show filters';
   String get live => bn ? 'সরাসরি' : 'LIVE';
@@ -229,14 +228,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   /// cursor in it instead of being decoration.
   final FocusNode _searchFocus = FocusNode();
 
-  /// The key of the search field, so the tune control can scroll it into view
-  /// before focusing it on a short screen.
-  final GlobalKey _searchKey = GlobalKey();
-
-  /// Whether the filter panels are open. They are open by default - the
-  /// reference shows them, and a filter nobody can find is not a filter - and
-  /// the tune control collapses them to give the rows the whole screen.
-  bool _filtersOpen = true;
+  /// Whether the filter panels are open. Collapsed by default, so the
+  /// transaction list is the first thing on the screen; the tune control in
+  /// the search pill toggles the panels open and shut.
+  bool _filtersOpen = false;
 
   /// The live query the rows are filtered by, updated on every keystroke so
   /// the list and the totals change together.
@@ -268,27 +263,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   void _clearQuery() {
     _searchController.clear();
     setState(() => _query = '');
-  }
-
-  /// The header's tune control: open the panels if they are closed, put the
-  /// cursor in the search box, and scroll it into view. It never toggles the
-  /// panels shut under the user's finger - closing them is the panel button's
-  /// own job - so one press always does something visible.
-  Future<void> _focusFilters() async {
-    if (!_filtersOpen) {
-      setState(() => _filtersOpen = true);
-    }
-    final BuildContext? field = _searchKey.currentContext;
-    if (field != null) {
-      await Scrollable.ensureVisible(
-        field,
-        duration: const Duration(milliseconds: 220),
-        alignment: 0.1,
-      );
-    }
-    if (mounted) {
-      _searchFocus.requestFocus();
-    }
   }
 
   void _toggleFilters() {
@@ -784,7 +758,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   ),
                   const SizedBox(height: _cardGap + 2),
                   _SearchPill(
-                    fieldKey: _searchKey,
                     controller: _searchController,
                     focusNode: _searchFocus,
                     onChanged: _onQueryChanged,
@@ -795,7 +768,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         ? _copy.closeFilters
                         : _copy.showFilters,
                     filtersOpen: _filtersOpen,
-                    onTune: _filtersOpen ? _toggleFilters : _focusFilters,
+                    onTune: _toggleFilters,
                     onTuneLongPress: _toggleFilters,
                   ),
                   if (_filtersOpen) ...<Widget>[
@@ -909,17 +882,6 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                             onTap: () => _selectCategory(category),
                           ),
                       ],
-                    ),
-                  ] else ...<Widget>[
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _FilterClearAction(
-                        key: const Key('filters-show'),
-                        label: _copy.showFilters,
-                        semanticsLabel: _copy.showFilters,
-                        onTap: _toggleFilters,
-                      ),
                     ),
                   ],
                   const SizedBox(height: _groupGap),
@@ -1489,7 +1451,6 @@ class _TotalTile extends StatelessWidget {
 /// reopens them and puts the cursor in the search box.
 class _SearchPill extends StatelessWidget {
   const _SearchPill({
-    required this.fieldKey,
     required this.controller,
     required this.focusNode,
     required this.onChanged,
@@ -1502,7 +1463,6 @@ class _SearchPill extends StatelessWidget {
     required this.onTuneLongPress,
   });
 
-  final GlobalKey fieldKey;
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
@@ -1516,9 +1476,6 @@ class _SearchPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Two anchors, two jobs: the outer container is the pill's frame (and the
-    // node the tune control scrolls to), the inner one is the field's own
-    // anchor.
     return Container(
       key: const Key('search-pill'),
       padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
@@ -1529,7 +1486,6 @@ class _SearchPill extends StatelessWidget {
         boxShadow: _cardShadow(alpha: 0.04),
       ),
       child: Container(
-        key: fieldKey,
         constraints: const BoxConstraints(minHeight: 48),
         child: Row(
           children: <Widget>[
@@ -1651,7 +1607,7 @@ class _FilterPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
@@ -1677,8 +1633,8 @@ class _FilterPanel extends StatelessWidget {
               if (action case final Widget clear) clear,
             ],
           ),
-          const SizedBox(height: _labelGap),
-          Wrap(spacing: _cardGap, runSpacing: _cardGap, children: children),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 8, children: children),
         ],
       ),
     );
@@ -1803,7 +1759,7 @@ class _FilterChip extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 8,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

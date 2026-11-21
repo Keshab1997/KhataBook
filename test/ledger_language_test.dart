@@ -82,7 +82,17 @@ Future<void> pumpScreen(
   await tester.pumpAndSettle();
 }
 
+/// Opens the All Transactions filter panels when the target is inside them.
+Future<void> openFilters(WidgetTester tester) async {
+  if (find.byKey(const Key('filters-tune')).evaluate().isNotEmpty &&
+      find.byKey(const Key('date-filter-from')).evaluate().isEmpty) {
+    await tester.tap(find.byKey(const Key('filters-tune')));
+    await tester.pumpAndSettle();
+  }
+}
+
 Future<void> tapKey(WidgetTester tester, String key) async {
+  await openFilters(tester);
   await tester.tap(find.byKey(Key(key)));
   await tester.pumpAndSettle();
 }
@@ -122,6 +132,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpScreen(tester, AllTransactionsScreen(summary: sampleSummary()));
+      await openFilters(tester);
 
       expect(find.text('All Transactions'), findsOneWidget);
       expect(find.text('Showing 4 transactions'), findsOneWidget);
@@ -154,6 +165,7 @@ void main() {
           language: AppLanguage.bn,
         ),
       );
+      await openFilters(tester);
 
       expect(find.text(bn.text(AppString.allTransactions)), findsOneWidget);
       expect(
@@ -200,6 +212,7 @@ void main() {
           language: AppLanguage.bn,
         ),
       );
+      await openFilters(tester);
 
       // The chip reads Bengali, its key and filter value are still `Food`.
       expect(find.byKey(const Key('category-filter-Food')), findsOneWidget);
@@ -284,6 +297,7 @@ void main() {
           language: AppLanguage.bn,
         ),
       );
+      await openFilters(tester);
 
       expect(
         find.bySemanticsLabel(bn.text(AppString.incomeFilter)),

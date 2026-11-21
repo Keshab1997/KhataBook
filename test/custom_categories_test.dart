@@ -173,10 +173,23 @@ void main() {
       await waitFor(tester, find.text('Tea'));
       expect(find.text('Other'), findsWidgets);
       expect(find.text('custom:missing'), findsNothing);
+      // The filter panels start collapsed; only open them before looking for
+      // chips, which live inside them.
+      await openFilters(tester);
       expect(find.byKey(Key('category-filter-${category.id}')), findsOneWidget);
       expect(find.byIcon(Icons.restaurant), findsWidgets);
     },
   );
+}
+
+/// Opens the filter panels, which start collapsed: the list is the first
+/// screenful now, not the blank filter area.
+Future<void> openFilters(WidgetTester tester) async {
+  if (find.byKey(const Key('date-filter-from')).evaluate().isNotEmpty) {
+    return;
+  }
+  await tester.tap(find.byKey(const Key('filters-tune')));
+  await tester.pumpAndSettle();
 }
 
 Future<void> waitFor(WidgetTester tester, Finder finder) async {
