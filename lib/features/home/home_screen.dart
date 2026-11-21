@@ -207,72 +207,78 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: <Widget>[
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  _pagePadding,
-                  12,
-                  _pagePadding,
-                  20,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (khataName != null || onSwitchKhata != null) ...<Widget>[
-                      _ActiveKhataCard(
+      body: TabHeaderInset(
+        topGap: 12,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: <Widget>[
+              Expanded(
+                child: SingleChildScrollView(
+                  clipBehavior: Clip.none,
+                  padding: const EdgeInsets.fromLTRB(
+                    _pagePadding,
+                    12,
+                    _pagePadding,
+                    20,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (khataName != null ||
+                          onSwitchKhata != null) ...<Widget>[
+                        _ActiveKhataCard(
+                          strings: _strings,
+                          name:
+                              khataName ??
+                              _strings.text(AppString.personalKhata),
+                          onTap: onSwitchKhata,
+                          onSettings: onSettings,
+                        ),
+                        const SizedBox(height: _cardGap),
+                      ],
+                      _BalanceCard(
                         strings: _strings,
-                        name:
-                            khataName ?? _strings.text(AppString.personalKhata),
-                        onTap: onSwitchKhata,
-                        onSettings: onSettings,
+                        remainingPaise: visibleSummary.remainingPaise,
                       ),
                       const SizedBox(height: _cardGap),
-                    ],
-                    _BalanceCard(
-                      strings: _strings,
-                      remainingPaise: visibleSummary.remainingPaise,
-                    ),
-                    const SizedBox(height: _cardGap),
-                    _summaryRow(visibleSummary),
-                    const SizedBox(height: _sectionGap),
-                    _SectionHeader(
-                      strings: _strings,
-                      title: _strings.text(AppString.recentTransactions),
-                      onViewAll: onViewAll,
-                    ),
-                    // The header and the list it heads are one block: the sheet
-                    // starts one card gap below the header, the same 12 dp that
-                    // separates the cards above it.
-                    const SizedBox(height: _cardGap),
-                    if (recent.isEmpty)
-                      _EmptyTransactions(_strings)
-                    else
-                      _RecentList(
+                      _summaryRow(visibleSummary),
+                      const SizedBox(height: _sectionGap),
+                      _SectionHeader(
                         strings: _strings,
-                        entries: recent,
-                        preview: preview,
-                        onEntry: onRecentEntry,
-                        categoryStore: categoryStore,
+                        title: _strings.text(AppString.recentTransactions),
+                        onViewAll: onViewAll,
                       ),
-                    if (preview) ...<Widget>[
-                      const SizedBox(height: 10),
-                      Center(
-                        child: Text(
-                          _strings.text(AppString.homePreview),
-                          textAlign: TextAlign.center,
-                          style: _meta.copyWith(letterSpacing: 0.2),
+                      // The header and the list it heads are one block: the sheet
+                      // starts one card gap below the header, the same 12 dp that
+                      // separates the cards above it.
+                      const SizedBox(height: _cardGap),
+                      if (recent.isEmpty)
+                        _EmptyTransactions(_strings)
+                      else
+                        _RecentList(
+                          strings: _strings,
+                          entries: recent,
+                          preview: preview,
+                          onEntry: onRecentEntry,
+                          categoryStore: categoryStore,
                         ),
-                      ),
+                      if (preview) ...<Widget>[
+                        const SizedBox(height: 10),
+                        Center(
+                          child: Text(
+                            _strings.text(AppString.homePreview),
+                            textAlign: TextAlign.center,
+                            style: _meta.copyWith(letterSpacing: 0.2),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -337,7 +343,8 @@ class _ActiveKhataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LedgerHeaderBackground(
+    return FullWidthTabHeader(
+      inset: 16,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: Row(

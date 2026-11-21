@@ -1,5 +1,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart' show OverflowBoxFit;
 
 import '../theme/app_colors.dart';
 
@@ -114,4 +116,66 @@ class _CornerLeavesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Paints the system inset and any gap before a tab's banner green, without
+/// moving controls into the status bar or affecting scrollable content.
+class TabHeaderInset extends StatelessWidget {
+  const TabHeaderInset({super.key, required this.child, this.topGap = 0});
+  final Widget child;
+  final double topGap;
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle.light.copyWith(
+      statusBarColor: AppColors.headerGreen,
+    ),
+    child: Stack(
+      children: <Widget>[
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: MediaQuery.paddingOf(context).top + topGap,
+          child: const DecoratedBox(
+            key: Key('tab-header-status-background'),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
+    ),
+  );
+}
+
+/// Extends an inset banner to the screen edges while leaving its controls at
+/// their original padding. Parent scrollables must not clip on the cross axis.
+class FullWidthTabHeader extends StatelessWidget {
+  const FullWidthTabHeader({
+    super.key,
+    required this.inset,
+    required this.child,
+  });
+  final double inset;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => OverflowBox(
+      fit: OverflowBoxFit.deferToChild,
+      alignment: Alignment.center,
+      minWidth: constraints.maxWidth + inset * 2,
+      maxWidth: constraints.maxWidth + inset * 2,
+      child: LedgerHeaderBackground(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: inset),
+          child: child,
+        ),
+      ),
+    ),
+  );
 }

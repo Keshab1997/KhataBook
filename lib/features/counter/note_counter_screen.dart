@@ -567,23 +567,25 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
         statusBarColor: AppColors.headerGreen,
       ),
       child: Scaffold(
-        body: SafeArea(
-          child: Stack(
-            children: <Widget>[
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  child: Image.asset(
-                    'assets/illustrations/counter_footer.png',
-                    fit: BoxFit.fitWidth,
-                    excludeFromSemantics: true,
+        body: TabHeaderInset(
+          child: SafeArea(
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Image.asset(
+                      'assets/illustrations/counter_footer.png',
+                      fit: BoxFit.fitWidth,
+                      excludeFromSemantics: true,
+                    ),
                   ),
                 ),
-              ),
-              _buildBody(strings, copy),
-            ],
+                _buildBody(strings, copy),
+              ],
+            ),
           ),
         ),
       ),
@@ -628,10 +630,12 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
       child: SingleChildScrollView(
+        clipBehavior: Clip.none,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            LedgerHeaderBackground(
+            FullWidthTabHeader(
+              inset: 10,
               child: Container(
                 height: 74,
                 margin: const EdgeInsets.only(bottom: 3),
