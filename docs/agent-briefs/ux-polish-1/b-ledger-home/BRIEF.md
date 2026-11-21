@@ -14,7 +14,14 @@
 7. Update the listed tests for the changed visual contract and make all four listed test files pass.
 
 **Interface / exclusions:** Do NOT touch `lib/core/theme/**`, `lib/core/l10n/**`, `lib/features/shell/**`, `lib/features/ledger/data/**`, `pubspec.yaml`, `pubspec.lock`, `.github/**`, or any file outside `task.json` `allowed`. Use `AppColors` and `Theme.of(context)` only — no literal `Color(0x...)`, no new colour tokens, no new dependency. Do not open, merge or close a PR.
-**Gate note (Captain re-pin, batch `ux-polish-1`):** worker sandboxes in this batch have no outbound TLS to `storage.googleapis.com`, `pub.dev` or `release-assets.githubusercontent.com`, so the Flutter gate cannot run worker-side. `task.json` `check` is therefore `{"kind":"preflight"}` — run preflight, the credential/scope checks and `publish` as normal. The Captain runs `flutter analyze`, full `flutter test` and locked `pub get` during review, so do not claim test evidence you did not run; say `gate: preflight` in your report.
+**Gate note (Captain re-pin 2, batch `ux-polish-1`):** worker sandboxes in this batch have no outbound TLS to `storage.googleapis.com`, `pub.dev` or `release-assets.githubusercontent.com`, so the Flutter gate cannot run worker-side. `task.json` `check` is therefore `{"kind":"preflight"}` — run preflight, the credential/scope checks and `publish` as normal. The Captain runs `flutter analyze`, full `flutter test` and locked `pub get` during review, so do not claim test evidence you did not run; say `gate: preflight` in your report.
+
+**Both earlier lanes were bounced or repaired on exactly this point — treat it as the main risk in your own work.** Preflight is a text linter, not a compiler: it cannot tell you that a widget argument went missing, that a layout overflows, or that a finder resolves to nothing. Lane A shipped a form that was 61 dp too tall on a 360x640 phone, and lane C shipped a counter that pushed its own help line 42 dp below the fold — both passed preflight and both failed their own new tests. Before you publish:
+
+- Re-read every widget constructor you touched and confirm no required argument was dropped. A `Text(` with no `data`/child is the specific mistake that got through once already.
+- Do arithmetic on the vertical stack of any screen you add height to. Seven rows gaining 4.5 dp is 31.5 dp of overflow, and a 390x770 phone has no slack.
+- Keep new assertions reachable: if a test asserts something is `hitTestable`, it must be inside the viewport without scrolling.
+- Prefer fewer, measured assertions over many that guess at counts.
 
 **Scope and gate:** See [task.json](task.json) at this same commit. Do not edit it.
 **Skill method (optional):** none — a method only; this brief and the playbook still rule.
