@@ -24,6 +24,14 @@ const Size tallPhone = Size(400, 2400);
 /// transaction totals only.
 const int kOpeningPaise = 1000000;
 
+/// The time-of-day tail of the shared `dd MMM yyyy, h:mm a` helper: the row's
+/// calendar tile and its day heading already carry the date, so a row card
+/// shows only `category · time` instead of the same date three times. The full
+/// date is still what the day heading prints, and it is still one shared
+/// format - only the row's own metadata is shortened.
+String rowMeta(String category, String dateTime) =>
+    '$category · ${dateTime.substring(dateTime.lastIndexOf(',') + 1).trim()}';
+
 LedgerEntry spent(String title, String category, DateTime at, int paise) =>
     LedgerEntry(title: title, category: category, at: at, amountPaise: paise);
 
@@ -266,8 +274,13 @@ void main() {
       expect(find.text('Oct 2026'), findsOneWidget);
       expect(find.text('Sep 2026'), findsOneWidget);
 
-      // Rows keep the shared timestamp format and signed paise amounts.
-      expect(find.text('Bills · 19 Nov 2026, 10:20 AM'), findsOneWidget);
+      // Rows keep the shared timestamp's time and signed paise amounts; the
+      // row's own date is the tile on its left and the heading above it.
+      expect(
+        find.text(rowMeta('Bills', '19 Nov 2026, 10:20 AM')),
+        findsOneWidget,
+      );
+      expect(find.text('Bills · 10:20 AM'), findsOneWidget);
       expect(find.text('-₹1,200'), findsOneWidget);
       expect(find.text('+₹5,000'), findsOneWidget);
 
@@ -908,38 +921,56 @@ void main() {
   });
 
   group('polish contract: scanning, chrome and quiet states', () {
-    testWidgets('a day is one sheet with a rule between its rows', (
+    testWidgets('each transaction is one ivory card with a calendar tile', (
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
 
-      // Nov 19 holds three entries, so two rules; Nov 18 holds one and none.
-      final Finder busy = find.byKey(const Key('day-sheet-2026-11-19'));
-      final Finder single = find.byKey(const Key('day-sheet-2026-11-18'));
-      expect(busy, findsOneWidget);
-      expect(single, findsOneWidget);
-      Finder rules(Finder sheet) => find.descendant(
-        of: sheet,
-        matching: find.byWidgetPredicate(
-          (Widget widget) =>
-              widget is ColoredBox && widget.color == AppColors.beige,
-        ),
-      );
-      expect(rules(busy), findsNWidgets(2));
-      expect(rules(single), findsNothing);
+      // The reference frames each transaction instead of ruling a day into one
+      // sheet, so the card is the unit: Nov 19 holds three of them.
+      const List<String> titles = <String>[
+        'Grocery Shopping',
+        'Lunch with Friends',
+        'Mobile Recharge',
+        'Salary',
+        'Bus Fare',
+        'Diwali Gift',
+        'Freelance Work',
+        'Tea Stall',
+      ];
+      for (final String title in titles) {
+        expect(
+          find.byKey(Key('transaction-row-$title')),
+          findsOneWidget,
+          reason: '$title is not its own card',
+        );
+      }
 
-      // The sheet carries the surface; no row casts a shadow of its own.
-      final Iterable<DecoratedBox> boxes = tester
-          .widgetList<DecoratedBox>(
-            find.descendant(of: busy, matching: find.byType(DecoratedBox)),
-          )
-          .where((DecoratedBox box) => box.decoration is BoxDecoration);
+      final Finder first = find.byKey(
+        const Key('transaction-row-Grocery Shopping'),
+      );
+      expect(first, findsOneWidget);
+      // The key sits on the card's own frame, so the decoration to inspect is
+      // the finder's own widget, not one of its descendants.
+      final Container card = tester.widget<Container>(first);
+      final BoxDecoration decoration = card.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.surface);
+      expect(decoration.borderRadius, BorderRadius.circular(20));
+
+      // Every card carries a local-calendar tile: the day number over the
+      // month, so a row is dated without repeating a full timestamp.
+      final Finder tile = find.descendant(
+        of: first,
+        matching: find.byKey(const Key('transaction-day-tile')),
+      );
+      expect(tile, findsOneWidget);
       expect(
-        boxes.where(
-          (DecoratedBox box) =>
-              (box.decoration as BoxDecoration).boxShadow?.isNotEmpty ?? false,
-        ),
-        isEmpty,
+        find.descendant(of: tile, matching: find.text('19')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tile, matching: find.text('Nov')),
+        findsOneWidget,
       );
     });
 
@@ -1001,9 +1032,11 @@ void main() {
           tester.widget<Text>(find.text(text)).style!.fontSize!;
       expect(sizeOf('Nov 2026'), 16);
       expect(sizeOf('19 Nov 2026'), 12);
-      expect(sizeOf('Showing 8 transactions'), 16);
+      // The count moved into the green ribbon on the totals card, where it is
+      // the small caption of that card rather than its heading.
+      expect(sizeOf('Showing 8 transactions'), 12);
       expect(sizeOf('Grocery Shopping'), 15);
-      expect(sizeOf('Bills · 19 Nov 2026, 10:20 AM'), 12);
+      expect(sizeOf('Bills · 10:20 AM'), 12);
     });
 
     testWidgets('the search box and the chips use the entry screen chrome', (
@@ -1011,21 +1044,26 @@ void main() {
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
 
+      // The search box is the reference's rounded pill: its frame is the
+      // capsule around it, so the field itself draws no box. It keeps the
+      // entry screens' value type, which is what makes typed text read the
+      // same here and in the form.
       final TextField field = tester.widget<TextField>(
         find.byKey(const Key('search-field')),
       );
-      final OutlineInputBorder border =
-          field.decoration!.border! as OutlineInputBorder;
-      final OutlineInputBorder focused =
-          field.decoration!.focusedBorder! as OutlineInputBorder;
-      expect(border.borderRadius, BorderRadius.circular(16));
-      expect(border.borderSide.color, AppColors.beige.withValues(alpha: 0.9));
-      expect(border.borderSide.width, 1);
-      expect(focused.borderRadius, BorderRadius.circular(16));
-      expect(focused.borderSide.color, AppColors.primaryGreen);
-      expect(focused.borderSide.width, 1.5);
-      expect(field.decoration!.filled, isTrue);
-      expect(field.decoration!.fillColor, AppColors.surface);
+      expect(field.decoration!.border, InputBorder.none);
+      expect(field.decoration!.focusedBorder, InputBorder.none);
+      expect(field.style?.fontSize, 15);
+      final Container pill = tester.widget<Container>(
+        find.byKey(const Key('search-pill')),
+      );
+      final BoxDecoration pillShape = pill.decoration! as BoxDecoration;
+      expect(pillShape.color, AppColors.surface);
+      expect(pillShape.borderRadius, BorderRadius.circular(999));
+      expect(
+        (pillShape.border! as Border).top.color,
+        AppColors.outline.withValues(alpha: 0.85),
+      );
 
       // One gap for every chip group, and the entry screen's chip caption.
       for (final Wrap wrap in tester.widgetList<Wrap>(find.byType(Wrap))) {
@@ -1057,6 +1095,9 @@ void main() {
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
 
+      // One card per row makes the list taller than the viewport, so the end
+      // of it is reached by scrolling, exactly as a user reaches it.
+      await reveal(tester, find.byKey(const Key('transactions-end')));
       expect(find.byKey(const Key('transactions-end')), findsOneWidget);
       expect(find.text('Nothing else in this khata'), findsOneWidget);
       expect(find.text('Nothing else under these filters'), findsNothing);
@@ -1064,6 +1105,7 @@ void main() {
       // With a filter on, the same line says what has ended: the slice, not
       // the khata.
       await tapChip(tester, 'type-filter-income');
+      await reveal(tester, find.byKey(const Key('transactions-end')));
       expect(find.text('Nothing else under these filters'), findsOneWidget);
       expect(find.text('Nothing else in this khata'), findsNothing);
 
