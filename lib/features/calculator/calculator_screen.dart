@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/format/money.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 
 /// Operator glyphs are kept distinct from the ASCII '-' used inside a
 /// negative number token, so a leading minus can be edited like a digit.
@@ -228,66 +229,68 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               Widget columnContent = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  SizedBox(
-                    height: headerHeight,
-                    child: Row(
-                      children: <Widget>[
-                        ClipOval(
-                          child: Image.asset(
-                            'assets/illustrations/calculator_brand.png',
-                            width: compact ? 52 : 64,
-                            height: compact ? 52 : 64,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FittedBox(
-                            alignment: Alignment.centerLeft,
-                            fit: BoxFit.scaleDown,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  strings.text(AppString.calculator),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    color: AppColors.headerGreen,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                Text(
-                                  widget.language == AppLanguage.bn
-                                      ? 'হিসাব • দ্রুত • সহজে'
-                                      : 'Calculate • Quickly • Easily',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.headerGreen,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
+                  LedgerHeaderBackground(
+                    child: SizedBox(
+                      height: headerHeight,
+                      child: Row(
+                        children: <Widget>[
+                          ClipOval(
+                            child: Image.asset(
+                              'assets/illustrations/calculator_brand.png',
+                              width: compact ? 52 : 64,
+                              height: compact ? 52 : 64,
+                              fit: BoxFit.cover,
                             ),
                           ),
-                        ),
-                        if (widget.onSettings != null)
-                          Material(
-                            color: AppColors.primaryGreen,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              tooltip: 'Settings',
-                              onPressed: widget.onSettings,
-                              color: AppColors.onPrimary,
-                              icon: const Icon(Icons.settings),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FittedBox(
+                              alignment: Alignment.centerLeft,
+                              fit: BoxFit.scaleDown,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    strings.text(AppString.calculator),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      color: AppColors.onPrimary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    widget.language == AppLanguage.bn
+                                        ? 'হিসাব • দ্রুত • সহজে'
+                                        : 'Calculate • Quickly • Easily',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.onPrimary,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                      ],
+                          if (widget.onSettings != null)
+                            Material(
+                              color: AppColors.primaryGreen,
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                tooltip: 'Settings',
+                                onPressed: widget.onSettings,
+                                color: AppColors.onPrimary,
+                                icon: const Icon(Icons.settings),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   SizedBox(height: keyGap),

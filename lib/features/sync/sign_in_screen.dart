@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart' show AppLanguage;
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import 'cloud_backend.dart';
 
 /// The single soft card shadow from `theme.md` (blur 14, offset 0/4).
@@ -23,7 +24,6 @@ const double _accountRadius = 20;
 /// The header's lower edge: the same fine golden rule the Home balance card and
 /// the Counter banner carry, at the weight a page header can afford (2 dp, so
 /// the rule is visible without becoming a second border colour).
-const double _headerEdge = 2;
 
 /// The subtitle under a page header is the first thing a large text scale
 /// crowds out. Above this scale factor the title alone carries the header: the
@@ -83,22 +83,10 @@ class AccountPageHeader extends StatelessWidget {
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: AppColors.headerGreen,
       ),
-      child: Container(
+      child: LedgerHeaderBackground(
         key: const Key('account-page-header'),
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
-          ),
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(22),
-          ),
-          border: const Border(
-            bottom: BorderSide(color: AppColors.golden, width: _headerEdge),
-          ),
-        ),
         child: Padding(
-          padding: EdgeInsets.fromLTRB(6, topInset + 6, 6, 10),
+          padding: EdgeInsets.fromLTRB(6, topInset + 6, 6, 24),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[

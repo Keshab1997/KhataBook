@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import '../entry/category_artwork.dart';
 import '../entry/category_picker.dart';
 import '../entry/category_store.dart';
@@ -336,108 +337,115 @@ class _ActiveKhataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: Semantics(
-            key: const Key('switch-khata'),
-            button: onTap != null,
-            enabled: onTap != null,
-            label:
-                '$name, ${strings.text(AppString.activeKhata)}${onTap == null ? '' : ', ${strings.text(AppString.tapToSwitch)}'}',
-            onTap: onTap,
-            excludeSemantics: true,
-            child: Material(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(_cardRadius),
-              child: InkWell(
+    return LedgerHeaderBackground(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Semantics(
+                key: const Key('switch-khata'),
+                button: onTap != null,
+                enabled: onTap != null,
+                label:
+                    '$name, ${strings.text(AppString.activeKhata)}${onTap == null ? '' : ', ${strings.text(AppString.tapToSwitch)}'}',
                 onTap: onTap,
-                borderRadius: BorderRadius.circular(_cardRadius),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Row(
-                    children: <Widget>[
-                      ClipOval(
-                        child: Image.asset(
-                          'assets/illustrations/home_brand.png',
-                          width: 62,
-                          height: 62,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Text(
-                              strings.text(AppString.activeKhata).toUpperCase(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _cardLabel.copyWith(
-                                color: AppColors.primaryGreen,
-                              ),
+                excludeSemantics: true,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(_cardRadius),
+                  child: InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(_cardRadius),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Row(
+                        children: <Widget>[
+                          ClipOval(
+                            child: Image.asset(
+                              'assets/illustrations/home_brand.png',
+                              width: 62,
+                              height: 62,
+                              fit: BoxFit.cover,
                             ),
-                            Row(
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: _cardTitleSize,
-                                      height: 1.3,
-                                      letterSpacing: -0.1,
-                                      color: AppColors.headerGreen,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                                Text(
+                                  strings
+                                      .text(AppString.activeKhata)
+                                      .toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _cardLabel.copyWith(
+                                    color: AppColors.onPrimary,
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: AppColors.headerGreen,
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: _cardTitleSize,
+                                          height: 1.3,
+                                          letterSpacing: -0.1,
+                                          color: AppColors.onPrimary,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: AppColors.onPrimary,
+                                    ),
+                                  ],
+                                ),
+                                const Text(
+                                  'Plan • Track • Save',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                    fontSize: _metaSize,
+                                    height: 1.3,
+                                    color: AppColors.onPrimary,
+                                  ),
                                 ),
                               ],
                             ),
-                            const Text(
-                              'Plan • Track • Save',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontStyle: FontStyle.italic,
-                                fontSize: _metaSize,
-                                height: 1.3,
-                                color: AppColors.headerGreen,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+            if (onSettings != null) ...<Widget>[
+              const SizedBox(width: 8),
+              Material(
+                color: AppColors.secondaryGreen,
+                shape: const CircleBorder(),
+                child: IconButton(
+                  onPressed: onSettings,
+                  // Localized, so a Bengali screen does not announce an English
+                  // control: the tooltip is the button's only accessible name.
+                  tooltip: strings.text(AppString.settings),
+                  color: AppColors.onPrimary,
+                  icon: const Icon(Icons.settings),
+                ),
+              ),
+            ],
+          ],
         ),
-        if (onSettings != null) ...<Widget>[
-          const SizedBox(width: 8),
-          Material(
-            color: AppColors.primaryGreen,
-            shape: const CircleBorder(),
-            child: IconButton(
-              onPressed: onSettings,
-              // Localized, so a Bengali screen does not announce an English
-              // control: the tooltip is the button's only accessible name.
-              tooltip: strings.text(AppString.settings),
-              color: AppColors.onPrimary,
-              icon: const Icon(Icons.settings),
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }

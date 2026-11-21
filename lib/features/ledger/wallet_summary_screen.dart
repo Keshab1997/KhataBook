@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import '../home/models.dart';
 import 'data/local_ledger.dart';
 
@@ -177,6 +178,9 @@ class _WalletSummaryScreenState extends State<WalletSummaryScreen> {
     final AppStrings strings = _strings;
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.onPrimary,
+        flexibleSpace: const LedgerHeaderBackground(child: SizedBox.expand()),
         title: Text(
           strings.text(AppString.walletSummary),
           maxLines: 1,

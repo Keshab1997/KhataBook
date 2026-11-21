@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 
 /// The single soft card shadow from `theme.md` (blur 14, offset 0/4), shared
 /// across the Profile and App Settings panels so every surface matches.
@@ -383,72 +384,67 @@ class AccountPageHeader extends StatelessWidget {
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: AppColors.headerGreen,
       ),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+      child: LedgerHeaderBackground(
+        child: Padding(
+          padding: EdgeInsets.only(
+            top: topInset + 10,
+            left: 12,
+            right: 12,
+            bottom: 25,
           ),
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
-          border: Border(bottom: BorderSide(color: AppColors.golden, width: 3)),
-        ),
-        padding: EdgeInsets.only(
-          top: topInset + 10,
-          left: 12,
-          right: 12,
-          bottom: 12,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Row(
-            children: <Widget>[
-              if (leading != null) ...<Widget>[
-                SizedBox(width: 48, height: 48, child: leading),
-                const SizedBox(width: 2),
-              ],
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: AppColors.golden,
-                  shape: BoxShape.circle,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Row(
+              children: <Widget>[
+                if (leading != null) ...<Widget>[
+                  SizedBox(width: 48, height: 48, child: leading),
+                  const SizedBox(width: 2),
+                ],
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    color: AppColors.golden,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 24, color: AppColors.headerGreen),
                 ),
-                child: Icon(icon, size: 24, color: AppColors.headerGreen),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FittedBox(
-                  alignment: Alignment.centerLeft,
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        maxLines: 1,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.onPrimary,
-                          height: 1.15,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FittedBox(
+                    alignment: Alignment.centerLeft,
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.onPrimary,
+                            height: 1.15,
+                          ),
                         ),
-                      ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: AppColors.onPrimary.withValues(alpha: 0.85),
-                          height: 1.3,
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: AppColors.onPrimary.withValues(alpha: 0.85),
+                            height: 1.3,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              ?action,
-            ],
+                ?action,
+              ],
+            ),
           ),
         ),
       ),

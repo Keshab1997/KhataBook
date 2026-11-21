@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/l10n/app_strings.dart' show AppLanguage;
 import 'package:khatabook/core/theme/app_colors.dart';
+import 'package:khatabook/core/widgets/ledger_header_background.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/sync/account_card.dart';
 import 'package:khatabook/features/sync/cloud_backup_screen.dart';
@@ -143,15 +144,14 @@ void main() {
         await _pumpPushed(tester, SignInScreen(backend: backend));
 
         expect(find.byKey(_headerKey), findsOneWidget);
-        final BoxDecoration decoration = _decorationOf(tester, _headerKey);
-        expect((decoration.gradient! as LinearGradient).colors, <Color>[
-          AppColors.primaryGreen,
-          AppColors.headerGreen,
-        ]);
-        expect((decoration.border! as Border).bottom.color, AppColors.golden);
-        final BorderRadius radius = decoration.borderRadius! as BorderRadius;
-        expect(radius.topLeft, Radius.zero);
-        expect(radius.bottomLeft, Radius.circular(22));
+        expect(find.byType(LedgerHeaderBackground), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(_headerKey),
+            matching: find.byType(CustomPaint),
+          ),
+          findsWidgets,
+        );
 
         // Localized title, one line, ellipsized; contextual cloud icon beside it.
         final Text title = tester.widget<Text>(find.byKey(_titleKey));

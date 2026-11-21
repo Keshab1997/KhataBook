@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import '../ledger/data/local_ledger.dart' show KhataNotFoundException;
 import 'note_counter_store.dart';
 import 'saved_sessions_sheet.dart';
@@ -630,87 +631,75 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Container(
-              height: 76,
-              margin: const EdgeInsets.only(bottom: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: <Color>[
-                    AppColors.primaryGreen,
-                    AppColors.headerGreen,
-                  ],
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(22),
-                ),
-                border: const Border(
-                  bottom: BorderSide(color: AppColors.golden, width: 3),
-                ),
-              ),
-              child: Row(
-                children: <Widget>[
-                  ClipOval(
-                    child: Image.asset(
-                      'assets/illustrations/counter_header_coins.png',
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      excludeFromSemantics: true,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FittedBox(
-                      alignment: Alignment.centerLeft,
-                      fit: BoxFit.scaleDown,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            strings.text(AppString.counter),
-                            style: const TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                          Text(
-                            widget.language == AppLanguage.bn
-                                ? 'গুনুন সহজে • সঞ্চয় করুন'
-                                : 'Count Smart • Save More',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                        ],
+            LedgerHeaderBackground(
+              child: Container(
+                height: 74,
+                margin: const EdgeInsets.only(bottom: 3),
+                padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+                child: Row(
+                  children: <Widget>[
+                    ClipOval(
+                      child: Image.asset(
+                        'assets/illustrations/counter_header_coins.png',
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        excludeFromSemantics: true,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    key: const Key('note-counter-new-count'),
-                    onPressed: _confirmNewCount,
-                    tooltip: strings.text(AppString.newCount),
-                    color: AppColors.onPrimary,
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.secondaryGreen,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              strings.text(AppString.counter),
+                              style: const TextStyle(
+                                fontSize: 25,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                            Text(
+                              widget.language == AppLanguage.bn
+                                  ? 'গুনুন সহজে • সঞ্চয় করুন'
+                                  : 'Count Smart • Save More',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    icon: const Icon(Icons.refresh),
-                  ),
-                  if (widget.onSettings != null)
                     IconButton(
-                      onPressed: widget.onSettings,
-                      tooltip: 'Settings',
+                      key: const Key('note-counter-new-count'),
+                      onPressed: _confirmNewCount,
+                      tooltip: strings.text(AppString.newCount),
                       color: AppColors.onPrimary,
                       style: IconButton.styleFrom(
                         backgroundColor: AppColors.secondaryGreen,
                       ),
-                      icon: const Icon(Icons.settings),
+                      icon: const Icon(Icons.refresh),
                     ),
-                ],
+                    if (widget.onSettings != null)
+                      IconButton(
+                        onPressed: widget.onSettings,
+                        tooltip: 'Settings',
+                        color: AppColors.onPrimary,
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.secondaryGreen,
+                        ),
+                        icon: const Icon(Icons.settings),
+                      ),
+                  ],
+                ),
               ),
             ),
             for (final int denomination in _rowOrderPaise) ...<Widget>[

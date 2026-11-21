@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import 'add_entry_screen.dart';
 import 'category_picker.dart';
 import 'category_store.dart';
@@ -484,6 +485,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
         key: const Key('transaction-editor-screen'),
         backgroundColor: AppColors.creamBackground,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppColors.onPrimary,
+          flexibleSpace: const LedgerHeaderBackground(child: SizedBox.expand()),
           leading:
               widget.language == AppLanguage.bn &&
                   (ModalRoute.of(context)?.impliesAppBarDismissal ?? false)

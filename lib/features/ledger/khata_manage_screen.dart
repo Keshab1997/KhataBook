@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show MaxLengthEnforcement;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 import 'data/local_ledger.dart';
 
 /// Geometry shared by this screen: the same card radius, gap, hairline and rule
@@ -239,6 +240,9 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppColors.onPrimary,
+          flexibleSpace: const LedgerHeaderBackground(child: SizedBox.expand()),
           title: Text(strings.text(AppString.manageKhatas)),
           leading: IconButton(
             key: const Key('manage-khatas-back'),

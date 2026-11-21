@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart';
 
 enum BackupExportResult { saved, cancelled, failed }
 
@@ -383,7 +384,12 @@ class _BackupScreenContentState extends State<BackupScreen> {
     return PopScope(
       canPop: !_isPending,
       child: Scaffold(
-        appBar: AppBar(title: Text(_strings.text(AppString.backupRestore))),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppColors.onPrimary,
+          flexibleSpace: const LedgerHeaderBackground(child: SizedBox.expand()),
+          title: Text(_strings.text(AppString.backupRestore)),
+        ),
         body: SafeArea(
           top: false,
           child: SingleChildScrollView(

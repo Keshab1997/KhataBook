@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
+import 'package:khatabook/core/widgets/ledger_header_background.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
@@ -128,10 +129,6 @@ Future<void> reveal(
 /// The header banner of [screen], found through the key it puts on it.
 Finder headerOf(String key) => find.byKey(Key(key));
 
-/// The rounded green container inside a header banner.
-Finder headerSurfaceOf(String key) =>
-    find.descendant(of: headerOf(key), matching: find.byType(Container)).first;
-
 /// Asserts [finder] resolves to a target at least 48 dp on both sides.
 void expectTapTarget(
   WidgetTester tester,
@@ -161,21 +158,12 @@ void main() {
           // No AppBar on the account family: the banner is the header.
           expect(find.byType(AppBar), findsNothing);
 
-          final Container surface = tester.widget<Container>(
-            headerSurfaceOf('profile-header'),
-          );
-          final BoxDecoration decoration = surface.decoration! as BoxDecoration;
-          // Same reference treatment as the Counter's banner.
-          expect(decoration.gradient, isNotNull);
           expect(
-            (decoration.borderRadius! as BorderRadius).bottomLeft.y,
-            greaterThan(0),
-          );
-          expect((decoration.border as Border).bottom.color, AppColors.golden);
-          expect(
-            (decoration.border as Border).bottom.width,
-            3,
-            reason: 'the golden rule under the banner is 3 dp',
+            find.descendant(
+              of: header,
+              matching: find.byType(LedgerHeaderBackground),
+            ),
+            findsOneWidget,
           );
 
           // The title is the localized screen name, inside the header, and it
@@ -218,12 +206,13 @@ void main() {
       expect(find.byType(AppBar), findsNothing);
       expect(headerOf('settings-header'), findsOneWidget);
 
-      final Container surface = tester.widget<Container>(
-        headerSurfaceOf('settings-header'),
+      expect(
+        find.descendant(
+          of: headerOf('settings-header'),
+          matching: find.byType(LedgerHeaderBackground),
+        ),
+        findsOneWidget,
       );
-      final BoxDecoration decoration = surface.decoration! as BoxDecoration;
-      expect(decoration.gradient, isNotNull);
-      expect((decoration.border as Border).bottom.color, AppColors.golden);
 
       // The back control is still a real BackButton, so the existing
       // navigation tests keep working, and it is a 48 dp target.
@@ -248,30 +237,15 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpScreen(tester, const ProfileScreen());
-      final BoxDecoration profile =
-          tester
-                  .widget<Container>(headerSurfaceOf('profile-header'))
-                  .decoration!
-              as BoxDecoration;
       final double profileHeight = tester
           .getSize(headerOf('profile-header'))
           .height;
 
       await pumpScreen(tester, const SettingsScreen());
-      final BoxDecoration settings =
-          tester
-                  .widget<Container>(headerSurfaceOf('settings-header'))
-                  .decoration!
-              as BoxDecoration;
       final double settingsHeight = tester
           .getSize(headerOf('settings-header'))
           .height;
 
-      expect(settings.gradient, profile.gradient);
-      expect(
-        (settings.borderRadius! as BorderRadius).bottomLeft.y,
-        (profile.borderRadius! as BorderRadius).bottomLeft.y,
-      );
       expect(settingsHeight, profileHeight);
       expect(tester.takeException(), isNull);
     });
