@@ -331,36 +331,49 @@ Everything above the end marker is maintained by
 down here is never touched).
 
 - **App:** KhataBook — offline-first personal finance ledger. Local SQLite
-  (Drift) is the source of truth; Supabase is an opt-in backup, never a
-  dependency of the UI.
-- **App directory:** `.` — Flutter app at the repo root, scaffolded in B1 with
+  (Drift) is the source of truth (web: Drift WASM + IndexedDB via
+  `openWebLedger`); Supabase is an opt-in cloud backup (Google sign-in only,
+  RLS), never a dependency of the UI.
+- **App directory:** `.` — Flutter app at the repo root, shipped at v1 with
   Flutter 3.50.0 / Dart 3.14.0 (`android/`, `ios/`, `web/`).
-- **Specification:** `docs/spec/` is the contract. Read it before writing Dart;
-  answers to the `NEEDS CONFIRMATION` / Q1–Q6 items in `docs/spec/README.md`
-  come from Keshab, not from a guess. B1 shipped with the documented defaults.
+- **Spec:** there is no spec contract in this repository. `docs/` was deleted
+  (2026-11-21) after Keshab's cleanup — `docs/spec/` (architecture/data-model/
+  screens/theme/open decisions), `docs/design/` (UI preview + style guide),
+  `docs/agent-briefs/` (past briefs) and the root README.md are all gone.
+  Product truth lives in the code (`lib/`) and in `test/`.
 - **Extra project rules:** money is integer **paise** (INR, Indian grouping),
-  never `double`; IDs are client UUIDs; deletes are tombstones; all colours come
-  from `AppColors` (`lib/core/theme/app_colors.dart`), never literal hex in a
-  feature widget; the two PNGs in `docs/design/` are design references, not app
-  assets. B1 has no third-party runtime dependencies — add them with
-  `flutter pub add` only when a feature needs them.
-- **Extra verification:** the three Home numbers must reproduce the preview
-  (₹10,000 income / ₹3,580 expense / ₹6,420 remaining) with the seeded data;
-  `250 × 4 = 1,000` and `₹500 × 10 = ₹5,000` are the calculator/counter
-  smoke cases. `test/theme_test.dart` is the single B1 test file. Check a UI
-  change with `tool/local_screenshots.py` before asking Keshab to look at it.
-- **Workflows:** `.github/workflows/` has the builder workflows at `@v1.18.7` —
-  *Flutter CI — Format, Analyze & Test* (`ci.yml`), *Flutter widget-test
-  diagnostics* (`widget-tests.yml`), plus *Web preview* (`web-preview.yml`),
+  never `double`; IDs are client UUIDs; deletes are tombstones; all colours
+  come from `AppColors` (`lib/core/theme/app_colors.dart`), never literal hex
+  in a feature widget; English + বাংলা via the in-code `AppString` enum
+  (`lib/core/l10n/app_strings.dart`), not `arb` files. Runtime dependencies:
+  drift, drift_flutter, supabase_flutter, shared_preferences, image_picker,
+  uuid, http — add more with `flutter pub add` only when a feature needs them.
+- **Extra verification:** the seeded Home screen shows ₹10,000 income, ₹3,580
+  expense and ₹6,420 remaining (test/home_design_test.dart expects them);
+  `250 × 4 = 1,000` and `₹500 × 10 = ₹5,000` are the calculator/counter smoke
+  cases. 47 Dart test files cover the app (`flutter test` after `flutter
+  pub get`); `tests/test_ledger_schema.py` keeps the ledger DDL honest (65
+  tests, offline, `python3 -m pytest tests/ -q`). Check a UI change with
+  `python3 tool/local_screenshots.py --shot <name>` before asking Keshab to
+  look at it.
+- **Workflows (`.github/workflows/`):** five files pinned at
+  `Keshab1997/flutter-builder@v1.18.9`. Approved manual gates: *Flutter CI —
+  Format, Analyze & Test* (`ci.yml`) and *Flutter widget-test diagnostics*
+  (`widget-tests.yml`). NOT approved, do not run without Keshab: *Web preview*
+  (`web-preview.yml` — push-triggered, visibility is a yes-no for Pages setup),
   *Manual build* (`manual-build.yml`) and *Publish release*
-  (`publish-release.yml`), all `workflow_dispatch`-only. Quote those real names.
+  (`publish-release.yml` — tags/releases). Quote the real names, never a
+  generic "Flutter CI".
 - **Android signing:** upload key at `android/app/upload-keystore.jks` (alias
   `khatabook`, self-signed CN=Keshab Sarkar / O=Keshab Studios, valid to 2054)
-  and `android/key.properties` — both gitignored, never commit. CI receives the
-  same key via secrets `ANDROID_KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
-  `KEY_PASSWORD`, `KEY_ALIAS`; release signing in `android/app/build.gradle.kts`
-  falls back to debug when no key.properties exists locally.
-- **Not yet present (needs approval):** repository secrets beyond the four
-  signing secrets, Supabase project, Pages setup, tags/releases, and running
-  any publishing workflow. Original `ci.yml` is backed up under
-  `.github/flutter-builder-backups/`.
+  and `key.properties` at the repo root — both gitignored, never commit. CI
+  receives the same key via secrets `ANDROID_KEYSTORE_BASE64`,
+  `KEYSTORE_PASSWORD`, `KEY_PASSWORD`, `KEY_ALIAS`; release signing in
+  `android/app/build.gradle.kts` falls back to debug when no key.properties
+  exists locally.
+- **Not yet present (needs approval):** Pages setup (`web-preview.yml` is
+  committed but unused), repository secrets beyond the four signing secrets,
+  tags/releases, and any publishing workflow run. Supabase is already
+  configured — URL and **publishable** key in `lib/core/config/cloud_project.dart`
+  (never a service-role key — `test/cloud_project_test.dart` proves it), RLS
+  migrations applied — there is nothing to approve there anymore.
