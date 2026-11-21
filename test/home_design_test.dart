@@ -353,9 +353,7 @@ void main() {
       // a floating "Category Shopping" from its decorative avatar.
       expect(
         tester
-            .getSemantics(
-              find.byKey(const Key('home-recent-Grocery Shopping')),
-            )
+            .getSemantics(find.byKey(const Key('home-recent-Grocery Shopping')))
             .label,
         contains('Shopping'),
       );
@@ -382,8 +380,7 @@ void main() {
           id: 'entry-design-income',
         ),
         LedgerEntry(
-          title:
-              'Monthly grocery and household supplies for the whole family',
+          title: 'Monthly grocery and household supplies for the whole family',
           category: 'Shopping',
           at: DateTime(2026, 11, 19, 17),
           amountPaise: 123456789,
@@ -483,10 +480,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light(),
-          home: HomeScreen(
-            summary: storedSummary(),
-            onRecentEntry: (_) {},
-          ),
+          home: HomeScreen(summary: storedSummary(), onRecentEntry: (_) {}),
         ),
       );
       await tester.pumpAndSettle();
@@ -534,15 +528,11 @@ void main() {
           MaterialApp(
             theme: AppTheme.light(),
             builder: (BuildContext context, Widget? child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(2),
-              ),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(2)),
               child: child ?? const SizedBox.shrink(),
             ),
-            home: HomeScreen(
-              summary: storedSummary(),
-              onRecentEntry: (_) {},
-            ),
+            home: HomeScreen(summary: storedSummary(), onRecentEntry: (_) {}),
           ),
         );
         await tester.pumpAndSettle();
