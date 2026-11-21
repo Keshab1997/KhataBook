@@ -2,6 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
@@ -32,6 +33,7 @@ void main() {
     Size? size,
     EdgeInsets? systemInsets,
     EdgeInsets? viewInsets,
+    AppLanguage language = AppLanguage.en,
   }) async {
     if (size != null) {
       tester.view.physicalSize = size;
@@ -50,7 +52,11 @@ void main() {
           ),
           child: child ?? const SizedBox.shrink(),
         ),
-        home: AddEntryScreen(openingBalancePaise: balance, onSave: saved.add),
+        home: AddEntryScreen(
+          language: language,
+          openingBalancePaise: balance,
+          onSave: saved.add,
+        ),
       ),
     );
   }
@@ -93,12 +99,16 @@ void main() {
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
     await showForm(tester, saved);
-    // Save waits for a positive amount: an empty form offers nothing to
-    // press, and says so by keeping the action disabled.
+    // Save is live while the form is idle: pressing it on an empty form is
+    // how the form names what it is missing, and it writes nothing.
     expect(
       tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
-      isNull,
+      isNotNull,
     );
+    await tapVisible(tester, find.text('Save Entry'));
+    expect(find.text('Enter a valid amount'), findsOneWidget);
+    expect(find.text('Pick a category'), findsOneWidget);
+    expect(saved, isEmpty);
 
     for (final String invalid in <String>[
       '0',
@@ -113,13 +123,22 @@ void main() {
       await enter(tester, amountField, invalid);
       expect(
         tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
-        isNull,
-        reason: 'Save must stay disabled for amount: $invalid',
+        isNotNull,
+        reason: 'Save must stay available for amount: $invalid',
+      );
+      await tapVisible(tester, find.text('Save Entry'));
+      expect(
+        find.text('Enter a valid amount'),
+        findsOneWidget,
+        reason: 'Rejected amount must explain itself: $invalid',
       );
       expect(saved, isEmpty, reason: 'Rejected amount: $invalid');
     }
 
-    // Leaving an invalid amount behind flags it under its own frame.
+    // Picking a category clears its error; leaving an invalid amount
+    // behind then flags it under its own frame alone.
+    await tapVisible(tester, find.text('Food'));
+    expect(find.text('Pick a category'), findsNothing);
     await enter(tester, descriptionField, '');
     expect(find.text('Enter a valid amount'), findsOneWidget);
     expect(find.text('Pick a category'), findsNothing);
@@ -836,19 +855,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('save stays disabled until a positive amount is typed', (
+  testWidgets('save stays available while idle, whatever the amount', (
     tester,
   ) async {
     await showForm(tester, <EntryFormResult>[]);
     bool saveEnabled() =>
         tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed != null;
-    expect(saveEnabled(), isFalse);
+    // Empty, zero and malformed amounts all keep the action live so a press
+    // can explain the problem; nothing about the amount gates it any more.
+    expect(saveEnabled(), isTrue);
     await enter(tester, amountField, '0');
-    expect(saveEnabled(), isFalse);
+    expect(saveEnabled(), isTrue);
     await enter(tester, amountField, '0.5');
     expect(saveEnabled(), isTrue);
     await enter(tester, amountField, '');
-    expect(saveEnabled(), isFalse);
+    expect(saveEnabled(), isTrue);
     await enter(tester, amountField, '7');
     expect(saveEnabled(), isTrue);
   });
@@ -858,11 +879,12 @@ void main() {
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
     await showForm(tester, saved);
-    // The main Save Entry button waits for an amount; the header action is
-    // the affordance that reveals every inline error at once.
+    // The header action and the main Save Entry button run the same
+    // validation: both are live on an empty form and reveal every inline
+    // error at once.
     expect(
       tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
-      isNull,
+      isNotNull,
     );
     await tester.tap(find.byTooltip('Save'));
     await tester.pumpAndSettle();
@@ -871,8 +893,33 @@ void main() {
     expect(saved, isEmpty);
     expect(
       tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
-      isNull,
+      isNotNull,
     );
+  });
+
+  testWidgets('a failed save focuses the first invalid field', (tester) async {
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(tester, saved);
+    await tapVisible(tester, find.text('Save Entry'));
+    // The amount is the first invalid input: the form scrolls it back into
+    // view, focuses it, and keeps its error readable while it has focus.
+    expect(find.text('Enter a valid amount'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byKey(amountField)).focusNode!.hasFocus,
+      isTrue,
+    );
+    expect(find.byKey(amountField).hitTestable(), findsOneWidget);
+    expect(saved, isEmpty);
+
+    // With a valid amount the missing category is next: its error is shown
+    // and the category grid is brought into view.
+    await enter(tester, amountField, '42');
+    await tapVisible(tester, find.text('Save Entry'));
+    expect(find.text('Enter a valid amount'), findsNothing);
+    expect(find.text('Pick a category'), findsOneWidget);
+    expect(find.text('Food').hitTestable(), findsOneWidget);
+    expect(saved, isEmpty);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('leading zeros never parse as an amount', (tester) async {
@@ -962,6 +1009,41 @@ void main() {
       find.byKey(const Key('after-saving-preview')).hitTestable(),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Bengali validation, 320 dp, 200% text and the keyboard up', (
+    tester,
+  ) async {
+    final AppStrings bn = AppStrings(AppLanguage.bn);
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(
+      tester,
+      saved,
+      language: AppLanguage.bn,
+      size: const Size(320, 568),
+      textScale: 2,
+      systemInsets: const EdgeInsets.only(top: 24, bottom: 0),
+      viewInsets: const EdgeInsets.only(bottom: 256),
+    );
+    expect(tester.takeException(), isNull);
+
+    // The main save explains an empty form in Bengali and writes nothing.
+    await tapVisible(tester, find.byKey(saveEntry));
+    expect(find.text(bn.text(AppString.validAmount)), findsOneWidget);
+    expect(find.text(bn.text(AppString.pickCategory)), findsOneWidget);
+    expect(saved, isEmpty);
+    expect(tester.takeException(), isNull);
+
+    // Bengali digits parse as before and a valid income saves exactly once.
+    await enter(tester, amountField, '৫০');
+    await tapVisible(tester, find.text(bn.text(AppString.income)));
+    await scrollTo(tester, find.byKey(saveEntry));
+    await tester.tap(find.byKey(saveEntry));
+    await tester.pumpAndSettle();
+    expect(saved, hasLength(1));
+    expect(saved.single.kind, EntryFormKind.income);
+    expect(saved.single.amountPaise, 5000);
     expect(tester.takeException(), isNull);
   });
 

@@ -94,7 +94,32 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   /// Last honest failure message; cleared on the next attempt.
   AppString? _error;
 
+  /// True while the discard confirmation is on screen, so a second back
+  /// press cannot stack another copy of it.
+  bool _discardPromptOpen = false;
+
   bool get _busy => _pendingLabel != null;
+
+  /// Whether any field now differs from the entry the editor opened with.
+  /// The amount compares as parsed paise, so retyping the same value in a
+  /// different shape (`1234.5` for `1234.50`) is not a change; an amount
+  /// that no longer parses counts as changed unless the text is exactly
+  /// the original's. The date compares by local calendar day only, which
+  /// is what keeps an untouched date's original timestamp intact.
+  bool get _isDirty {
+    final EntryFormResult initial = widget.initial;
+    if (_kind != initial.kind || _category != initial.category) {
+      return true;
+    }
+    if (_description.text != initial.description || !_dateUnchanged) {
+      return true;
+    }
+    final int? amountPaise = _parseAmountPaise(_amount.text);
+    if (amountPaise == null) {
+      return _amount.text != _amountText(initial.amountPaise);
+    }
+    return amountPaise != initial.amountPaise;
+  }
 
   /// The same short-phone rule Add Entry uses, so the shared category grid
   /// answers columns and gutters identically on both forms.
@@ -353,6 +378,75 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     return confirmed ?? false;
   }
 
+  /// The header back control: leave at once when nothing changed, ask
+  /// first when leaving would throw edits away, and never move while a
+  /// write is in flight.
+  Future<void> _handleBack() async {
+    if (_busy) {
+      return;
+    }
+    if (!_isDirty) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    await _confirmDiscard();
+  }
+
+  /// System back lands here through [PopScope] whenever the route cannot
+  /// pop freely. Keeping the draft (or dismissing the dialog) changes
+  /// nothing and calls nothing; only an explicit Discard leaves, and it
+  /// leaves without writing.
+  Future<void> _confirmDiscard() async {
+    if (_busy || _discardPromptOpen || !_isDirty) {
+      return;
+    }
+    _discardPromptOpen = true;
+    final bool? discard = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          key: const Key('discard-confirm-dialog'),
+          scrollable: true,
+          title: Text(_DiscardCopy.title.text(widget.language)),
+          content: Text(_DiscardCopy.message.text(widget.language)),
+          actions: <Widget>[
+            TextButton(
+              key: const Key('keep-editing-button'),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(64, 48),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(_DiscardCopy.keepEditing.text(widget.language)),
+            ),
+            FilledButton(
+              key: const Key('discard-changes-button'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.warmIvory,
+                foregroundColor: AppColors.expenseRed,
+                minimumSize: const Size(88, 48),
+                side: const BorderSide(color: AppColors.expenseRed),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                _DiscardCopy.discard.text(widget.language),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    _discardPromptOpen = false;
+    if (discard == true && mounted && !_busy) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _selectKind(EntryFormKind kind) {
     if (_busy) {
       return;
@@ -376,7 +470,16 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     final bool future = _date.isAfter(DateTime(now.year, now.month, now.day));
 
     return PopScope(
-      canPop: !_busy,
+      // Free to leave only when idle and untouched. A busy write blocks
+      // back outright; unsaved edits route both the system back gesture
+      // and the AppBar's default back button through the confirmation.
+      canPop: !_busy && !_isDirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || _busy) {
+          return;
+        }
+        _confirmDiscard();
+      },
       child: Scaffold(
         key: const Key('transaction-editor-screen'),
         backgroundColor: AppColors.creamBackground,
@@ -387,7 +490,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
               ? IconButton(
                   icon: const BackButtonIcon(),
                   tooltip: _strings.text(AppString.back),
-                  onPressed: () => Navigator.of(context).maybePop(),
+                  onPressed: _handleBack,
                 )
               : null,
           title: Text(
@@ -756,6 +859,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                     (value ?? '').trim().runes.length > 120
                     ? _strings.text(AppString.descriptionTooLong)
                     : null,
+                // Repaints so the dirty check behind back protection sees
+                // a description edit immediately, not at the next rebuild.
+                onChanged: (_) => setState(() {}),
               ),
             ),
           ),
@@ -1020,6 +1126,25 @@ String _categoryLabel(AppStrings strings, String category) {
     _ => null,
   };
   return key == null ? category : strings.text(key);
+}
+
+/// Discard-confirmation copy. Shared l10n has no words for this yet, so the
+/// editor carries its own pair, following the [_DatePickerCopy] pattern.
+enum _DiscardCopy {
+  title('Discard changes?', 'পরিবর্তন বাতিল করবেন?'),
+  message(
+    'You have unsaved changes. Discard them and leave?',
+    'আপনার অসংরক্ষিত পরিবর্তন আছে। সেগুলো বাতিল করে বেরিয়ে যাবেন?',
+  ),
+  keepEditing('Keep editing', 'সম্পাদনা চালিয়ে যান'),
+  discard('Discard', 'বাতিল করুন');
+
+  const _DiscardCopy(this.en, this.bn);
+
+  final String en;
+  final String bn;
+
+  String text(AppLanguage language) => language == AppLanguage.bn ? bn : en;
 }
 
 enum _DatePickerCopy {

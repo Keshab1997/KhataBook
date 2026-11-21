@@ -191,6 +191,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   ];
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  /// Anchors that let a failed save scroll the first invalid input into
+  /// view. They sit on the section columns, never on the fields themselves,
+  /// whose own keys are how tests and semantics address them.
+  final GlobalKey _amountSectionKey = GlobalKey();
+  final GlobalKey _categorySectionKey = GlobalKey();
+  final GlobalKey _descriptionSectionKey = GlobalKey();
   final TextEditingController _amount = TextEditingController();
   final TextEditingController _description = TextEditingController();
 
@@ -204,9 +211,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   bool _saving = false;
 
   /// True once a save was pressed on an incomplete form, so the inline
-  /// amount error can appear even while the field is still empty. The main
-  /// Save Entry button stays disabled until an amount exists; the header
-  /// action is the affordance that names what the form is missing.
+  /// amount error can appear even while the field is still empty. Both save
+  /// actions stay live while the form is idle, so pressing either one is
+  /// how the form names what it is missing.
   bool _attemptedSave = false;
 
   late DateTime _date;
@@ -316,7 +323,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       _showCategoryError = !validCategory;
       _attemptedSave = true;
     });
-    if (!validFields || !validAmount || !validCategory) return;
+    if (!validFields || !validAmount || !validCategory) {
+      _revealFirstInvalid(
+        validAmount: validAmount,
+        validCategory: validCategory,
+      );
+      return;
+    }
     HapticFeedback.mediumImpact();
     setState(() => _saving = true);
     widget.onSave(
@@ -334,6 +347,39 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _saving) setState(() => _saving = false);
     });
+  }
+
+  /// Brings the first invalid input, in on-screen order (amount, then
+  /// category, then description), into view after the error rows have had
+  /// a frame to appear, and focuses the field when it is one that takes
+  /// text. A category is not focusable, so scrolling is all it gets.
+  void _revealFirstInvalid({
+    required bool validAmount,
+    required bool validCategory,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _saving) return;
+      if (!validAmount) {
+        _scrollIntoView(_amountSectionKey);
+        _amountFocus.requestFocus();
+      } else if (!validCategory) {
+        _scrollIntoView(_categorySectionKey);
+      } else {
+        _scrollIntoView(_descriptionSectionKey);
+        _descriptionFocus.requestFocus();
+      }
+    });
+  }
+
+  void _scrollIntoView(GlobalKey key) {
+    final BuildContext? target = key.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.15,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _selectKind(EntryFormKind kind) {
@@ -520,9 +566,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       ),
       actions: <Widget>[
         IconButton(
-          // Unlike the main Save Entry button (disabled until a positive
-          // amount exists), the header action stays live on an empty form:
-          // pressing it is how the form names everything it is missing.
+          // The header action and the main Save Entry button run the same
+          // validation: both stay live while the form is idle, so pressing
+          // either one on an empty form names everything it is missing.
           onPressed: _saving ? null : _save,
           tooltip: _strings.text(AppString.save),
           style: IconButton.styleFrom(
@@ -555,10 +601,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final bool focused = _amountFocus.hasFocus;
     final bool valid = _parseAmount(_amount.text) != null;
     // An invalid amount flags itself once the field lets focus go, or as
-    // soon as a save press has asked the form what it is missing.
+    // soon as a save press has asked the form what it is missing. After a
+    // save press the flag stays up even though the field is refocused, so
+    // the user can read it while fixing the amount.
     final bool showError =
-        !focused && !valid && (_amount.text.isNotEmpty || _attemptedSave);
+        !valid && (_attemptedSave || (!focused && _amount.text.isNotEmpty));
     return Column(
+      key: _amountSectionKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         EntryFormLayout.captionRow(
@@ -876,6 +925,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _categorySection() {
     return Column(
+      key: _categorySectionKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         EntryFormLayout.captionRow(
@@ -972,6 +1022,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _descriptionSection() {
     return Column(
+      key: _descriptionSectionKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         EntryFormLayout.captionRow(
@@ -1094,10 +1145,11 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         SizedBox(height: _compact ? 8 : 12),
         FilledButton(
           key: const Key('save-entry-button'),
-          // Disabled until a positive amount exists: there is nothing to
-          // save before that, and the inline errors belong to a form the
-          // user can actually submit.
-          onPressed: _saving || !hasAmount ? null : _save,
+          // Live whenever the form is idle, even with no amount yet:
+          // pressing it is how an incomplete form explains itself inline
+          // instead of silently refusing. Only the in-flight saving state
+          // disables it, so a write can never be submitted twice.
+          onPressed: _saving ? null : _save,
           style: FilledButton.styleFrom(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
