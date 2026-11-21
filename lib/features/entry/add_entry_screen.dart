@@ -372,49 +372,66 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       child: Scaffold(
         backgroundColor: AppColors.creamBackground,
         appBar: _appBar(),
-        // Only the form scrolls. The decorative leaves are the last row of
-        // that scroll content, below the save button, so they can never cover
-        // a field or the action - and they scroll away with the form.
+        // Fill the usable viewport when the form is short, but keep natural
+        // scrolling when text, validation errors or the keyboard need more room.
         body: SafeArea(
-          child: Form(
-            key: _formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                EntryFormLayout.pagePadding,
-                _compact ? 6 : EntryFormLayout.gap,
-                EntryFormLayout.pagePadding,
-                _compact ? 6 : EntryFormLayout.gap,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  _amountSection(),
-                  _sectionGap(),
-                  _kindSelector(),
-                  _sectionGap(),
-                  _dateSection(future: future),
-                  _sectionGap(),
-                  _categorySection(),
-                  _sectionGap(),
-                  _descriptionSection(),
-                  _sectionGap(),
-                  _saveArea(),
-                  SizedBox(height: _compact ? 4 : 12),
-                  ExcludeSemantics(
-                    child: Image(
-                      key: const Key('entry-footer-artwork'),
-                      image: const AssetImage(
-                        'assets/illustrations/entry_footer_leaves.png',
-                      ),
-                      height: _compact ? 16 : 44,
-                      fit: BoxFit.fitWidth,
-                      excludeFromSemantics: true,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints viewport) {
+              final double verticalPadding = _compact ? 6 : EntryFormLayout.gap;
+              return Form(
+                key: _formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: EntryFormLayout.pagePadding,
+                    vertical: verticalPadding,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: (viewport.maxHeight - verticalPadding * 2)
+                          .clamp(0.0, double.infinity),
+                    ),
+                    child: Column(
+                      // Extra room belongs between the form sections, not in
+                      // a dead area below Save. Minimum gaps remain on small
+                      // screens; no fixed height, Spacer or intrinsic pass.
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _amountSection(),
+                        _sectionGap(),
+                        _kindSelector(),
+                        _sectionGap(),
+                        _dateSection(future: future),
+                        _sectionGap(),
+                        _categorySection(),
+                        _sectionGap(),
+                        _descriptionSection(),
+                        _sectionGap(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            _saveArea(),
+                            SizedBox(height: _compact ? 4 : 12),
+                            ExcludeSemantics(
+                              child: Image(
+                                key: const Key('entry-footer-artwork'),
+                                image: const AssetImage(
+                                  'assets/illustrations/entry_footer_leaves.png',
+                                ),
+                                height: _compact ? 16 : 44,
+                                fit: BoxFit.fitWidth,
+                                excludeFromSemantics: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),

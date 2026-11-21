@@ -283,6 +283,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final Size size in <Size>[
+    const Size(360, 780),
+    const Size(390, 844),
+    const Size(430, 932),
+  ]) {
+    testWidgets('fills available height without a blank footer at $size', (
+      tester,
+    ) async {
+      await showForm(
+        tester,
+        <EntryFormResult>[],
+        size: size,
+        systemInsets: const EdgeInsets.only(top: 24, bottom: 24),
+      );
+      await tester.pumpAndSettle();
+      final ScrollPosition position = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      final Finder footer = find.byKey(const Key('entry-footer-artwork'));
+      final double bottom = tester.getBottomLeft(footer).dy;
+      expect(
+        bottom,
+        closeTo(size.height - 24 - (size.height - 48 < 800 ? 6 : 8), 1),
+        reason:
+            'The form should use its viewport, not leave a blank lower third',
+      );
+      expect(find.byKey(saveEntry).hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('renders AI artwork for every canonical expense category', (
     tester,
   ) async {

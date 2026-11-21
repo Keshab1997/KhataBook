@@ -62,7 +62,7 @@ final ShotEnv env = ShotEnv(
 );
 
 bool _isDetailShot(String name) =>
-    name == 'add_entry' ||
+    name.startsWith('add_entry') ||
     name.startsWith('settings') ||
     name.startsWith('sign_in') ||
     name.startsWith('cloud_backup');
@@ -177,6 +177,12 @@ final List<Shot> shots = <Shot>[
     build: () => const CloudBackupScreen(),
     logicalSize: const Size(320, 568),
     textScale: 2,
+    dark: false,
+  ),
+  Shot(
+    name: 'add_entry_compact',
+    build: () => AddEntryScreen(openingBalancePaise: 642000, onSave: (_) {}),
+    logicalSize: const Size(360, 780),
     dark: false,
   ),
   Shot(
