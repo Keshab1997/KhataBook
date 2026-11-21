@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart'
+    show HeaderCornerLeaves;
 import 'category_picker.dart';
 import 'category_store.dart';
 
@@ -498,16 +500,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         fit: StackFit.expand,
         children: <Widget>[
           const CustomPaint(painter: _EntryHeaderPainter()),
-          Positioned(
+          const Positioned(
             right: 0,
             bottom: 0,
-            // Shorter in compact mode so the crest never crowds the title.
-            child: Image.asset(
-              'assets/illustrations/entry_header_leaves.png',
-              height: _compact ? 40 : 52,
-              fit: BoxFit.contain,
-              excludeFromSemantics: true,
-            ),
+            child: IgnorePointer(child: HeaderCornerLeaves()),
           ),
         ],
       ),

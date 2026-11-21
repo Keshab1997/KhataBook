@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ledger_header_background.dart'
+    show HeaderCornerLeaves;
 import '../home/models.dart';
 import '../entry/add_entry_screen.dart';
 import '../entry/category_picker.dart';
@@ -1023,32 +1025,10 @@ class _LedgerHeader extends StatelessWidget {
             Positioned.fill(
               child: CustomPaint(painter: const _HeaderWavePainter()),
             ),
-            // The bundled leaf artwork, tucked into the right corner behind
-            // every control and every word.
-            Positioned(
+            const Positioned(
               right: 0,
               bottom: 0,
-              child: IgnorePointer(
-                // Below the title and subtitle rows: the leaves may brush the
-                // wave, never the words.
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 96,
-                    maxHeight: 46,
-                  ),
-                  child: ClipRect(
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      heightFactor: 1,
-                      child: Image.asset(
-                        'assets/illustrations/entry_header_leaves.png',
-                        fit: BoxFit.contain,
-                        excludeFromSemantics: true,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              child: IgnorePointer(child: HeaderCornerLeaves()),
             ),
             Padding(
               padding: EdgeInsets.fromLTRB(12, topInset + 10, 12, 30),
