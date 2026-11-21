@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
+import 'add_entry_screen.dart';
 import 'category_artwork.dart';
 import 'category_store.dart';
 
@@ -104,7 +105,204 @@ class _CategoryCatalogState extends State<CategoryCatalog> {
   );
 }
 
+/// The compact form viewport: a short phone at ordinary text scale, where
+/// every group of the entry form has to share one screen. Both entry forms
+/// and the grid read this so one short phone cannot get two answers.
+bool isCompactFormViewport(BuildContext context) =>
+    (MediaQuery.sizeOf(context).height -
+            MediaQuery.viewPaddingOf(context).vertical) <
+        800 &&
+    MediaQuery.textScalerOf(context).scale(1) <= 1.2;
+
+/// Even column count of the wrapping category grid at a content [width]
+/// (the row's width inside the page gutter): a 360 dp phone leaves 328 and
+/// keeps the whole starter set on one row - also at 200% text, where a
+/// second row would cost the form its fold - while a 390 dp phone leaves
+/// 358 and gets four roomier columns.
+int categoryGridColumns(double width) => width < 340 ? 5 : 4;
+
+/// The grid's gutter: one step on a short phone, a touch wider otherwise.
+double categoryGridGap(bool compact) => compact ? 6 : 10;
+
+/// Even cell width for the grid's columns across [width], gutters included.
+double categoryGridTileWidth(double width, bool compact) {
+  final double gap = categoryGridGap(compact);
+  final int columns = categoryGridColumns(width);
+  return (width - gap * (columns - 1)) / columns;
+}
+
+/// The glyph a category cell shows when it has no artwork of its own: the
+/// five starter categories, Income, and a calm fallback for anything older.
+IconData categoryGlyph(String id) => switch (id) {
+  'Shopping' => Icons.shopping_bag_rounded,
+  'Food' => Icons.restaurant_rounded,
+  'Travel' => Icons.flight_rounded,
+  'Bills' => Icons.receipt_long_rounded,
+  'Gifts' => Icons.card_giftcard_rounded,
+  'Income' => Icons.south_west_rounded,
+  _ => Icons.category_rounded,
+};
+
+/// One cell of the wrapping category grid: an artwork badge, its label and
+/// the selected check, sized by the grid rather than by its own content so
+/// every cell in a row is the same width and the set never scrolls sideways.
+///
+/// Both entry forms share this cell, so a category reads the same wherever
+/// it is picked. [cellKey], [artworkKey] and [checkKey] let each screen keep
+/// the keys its tests and semantics tree already know; [iconColor] carries a
+/// custom category's own colour into the badge.
+class CategoryCell extends StatelessWidget {
+  const CategoryCell({
+    super.key,
+    required this.label,
+    this.semanticsLabel,
+    required this.selected,
+    required this.onTap,
+    required this.icon,
+    this.iconColor,
+    required this.width,
+    this.compact = false,
+    this.cellKey,
+    this.artworkKey,
+    this.checkKey,
+  });
+
+  final String label;
+  final String? semanticsLabel;
+  final bool selected;
+  final VoidCallback onTap;
+  final IconData icon;
+  final Color? iconColor;
+  final double width;
+  final bool compact;
+  final Key? cellKey;
+  final Key? artworkKey;
+  final Key? checkKey;
+
+  @override
+  Widget build(BuildContext context) {
+    // A narrow cell trims its own padding first, so a 320 dp phone at 200%
+    // text still gives the badge and the label honest room.
+    final double pad = compact ? 5 : (width < 64 ? 5 : 8);
+    final double border = selected ? 2 : 1.2;
+    final double inner = width - pad * 2 - border * 2;
+    final double artBase = compact
+        ? (MediaQuery.sizeOf(context).height < 700 ? 26 : 32)
+        : 40;
+    final double iconBase = compact ? 20 : 24;
+    // The badge never outgrows its cell: on the narrowest grid it shrinks
+    // instead of overflowing, and the glyph shrinks with it.
+    final double art = inner < artBase ? inner : artBase;
+    final double iconSize = art >= artBase
+        ? iconBase
+        : iconBase * art / artBase;
+    final Color badgeInk = selected
+        ? AppColors.onPrimary
+        : (iconColor ?? AppColors.primaryGreen);
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      label: semanticsLabel ?? label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        color: selected ? AppColors.lightGreen : AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+          onTap: onTap,
+          child: AnimatedContainer(
+            key: cellKey,
+            duration: const Duration(milliseconds: 140),
+            width: width,
+            padding: EdgeInsets.all(pad),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+              border: Border.all(
+                color: selected
+                    ? AppColors.primaryGreen
+                    : AppColors.beige.withValues(alpha: 0.9),
+                width: border,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Container(
+                      key: artworkKey,
+                      width: art,
+                      height: art,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primaryGreen
+                            : AppColors.lightGreen,
+                        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(icon, size: iconSize, color: badgeInk),
+                    ),
+                    // The check is the selected affordance beyond colour and
+                    // border weight; it rides the artwork corner so a cell
+                    // needs no extra row and stays short on a small phone.
+                    if (selected)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: AppColors.primaryGreen,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.check,
+                              key: checkKey,
+                              size: 11,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(height: compact ? 4 : 6),
+                // Never clipped at 320 dp: the label shrinks to fit its cell
+                // and stays on one line.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: compact ? 10.5 : 11.5,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected
+                          ? AppColors.primaryGreen
+                          : AppColors.headerGreen,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Additional active choices and the full picker, only shown with a store.
+///
+/// The choices flow into the same wrapping grid as the starter cells: the
+/// builder sees the row's full width, so its columns, gutters and cell
+/// widths are the grid's, and the `More` affordance lands as one more cell
+/// instead of a chip from another family.
 class CustomCategoryChoices extends StatelessWidget {
   const CustomCategoryChoices({
     super.key,
@@ -121,116 +319,82 @@ class CustomCategoryChoices extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CategoryCatalog(
     store: store,
-    builder: (context, categories) => Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (selected != null &&
-            !starterCategories.contains(selected) &&
-            selected != 'Income' &&
-            !categories.any((c) => c.id == selected && !c.archived))
-          _CategoryChip(
-            label: categoryDisplayName(language, selected!, categories),
-            selected: true,
-            leading: Icon(
-              findCustomCategory(selected!, categories)?.icon ??
-                  Icons.more_horiz,
-              color:
-                  findCustomCategory(selected!, categories)?.color ??
-                  AppColors.navigationGrey,
-            ),
-          ),
-        for (final category in categories.where((c) => !c.archived))
-          _CategoryChip(
-            key: Key('custom-category-${category.id}'),
-            label: category.name,
-            selected: category.id == selected,
-            leading: Icon(category.icon, color: category.color, size: 18),
-            onTap: () => onSelected(category.id),
-          ),
-        _CategoryChip(
-          key: const Key('category-more'),
-          label: language == AppLanguage.bn ? 'আরও' : 'More',
-          selected: false,
-          leading: const Icon(Icons.more_horiz, size: 18),
-          onTap: () async {
-            final id = await showModalBottomSheet<String>(
-              context: context,
-              isScrollControlled: true,
-              // Ivory, not the ambient surface tone: the sheet belongs to the
-              // warm paper palette every other card on these screens uses.
-              backgroundColor: AppColors.surface,
-              builder: (_) => _CategorySheet(
-                store: store,
-                language: language,
-                selected: selected,
+    builder: (context, categories) => LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final bool compact = isCompactFormViewport(context);
+        final double gap = categoryGridGap(compact);
+        final double tile = categoryGridTileWidth(
+          constraints.maxWidth,
+          compact,
+        );
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: <Widget>[
+            if (selected != null &&
+                !starterCategories.contains(selected) &&
+                selected != 'Income' &&
+                !categories.any((c) => c.id == selected && !c.archived))
+              SizedBox(
+                width: tile,
+                child: CategoryCell(
+                  label: categoryDisplayName(language, selected!, categories),
+                  selected: true,
+                  onTap: () {},
+                  icon:
+                      findCustomCategory(selected!, categories)?.icon ??
+                      Icons.more_horiz,
+                  iconColor: findCustomCategory(selected!, categories)?.color,
+                  width: tile,
+                  compact: compact,
+                ),
               ),
-            );
-            if (id != null && context.mounted) onSelected(id);
-          },
-        ),
-      ],
+            for (final category in categories.where((c) => !c.archived))
+              SizedBox(
+                width: tile,
+                child: CategoryCell(
+                  cellKey: Key('custom-category-${category.id}'),
+                  label: category.name,
+                  selected: category.id == selected,
+                  onTap: () => onSelected(category.id),
+                  icon: category.icon,
+                  iconColor: category.color,
+                  width: tile,
+                  compact: compact,
+                ),
+              ),
+            SizedBox(
+              width: tile,
+              child: CategoryCell(
+                cellKey: const Key('category-more'),
+                label: language == AppLanguage.bn ? 'আরও' : 'More',
+                selected: false,
+                onTap: () async {
+                  final id = await showModalBottomSheet<String>(
+                    context: context,
+                    isScrollControlled: true,
+                    // Ivory, not the ambient surface tone: the sheet belongs
+                    // to the warm paper palette every other card on these
+                    // screens uses.
+                    backgroundColor: AppColors.surface,
+                    builder: (_) => _CategorySheet(
+                      store: store,
+                      language: language,
+                      selected: selected,
+                    ),
+                  );
+                  if (id != null && context.mounted) onSelected(id);
+                },
+                icon: Icons.more_horiz,
+                width: tile,
+                compact: compact,
+              ),
+            ),
+          ],
+        );
+      },
     ),
   );
-}
-
-/// One outline chip in the picker row: the same shape, height and type for a
-/// custom category, the currently selected one and the "More" action.
-///
-/// Selection is carried by three things at once - tint, border weight and a
-/// trailing check - so it survives a grayscale screen or a colour-blind eye.
-/// The label is capped to the row width so a 30-character category name can
-/// never push a chip past a 320 dp screen.
-class _CategoryChip extends StatelessWidget {
-  const _CategoryChip({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.leading,
-    this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final Widget leading;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final double maxLabel = MediaQuery.sizeOf(context).width - 120;
-    return ActionChip(
-      avatar: leading,
-      label: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxLabel < 96 ? 96 : maxLabel),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Flexible(
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            if (selected) ...<Widget>[
-              const SizedBox(width: 4),
-              const Icon(Icons.check, size: 15, color: AppColors.primaryGreen),
-            ],
-          ],
-        ),
-      ),
-      backgroundColor: selected ? AppColors.lightGreen : AppColors.surface,
-      labelStyle: TextStyle(
-        fontSize: 13,
-        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-        color: selected ? AppColors.primaryGreen : AppColors.darkText,
-      ),
-      side: BorderSide(
-        color: selected ? AppColors.primaryGreen : AppColors.beige,
-        width: selected ? 1.6 : 1.1,
-      ),
-      shape: const StadiumBorder(),
-      visualDensity: VisualDensity.standard,
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-      onPressed: onTap,
-    );
-  }
 }
 
 class _CategorySheet extends StatelessWidget {

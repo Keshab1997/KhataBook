@@ -67,7 +67,11 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     'Gifts',
   ];
 
-  static final RegExp _amountPattern = RegExp(r'^\d{1,9}(?:\.\d{1,2})?$');
+  /// Rupees without a leading-zero mess (`007`, `00.5` are not amounts), at
+  /// most two decimals; positivity is checked on the parsed paise.
+  static final RegExp _amountPattern = RegExp(
+    r'^(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?$',
+  );
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _amount;
@@ -91,6 +95,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   AppString? _error;
 
   bool get _busy => _pendingLabel != null;
+
+  /// The same short-phone rule Add Entry uses, so the shared category grid
+  /// answers columns and gutters identically on both forms.
+  bool get _compact => isCompactFormViewport(context);
 
   @override
   void initState() {
@@ -434,6 +442,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                   if (_pendingLabel != null)
                     _pendingCard(_strings.text(_pendingLabel!)),
                   if (_error != null) _errorCard(_strings.text(_error!)),
+                  _previewRow(),
+                  const SizedBox(height: EntryFormLayout.gap * 2),
                   _saveArea(),
                 ],
               ),
@@ -596,8 +606,8 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
               fontWeight: FontWeight.w800,
               color: AppColors.primaryGreen,
             ),
-            hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
-            hintStyle: EntryFormLayout.amountHint,
+            // No `0.00` placeholder: an empty field shows only the ₹ the
+            // prefix carries, so a dead zero can never read as an amount.
             helperText: _strings.text(AppString.amountPrecision),
             helperStyle: EntryFormLayout.helper,
             helperMaxLines: 2,
@@ -614,6 +624,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
             }
             return null;
           },
+          // The live preview and the update gate read the controller at
+          // build time, so a keystroke has to repaint the screen, exactly
+          // as Add Entry's amount field does.
+          onChanged: (_) => setState(() {}),
         ),
       ),
     );
@@ -656,98 +670,49 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     );
   }
 
+  /// The categories as the same wrapping grid Add Entry uses: even columns,
+  /// one row on a narrow phone, the original category always offered, and
+  /// custom choices plus `More` flowing underneath in the same rhythm.
   Widget _categoryChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        for (final String category in _categoryChoices)
-          if (widget.categoryStore == null ||
-              _standardCategories.contains(category))
-            _categoryChip(category),
-        if (widget.categoryStore != null)
-          CustomCategoryChoices(
-            store: widget.categoryStore!,
-            language: widget.language,
-            selected: _category,
-            onSelected: _selectCategory,
-          ),
-      ],
-    );
-  }
-
-  Widget _categoryChip(String category) {
-    final bool selected = _category == category;
-    // Chosen chips invert to solid green; the rest sit on ivory like the
-    // framed fields, so a category is never mistaken for a text control.
-    final Color background = selected
-        ? AppColors.primaryGreen
-        : AppColors.warmIvory;
-    final Color foreground = selected
-        ? AppColors.onPrimary
-        : AppColors.primaryGreen;
-    // The selected chip carries a check as the affordance beyond colour; it
-    // is ConstrainedBox + ClipRect rather than a Row child so a cramped row
-    // can never paint past the pill's edge.
-    final Widget check = ClipRect(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 20),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double gap = categoryGridGap(_compact);
+        final double tileWidth = categoryGridTileWidth(
+          constraints.maxWidth,
+          _compact,
+        );
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
           children: <Widget>[
-            Icon(Icons.check, size: 16, color: foreground),
-            const SizedBox(width: 4),
-          ],
-        ),
-      ),
-    );
-    return Semantics(
-      container: true,
-      button: true,
-      selected: selected,
-      label: _strings.categoryLabel(_categoryLabel(_strings, category)),
-      onTap: () => _selectCategory(category),
-      child: ExcludeSemantics(
-        child: Material(
-          color: background,
-          clipBehavior: Clip.antiAlias,
-          shape: StadiumBorder(
-            side: BorderSide(
-              color: selected ? AppColors.primaryGreen : AppColors.beige,
-              width: selected ? 1.6 : 1.2,
-            ),
-          ),
-          child: InkWell(
-            key: Key('editor-category-$category'),
-            onTap: () => _selectCategory(category),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 44),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    if (selected) check,
-                    Flexible(
-                      child: Text(
-                        _categoryLabel(_strings, category),
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: foreground,
-                        ),
-                      ),
+            for (final String category in _categoryChoices)
+              if (widget.categoryStore == null ||
+                  _standardCategories.contains(category))
+                SizedBox(
+                  width: tileWidth,
+                  child: CategoryCell(
+                    cellKey: Key('editor-category-$category'),
+                    label: _categoryLabel(_strings, category),
+                    semanticsLabel: _strings.categoryLabel(
+                      _categoryLabel(_strings, category),
                     ),
-                  ],
+                    selected: _category == category,
+                    onTap: () => _selectCategory(category),
+                    icon: categoryGlyph(category),
+                    width: tileWidth,
+                    compact: _compact,
+                  ),
                 ),
+            if (widget.categoryStore != null)
+              CustomCategoryChoices(
+                store: widget.categoryStore!,
+                language: widget.language,
+                selected: _category,
+                onSelected: _selectCategory,
               ),
-            ),
-          ),
-        ),
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -799,6 +764,61 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     );
   }
 
+  /// The live one-line effect of this edit: the kind and amount about to be
+  /// written, then how the khata's remaining balance moves against the
+  /// stored entry, e.g. `Expense ₹999.99 → remaining +₹234.57`. The editor
+  /// owns no absolute balance - its only ledger state is the original
+  /// entry - so the projection is that delta: same state, same money
+  /// helpers, no query. Falls back to the dash line while the amount is not
+  /// a valid positive one.
+  String _previewLine() {
+    final int? paise = _parseAmountPaise(_amount.text);
+    if (paise == null) return _strings.afterSave(null);
+    final EntryFormResult original = widget.initial;
+    final int effect = _kind == EntryFormKind.income ? paise : -paise;
+    final int stored = original.kind == EntryFormKind.income
+        ? original.amountPaise
+        : -original.amountPaise;
+    final String kind = _strings.text(
+      _kind == EntryFormKind.income ? AppString.income : AppString.expense,
+    );
+    final String amount = _strings.money(paise);
+    final int delta = effect - stored;
+    if (delta == 0) return '$kind $amount';
+    final String remaining = _strings.text(AppString.remaining).toLowerCase();
+    final String sign = delta > 0 ? '+' : '';
+    return '$kind $amount → $remaining $sign${_strings.money(delta)}';
+  }
+
+  /// The preview as the same calm row Add Entry puts above its save action.
+  Widget _previewRow() {
+    final bool hasAmount = _parseAmountPaise(_amount.text) != null;
+    return Row(
+      children: <Widget>[
+        Icon(
+          _kind == EntryFormKind.income
+              ? Icons.trending_up
+              : Icons.trending_down,
+          size: 18,
+          color: AppColors.softText,
+        ),
+        const SizedBox(width: EntryFormLayout.gap),
+        Expanded(
+          child: Text(
+            _previewLine(),
+            key: const Key('after-saving-preview'),
+            maxLines: 2,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: hasAmount ? FontWeight.w700 : FontWeight.w600,
+              color: hasAmount ? AppColors.headerGreen : AppColors.softText,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Update and Delete as one card: the primary action first, then a hairline
   /// and the destructive action on its own. Delete is not just a second
   /// button - the rule, the spacing and the outline all say it is different.
@@ -815,7 +835,11 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
         children: <Widget>[
           FilledButton.icon(
             key: const Key('editor-update-button'),
-            onPressed: _busy ? null : _submit,
+            // Disabled until a positive amount exists: there is nothing to
+            // update before that, matching Add Entry's save gate.
+            onPressed: _busy || _parseAmountPaise(_amount.text) == null
+                ? null
+                : _submit,
             style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(

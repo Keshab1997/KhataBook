@@ -93,10 +93,12 @@ void main() {
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
     await showForm(tester, saved);
-    await tapVisible(tester, find.text('Save Entry'));
-    expect(saved, isEmpty);
-    expect(find.text('Enter a valid amount'), findsOneWidget);
-    expect(find.text('Pick a category'), findsOneWidget);
+    // Save waits for a positive amount: an empty form offers nothing to
+    // press, and says so by keeping the action disabled.
+    expect(
+      tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
+      isNull,
+    );
 
     for (final String invalid in <String>[
       '0',
@@ -106,14 +108,24 @@ void main() {
       '1000000000',
       '1.',
       'abc',
+      '007',
     ]) {
       await enter(tester, amountField, invalid);
-      await tapVisible(tester, find.text('Save Entry'));
+      expect(
+        tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
+        isNull,
+        reason: 'Save must stay disabled for amount: $invalid',
+      );
       expect(saved, isEmpty, reason: 'Rejected amount: $invalid');
-      expect(find.text('Enter a valid amount'), findsOneWidget);
     }
 
+    // Leaving an invalid amount behind flags it under its own frame.
+    await enter(tester, descriptionField, '');
+    expect(find.text('Enter a valid amount'), findsOneWidget);
+    expect(find.text('Pick a category'), findsNothing);
+
     await enter(tester, amountField, '1.25');
+    expect(find.text('Enter a valid amount'), findsNothing);
     await tapVisible(tester, find.text('Food'));
     await enter(tester, descriptionField, 'x' * 121);
     await tapVisible(tester, find.text('Save Entry'));
@@ -137,7 +149,7 @@ void main() {
     await enter(tester, amountField, '12.05');
     // 12.05 against a ₹1,000 balance: the preview is the real projection and
     // the old "findsNothing" guard would have hidden a wrong number.
-    expect(find.text('After saving: ₹987.95'), findsOneWidget);
+    expect(find.text('Expense ₹12.05 → remaining ₹987.95'), findsOneWidget);
     await tapVisible(tester, find.text('Gifts'));
     await enter(tester, descriptionField, 'A gift');
     await tapVisible(tester, find.text('Save Entry'));
@@ -163,7 +175,7 @@ void main() {
     await enter(tester, amountField, '0.5');
     await tapVisible(tester, find.text('Income'));
     expect(find.text('Category: Income'), findsOneWidget);
-    expect(find.text('After saving: -₹0.50'), findsOneWidget);
+    expect(find.text('Income ₹0.50 → remaining -₹0.50'), findsOneWidget);
     await tapVisible(tester, find.text('Save Entry'));
     expect(saved, hasLength(1));
     expect(saved.single.kind, EntryFormKind.income);
@@ -391,7 +403,7 @@ void main() {
     expect(find.text('Save Entry'), findsOneWidget);
     await enter(tester, amountField, '12.05');
     await tapVisible(tester, find.text('Food'));
-    expect(find.text('After saving: ₹987.95'), findsOneWidget);
+    expect(find.text('Expense ₹12.05 → remaining ₹987.95'), findsOneWidget);
     await tapVisible(tester, find.text('Save Entry'));
     expect(saved, hasLength(1));
     expect(saved.single.amountPaise, 1205);
@@ -662,11 +674,11 @@ void main() {
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
     await showForm(tester, saved, size: const Size(390, 844));
-    await tapVisible(tester, find.text('Save Entry'));
+    await enter(tester, amountField, '1.234');
+    await enter(tester, descriptionField, '');
     // Exactly one message: the field's own hidden error slot and the visible
     // row never both paint.
     expect(find.text('Enter a valid amount'), findsOneWidget);
-    expect(find.text('Pick a category'), findsOneWidget);
     // It sits directly under the amount field, above the Expense/Income pill.
     final double errorTop = tester
         .getTopLeft(find.text('Enter a valid amount'))
@@ -674,6 +686,13 @@ void main() {
     final double fieldBottom = tester.getBottomLeft(find.byKey(amountField)).dy;
     expect(errorTop, greaterThan(fieldBottom));
     expect(errorTop, lessThan(tester.getTopLeft(find.text('Expense')).dy));
+    // A positive amount clears the flag and unlocks save; saving without a
+    // category then names exactly what is missing.
+    await enter(tester, amountField, '5');
+    expect(find.text('Enter a valid amount'), findsNothing);
+    await tapVisible(tester, find.text('Save Entry'));
+    expect(find.text('Pick a category'), findsOneWidget);
+    expect(saved, isEmpty);
     expect(tester.takeException(), isNull);
   });
 
@@ -717,10 +736,10 @@ void main() {
     expect(find.text('After saving: —'), findsOneWidget);
     await enter(tester, amountField, '125.50');
     await scrollTo(tester, find.byKey(const Key('after-saving-preview')));
-    expect(find.text('After saving: ₹374.50'), findsOneWidget);
+    expect(find.text('Expense ₹125.50 → remaining ₹374.50'), findsOneWidget);
     await tapVisible(tester, find.text('Income'));
     await scrollTo(tester, find.byKey(const Key('after-saving-preview')));
-    expect(find.text('After saving: ₹625.50'), findsOneWidget);
+    expect(find.text('Income ₹125.50 → remaining ₹625.50'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -801,4 +820,175 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  // ----- The visual contract this polish round sets -----------------------
+
+  testWidgets('amount starts empty with a rupee placeholder, no dead zero', (
+    tester,
+  ) async {
+    await showForm(tester, <EntryFormResult>[], size: const Size(390, 844));
+    final TextField field = tester.widget<TextField>(find.byKey(amountField));
+    expect(field.controller!.text, isEmpty);
+    // The ₹ prefix is the placeholder: no `0.00` ghost value anywhere.
+    expect(field.decoration!.hintText ?? '', isEmpty);
+    expect(find.text('0.00'), findsNothing);
+    expect(find.text('₹'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('save stays disabled until a positive amount is typed', (
+    tester,
+  ) async {
+    await showForm(tester, <EntryFormResult>[]);
+    bool saveEnabled() =>
+        tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed != null;
+    expect(saveEnabled(), isFalse);
+    await enter(tester, amountField, '0');
+    expect(saveEnabled(), isFalse);
+    await enter(tester, amountField, '0.5');
+    expect(saveEnabled(), isTrue);
+    await enter(tester, amountField, '');
+    expect(saveEnabled(), isFalse);
+    await enter(tester, amountField, '7');
+    expect(saveEnabled(), isTrue);
+  });
+
+  testWidgets('the header save action names what an empty form misses', (
+    tester,
+  ) async {
+    final List<EntryFormResult> saved = <EntryFormResult>[];
+    await showForm(tester, saved);
+    // The main Save Entry button waits for an amount; the header action is
+    // the affordance that reveals every inline error at once.
+    expect(
+      tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
+      isNull,
+    );
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a valid amount'), findsOneWidget);
+    expect(find.text('Pick a category'), findsOneWidget);
+    expect(saved, isEmpty);
+    expect(
+      tester.widget<FilledButton>(find.byKey(saveEntry)).onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('leading zeros never parse as an amount', (tester) async {
+    await showForm(tester, <EntryFormResult>[]);
+    for (final String mess in <String>['007', '00.50', '01']) {
+      await enter(tester, amountField, mess);
+      await enter(tester, descriptionField, '');
+      expect(
+        find.text('Enter a valid amount'),
+        findsOneWidget,
+        reason: '$mess must not read as an amount',
+      );
+    }
+    await enter(tester, amountField, '0.50');
+    expect(find.text('Enter a valid amount'), findsNothing);
+  });
+
+  testWidgets('the preview reads kind, amount and the remaining balance', (
+    tester,
+  ) async {
+    await showForm(
+      tester,
+      <EntryFormResult>[],
+      balance: 642000,
+      size: const Size(390, 844),
+    );
+    expect(find.text('After saving: —'), findsOneWidget);
+    await enter(tester, amountField, '500');
+    expect(find.text('Expense ₹500 → remaining ₹5,920'), findsOneWidget);
+    await tapVisible(tester, find.text('Income'));
+    expect(find.text('Income ₹500 → remaining ₹6,920'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('category grid: four columns at 390, five across at 360', (
+    tester,
+  ) async {
+    double tileWidthOf(WidgetTester tester, String id) => tester
+        .getSize(
+          find
+              .ancestor(
+                of: find.byKey(Key('category-artwork-$id')),
+                matching: find.byType(AnimatedContainer),
+              )
+              .first,
+        )
+        .width;
+
+    double topOf(String id) =>
+        tester.getTopLeft(find.byKey(Key('category-artwork-$id'))).dy;
+
+    // 390 dp: four even columns, the fifth starter tile wraps to row two.
+    await showForm(tester, <EntryFormResult>[], size: const Size(390, 844));
+    expect(topOf('Shopping'), topOf('Bills'));
+    expect(topOf('Gifts'), greaterThan(topOf('Bills')));
+    expect(tileWidthOf(tester, 'Shopping'), closeTo((390 - 32 - 30) / 4, 0.01));
+
+    // 360 dp at 200% text: all five stay on one row, labels scale down
+    // inside their cells instead of overflowing or scrolling sideways.
+    await showForm(
+      tester,
+      <EntryFormResult>[],
+      size: const Size(360, 780),
+      textScale: 2,
+    );
+    final double row = topOf('Shopping');
+    for (final String id in <String>['Food', 'Travel', 'Bills', 'Gifts']) {
+      expect(topOf(id), row, reason: '$id must stay on the first grid row');
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('nothing overflows at 320x568 with 200% text', (tester) async {
+    await showForm(
+      tester,
+      <EntryFormResult>[],
+      size: const Size(320, 568),
+      textScale: 2,
+      systemInsets: const EdgeInsets.only(top: 24, bottom: 24),
+    );
+    expect(tester.takeException(), isNull);
+    // The save action stays reachable: the form scrolls internally and the
+    // last section is never clipped, even with the preview row above it.
+    await scrollTo(tester, find.byKey(saveEntry));
+    expect(find.byKey(saveEntry).hitTestable(), findsOneWidget);
+    expect(
+      find.byKey(const Key('after-saving-preview')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final Size size in <Size>[const Size(390, 844), const Size(360, 780)]) {
+    testWidgets('first viewport carries the whole form grammar at $size', (
+      tester,
+    ) async {
+      await showForm(
+        tester,
+        <EntryFormResult>[],
+        size: size,
+        systemInsets: const EdgeInsets.only(top: 24, bottom: 24),
+      );
+      for (final Finder finder in <Finder>[
+        find.byKey(amountField),
+        find.text('Expense'),
+        find.byKey(dateField),
+        find.text('Category'),
+        find.byKey(descriptionField),
+      ]) {
+        expect(
+          tester.getRect(finder).bottom,
+          lessThanOrEqualTo(size.height),
+          reason: 'the first viewport must show this section',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -73,15 +73,6 @@ class EntryFormLayout {
     color: AppColors.darkText,
   );
 
-  static const TextStyle amountHint = TextStyle(
-    fontSize: 40,
-    height: 1.15,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.6,
-    fontFeatures: <ui.FontFeature>[ui.FontFeature.tabularFigures()],
-    color: AppColors.softText,
-  );
-
   /// The ₹ that sits on the amount's baseline, just before the first digit.
   static const TextStyle currency = TextStyle(
     fontSize: 26,
@@ -189,11 +180,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   // Keep the whole form visible on ordinary-height phones. Large accessibility
   // text and the keyboard retain the naturally scrollable layout.
-  bool get _compact =>
-      (MediaQuery.sizeOf(context).height -
-              MediaQuery.viewPaddingOf(context).vertical) <
-          800 &&
-      MediaQuery.textScalerOf(context).scale(1) <= 1.2;
+  bool get _compact => isCompactFormViewport(context);
 
   static const List<_CategoryOption> _categories = <_CategoryOption>[
     _CategoryOption('Shopping', AppString.shopping),
@@ -216,9 +203,12 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   bool _showCategoryError = false;
   bool _saving = false;
 
-  /// True once Save was pressed on an incomplete form, so the inline amount
-  /// error can appear even while the field is still empty.
+  /// True once a save was pressed on an incomplete form, so the inline
+  /// amount error can appear even while the field is still empty. The main
+  /// Save Entry button stays disabled until an amount exists; the header
+  /// action is the affordance that names what the form is missing.
   bool _attemptedSave = false;
+
   late DateTime _date;
 
   @override
@@ -253,7 +243,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   int? _parseAmount(String input) {
     final String text = _amountDigits(input);
-    if (!RegExp(r'^\d{1,9}(?:\.\d{1,2})?$').hasMatch(text)) {
+    // Rupees without a leading-zero mess (`007`, `00.5` are not amounts),
+    // at most two decimals; positivity is checked on the parsed paise.
+    if (!RegExp(r'^(?:0|[1-9]\d{0,8})(?:\.\d{1,2})?$').hasMatch(text)) {
       return null;
     }
     final List<String> parts = text.split('.');
@@ -528,6 +520,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       ),
       actions: <Widget>[
         IconButton(
+          // Unlike the main Save Entry button (disabled until a positive
+          // amount exists), the header action stays live on an empty form:
+          // pressing it is how the form names everything it is missing.
           onPressed: _saving ? null : _save,
           tooltip: _strings.text(AppString.save),
           style: IconButton.styleFrom(
@@ -558,8 +553,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   /// a calm helper line instead of a floating label, errors under the frame.
   Widget _amountSection() {
     final bool focused = _amountFocus.hasFocus;
-    final String hint = widget.language == AppLanguage.bn ? '০.০০' : '0.00';
     final bool valid = _parseAmount(_amount.text) != null;
+    // An invalid amount flags itself once the field lets focus go, or as
+    // soon as a save press has asked the form what it is missing.
     final bool showError =
         !focused && !valid && (_amount.text.isNotEmpty || _attemptedSave);
     return Column(
@@ -647,8 +643,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                       padding: const EdgeInsets.only(right: 2),
                       child: Text('₹', style: EntryFormLayout.currency),
                     ),
-                    hintText: hint,
-                    hintStyle: EntryFormLayout.amountHint,
+                    // No `0.00` placeholder: an empty field shows only the
+                    // ₹ the prefix carries, so a dead zero can never read
+                    // as an amount the user already typed.
                   ),
                   // Validated by the screen, not by a form validator: the
                   // message belongs in the visible row under the frame, and
@@ -896,22 +893,36 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
+  /// The expense categories as the shared wrapping grid: even columns from
+  /// [categoryGridColumns], so the whole set keeps one row on a narrow phone
+  /// and custom choices plus the `More` cell flow underneath in the same
+  /// rhythm. Nothing here scrolls sideways.
   Widget _categoryChips() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // One row of five on a short phone (the whole form has to fit without
-        // scrolling there), four even columns otherwise: five starter tiles
-        // become 4 + 1 rather than a lonely fifth tile. Custom chips flow
-        // underneath in both cases.
-        final int columns = _compact ? 5 : 4;
-        final double gap = _compact ? 6 : 10;
-        final double tileWidth =
-            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final double gap = categoryGridGap(_compact);
+        final double tileWidth = categoryGridTileWidth(
+          constraints.maxWidth,
+          _compact,
+        );
         return Wrap(
           spacing: gap,
           runSpacing: gap,
           children: <Widget>[
-            ..._categories.map((option) => _categoryTile(option, tileWidth)),
+            for (final _CategoryOption option in _categories)
+              SizedBox(
+                width: tileWidth,
+                child: CategoryCell(
+                  artworkKey: Key('category-artwork-${option.id}'),
+                  checkKey: Key('category-check-${option.id}'),
+                  label: _strings.text(option.label),
+                  selected: _category == option.id,
+                  onTap: () => _selectCategory(option.id),
+                  icon: categoryGlyph(option.id),
+                  width: tileWidth,
+                  compact: _compact,
+                ),
+              ),
             if (widget.categoryStore != null)
               CustomCategoryChoices(
                 store: widget.categoryStore!,
@@ -922,124 +933,6 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
           ],
         );
       },
-    );
-  }
-
-  Widget _categoryTile(_CategoryOption option, double width) {
-    final bool selected = _category == option.id;
-    // Preserve the no-scroll form on short phones while allowing a roomier
-    // badge on ordinary devices. The glyph itself stays crisp and consistent.
-    final double art = _compact
-        ? (MediaQuery.sizeOf(context).height < 700 ? 26 : 32)
-        : 40;
-    final IconData categoryIcon = switch (option.id) {
-      'Shopping' => Icons.shopping_bag_rounded,
-      'Food' => Icons.restaurant_rounded,
-      'Travel' => Icons.flight_rounded,
-      'Bills' => Icons.receipt_long_rounded,
-      'Gifts' => Icons.card_giftcard_rounded,
-      _ => Icons.category_rounded,
-    };
-    final double pad = _compact ? 5 : 8;
-    return Semantics(
-      container: true,
-      button: true,
-      selected: selected,
-      label: _strings.text(option.label),
-      excludeSemantics: true,
-      onTap: () => _selectCategory(option.id),
-      child: Material(
-        color: selected ? AppColors.lightGreen : AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
-          onTap: () => _selectCategory(option.id),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            width: width,
-            padding: EdgeInsets.all(pad),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
-              border: Border.all(
-                color: selected
-                    ? AppColors.primaryGreen
-                    : AppColors.beige.withValues(alpha: 0.9),
-                width: selected ? 2 : 1.2,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: <Widget>[
-                    Container(
-                      key: Key('category-artwork-${option.id}'),
-                      width: art,
-                      height: art,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.primaryGreen
-                            : AppColors.lightGreen,
-                        borderRadius: BorderRadius.circular(_compact ? 10 : 12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        categoryIcon,
-                        size: _compact ? 20 : 24,
-                        color: selected
-                            ? AppColors.onPrimary
-                            : AppColors.primaryGreen,
-                      ),
-                    ),
-                    // The check is the selected affordance beyond colour and
-                    // border weight; it rides the artwork corner so a tile
-                    // needs no extra row and stays short on a small phone.
-                    if (selected)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: DecoratedBox(
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryGreen,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Icon(
-                              Icons.check,
-                              key: Key('category-check-${option.id}'),
-                              size: 11,
-                              color: AppColors.onPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: _compact ? 4 : 6),
-                // Never clipped at 320 dp: the label shrinks to fit its tile
-                // and stays on one line.
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    _strings.text(option.label),
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: _compact ? 10.5 : 11.5,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                      color: selected
-                          ? AppColors.primaryGreen
-                          : AppColors.headerGreen,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1149,13 +1042,28 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
+  /// The live one-line projection: chosen kind, the typed amount and the
+  /// khata's remaining balance after saving, e.g.
+  /// `Expense ₹500 → remaining ₹5,920`. The balance is the screen's own
+  /// ledger figure plus or minus the delta - no query, no other arithmetic.
+  String _previewLine() {
+    final int? paise = _parseAmount(_amount.text);
+    if (paise == null) return _strings.afterSave(null);
+    final String kind = _strings.text(
+      _kind == EntryFormKind.income ? AppString.income : AppString.expense,
+    );
+    final String remaining = _strings.text(AppString.remaining).toLowerCase();
+    return '$kind ${_strings.money(paise)} → '
+        '$remaining ${_strings.money(_projectedBalance()!)}';
+  }
+
   /// The live projection and the one save action, composed as one column.
   ///
   /// The preview row always exists, so nothing above the button changes
   /// height when the amount becomes valid; the state is carried by the row's
   /// ink and icon instead.
   Widget _saveArea() {
-    final int? projected = _projectedBalance();
+    final bool hasAmount = _parseAmount(_amount.text) != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -1171,17 +1079,13 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
             const SizedBox(width: EntryFormLayout.gap),
             Expanded(
               child: Text(
-                _strings.afterSave(projected),
+                _previewLine(),
                 key: const Key('after-saving-preview'),
                 maxLines: 2,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: projected == null
-                      ? FontWeight.w600
-                      : FontWeight.w700,
-                  color: projected == null
-                      ? AppColors.softText
-                      : AppColors.headerGreen,
+                  fontWeight: hasAmount ? FontWeight.w700 : FontWeight.w600,
+                  color: hasAmount ? AppColors.headerGreen : AppColors.softText,
                 ),
               ),
             ),
@@ -1190,9 +1094,10 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         SizedBox(height: _compact ? 8 : 12),
         FilledButton(
           key: const Key('save-entry-button'),
-          // Deliberately not disabled on an invalid form: the first press is
-          // what reveals every inline error at once.
-          onPressed: _saving ? null : _save,
+          // Disabled until a positive amount exists: there is nothing to
+          // save before that, and the inline errors belong to a form the
+          // user can actually submit.
+          onPressed: _saving || !hasAmount ? null : _save,
           style: FilledButton.styleFrom(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
