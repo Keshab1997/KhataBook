@@ -528,6 +528,39 @@ class _CategorySheet extends StatelessWidget {
                   16 + MediaQuery.viewInsetsOf(context).bottom,
                 ),
                 children: <Widget>[
+                  Container(
+                    key: const Key('custom-category-local-notice'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.lightGreen,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.cloud_off_outlined,
+                          size: 20,
+                          color: AppColors.softText,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            t(
+                              'Custom category names and icons stay on this device; they are not synced to the cloud.',
+                              'নিজের বিভাগের নাম ও আইকন এই ডিভাইসেই থাকে; ক্লাউডে সিঙ্ক হয় না।',
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.softText,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _starterGrid(context, categories),
                   if (custom.isNotEmpty) ...<Widget>[
                     const SizedBox(height: 18),

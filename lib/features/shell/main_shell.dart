@@ -11,6 +11,7 @@ import '../calculator/calculator_screen.dart';
 import '../counter/note_counter_screen.dart';
 import '../counter/note_counter_store.dart';
 import '../entry/add_entry_screen.dart';
+import '../entry/category_store.dart';
 import '../home/home_screen.dart';
 import '../home/models.dart';
 import '../ledger/data/local_ledger.dart';
@@ -65,6 +66,7 @@ class _MainShellState extends State<MainShell> {
   late AppLanguage _language = widget.initialLanguage;
   ProfileStore? _profileStore;
   NoteCounterStore? _noteCounterStore;
+  CategoryStore? _categoryStore;
 
   /// Live cloud sync (owned by `main`; never disposed here). Every local
   /// write goes through [_notifyLocalChange] so a signed-in session backs up
@@ -95,6 +97,7 @@ class _MainShellState extends State<MainShell> {
       await ledger.initialize();
       _profileStore ??= ProfileStore(ledger);
       _noteCounterStore ??= NoteCounterStore(ledger);
+      _categoryStore ??= CategoryStore(ledger);
       final String activeId = await ledger.readActiveKhataId();
       final List<LocalKhata> khatas = await ledger.listKhatas();
       final LocalKhata active = khatas.firstWhere(
@@ -129,6 +132,8 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     _openRequest++;
+    _categoryStore?.dispose();
+    _categoryStore = null;
     _ledger?.close();
     super.dispose();
   }
@@ -165,6 +170,9 @@ class _MainShellState extends State<MainShell> {
           },
           onRestore: (preview) async {
             await backup.restoreReplacing(preview.payload);
+            // Restore replaces category rows without going through the store.
+            // Refresh mounted catalogs even if Home never leaves the tree.
+            if (mounted) _categoryStore?.notifyDataReplaced();
             _notifyLocalChange();
             return true;
           },
@@ -259,6 +267,7 @@ class _MainShellState extends State<MainShell> {
       MaterialPageRoute<void>(
         builder: (BuildContext routeContext) => AddEntryScreen(
           language: _language,
+          categoryStore: _categoryStore,
           initialAmountPaise: amountPaise,
           initialKind: kind,
           initialDescription: description,
@@ -312,6 +321,7 @@ class _MainShellState extends State<MainShell> {
       MaterialPageRoute<void>(
         builder: (_) => AllTransactionsScreen(
           language: _language,
+          categoryStore: _categoryStore,
           summary: current,
           ledger: _ledger,
           khataId: khataId,
@@ -396,6 +406,7 @@ class _MainShellState extends State<MainShell> {
     } else {
       home = HomeScreen(
         language: _language,
+        categoryStore: _categoryStore,
         summary: _summary,
         onAddEntry: _addEntry,
         onViewAll: _viewAll,
