@@ -397,7 +397,10 @@ void main() {
         expect(find.byKey(Key(key)), findsOneWidget, reason: '$key is missing');
       }
 
-      // Date above type above category, one panel each, all ivory.
+      // Date above type above category, one panel each, all ivory. The panels
+      // now follow the ledger instead of preceding it, so the list is what the
+      // first screen shows; their own order is unchanged.
+      await _reveal(tester, find.byKey(const Key('category-filter-all')));
       final double dateTop = tester
           .getTopLeft(find.byKey(const Key('date-filter-from')))
           .dy;
@@ -737,6 +740,140 @@ void main() {
     });
   });
 
+  group('ledger first on a typical phone', () {
+    testWidgets(
+      'at 390x844 the search box, the filter action and a stored row are all '
+      'visible without scrolling',
+      (WidgetTester tester) async {
+        await _pump(tester, _screen(), size: _reference);
+
+        // Nothing here is scrolled into view: each getRect is the position the
+        // first frame gave the widget, which is what "visible without
+        // scrolling" means on a phone this size.
+        final Finder field = find.byKey(const Key('search-field'));
+        final Finder action = find.byKey(const Key('filters-state'));
+        final Finder row = find.byKey(
+          const Key('transaction-row-Grocery Shopping'),
+        );
+
+        expect(field, findsOneWidget);
+        expect(action, findsOneWidget);
+        expect(row, findsOneWidget);
+
+        for (final Finder target in <Finder>[field, action, row]) {
+          final Rect rect = tester.getRect(target);
+          expect(
+            rect.top,
+            greaterThanOrEqualTo(0),
+            reason: '$target starts above the visible screen',
+          );
+          expect(
+            rect.bottom,
+            lessThanOrEqualTo(_reference.height),
+            reason: '$target ends below the visible screen',
+          );
+        }
+
+        // ...and in that order: the filter action sits under the search box,
+        // the ledger under both.
+        expect(
+          tester.getRect(field).bottom,
+          lessThanOrEqualTo(tester.getRect(action).top),
+        );
+        expect(
+          tester.getRect(action).bottom,
+          lessThanOrEqualTo(tester.getRect(row).top),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('the filter action opens and closes the panels', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pump(tester, _screen(), size: _reference);
+
+      // Open by default, and the strip states that nothing is narrowing the
+      // list - the panels are visible rather than merely claimed open.
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(find.text('Filters applied'), findsNothing);
+      expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('filters-state')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('date-filter-from')), findsNothing);
+      expect(find.byKey(const Key('category-filter-all')), findsNothing);
+      // The rows stay put: closing filters must never hide the ledger, and the
+      // search box keeps working. The newest row is the one already on screen.
+      expect(
+        find.byKey(const Key('transaction-row-Grocery Shopping')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('search-field')), findsOneWidget);
+
+      // Opening again must not summon the keyboard: the action is a chip, and
+      // the field it sits above is untouched.
+      await tester.tap(find.byKey(const Key('filters-state')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('date-filter-from')), findsOneWidget);
+      final TextField field = tester.widget<TextField>(
+        find.byKey(const Key('search-field')),
+      );
+      expect(field.focusNode?.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+
+    testWidgets('the state chip is a 44 dp+ button with a spoken state', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pump(tester, _screen(), size: _reference);
+
+      expect(
+        tester.getSize(find.byKey(const Key('filters-state'))).height,
+        greaterThanOrEqualTo(44),
+      );
+      // The chip speaks its state, not just its glyph: a screen reader hears
+      // "Hide filters. No filters applied. Showing 3 transactions", so a closed
+      // panel can never be mistaken for an active filter.
+      expect(
+        find.bySemanticsLabel(RegExp(r'No filters applied')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp(r'Showing 3 transactions')),
+        findsWidgets,
+      );
+
+      // A live filter is named in the strip, with the count, and is liftable
+      // from there without opening anything.
+      await tester.enterText(find.byKey(const Key('search-field')), 'salary');
+      await tester.pumpAndSettle();
+      expect(find.text('Filters applied'), findsOneWidget);
+      expect(find.text('Search: salary'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp(r'Search: salary')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp(r'Clear search')),
+        findsWidgets,
+      );
+
+      await tester.tap(find.byKey(const Key('active-filter-search')));
+      await tester.pumpAndSettle();
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Showing 3 transactions')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+  });
+
   group('reference proportions', () {
     testWidgets('at 390x844 the header, card and pill read in order', (
       WidgetTester tester,
@@ -752,13 +889,19 @@ void main() {
       final double pillTop = tester
           .getTopLeft(find.byKey(const Key('search-pill')))
           .dy;
-      final double dateTop = tester
-          .getTopLeft(find.byKey(const Key('date-filter-from')))
+      final double stripTop = tester
+          .getTopLeft(find.byKey(const Key('filters-state')))
+          .dy;
+      final double firstRowTop = tester
+          .getTopLeft(find.byKey(const Key('transaction-row-Grocery Shopping')))
           .dy;
 
       expect(headerBottom, lessThan(cardTop));
       expect(cardTop, lessThan(pillTop));
-      expect(pillTop, lessThan(dateTop));
+      // Ledger-first: the state strip follows the search box, and a stored row
+      // follows the strip - no filter panel stands between them any more.
+      expect(pillTop, lessThan(stripTop));
+      expect(stripTop, lessThan(firstRowTop));
       // The banner is a header, not a hero: it leaves the list real room.
       expect(headerBottom, lessThan(_reference.height / 4));
       expect(tester.takeException(), isNull);

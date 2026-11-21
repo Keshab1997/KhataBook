@@ -6,9 +6,11 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
+import 'package:khatabook/features/entry/category_store.dart';
 import 'package:khatabook/features/home/models.dart';
 import 'package:khatabook/features/ledger/all_transactions_screen.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
@@ -75,6 +77,8 @@ Future<void> pumpAllTransactions(
   double scale = 1.0,
   LocalLedger? ledger,
   String? khataId,
+  AppLanguage language = AppLanguage.en,
+  CategoryStore? categoryStore,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -94,6 +98,8 @@ Future<void> pumpAllTransactions(
         summary: summary,
         ledger: ledger,
         khataId: khataId,
+        language: language,
+        categoryStore: categoryStore,
       ),
     ),
   );
@@ -176,6 +182,11 @@ String searchText(WidgetTester tester) {
   );
   return field.controller?.text ?? '';
 }
+
+/// The count the active-filter strip states, matched through its own label so a
+/// test never depends on the totals card still being mounted far up the list.
+Finder statedCount(String text) =>
+    find.bySemanticsLabel(RegExp(RegExp.escape(text)));
 
 /// Whether the chip's selected state is visible as a check mark.
 Finder chipCheck(String key) => find.descendant(
@@ -529,6 +540,89 @@ void main() {
     });
   });
 
+  group('search reads what the user can see', () {
+    testWidgets('a custom category is findable by its own name', (
+      WidgetTester tester,
+    ) async {
+      final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+      addTearDown(ledger.close);
+      final CategoryStore store = CategoryStore(ledger);
+      final CustomCategory custom = (await tester.runAsync(
+        () => store.add('Tea Leaves'),
+      ))!;
+      expect(custom.id, startsWith('custom:'));
+
+      final LedgerSummary summary = LedgerSummary(
+        openingBalancePaise: 0,
+        entries: <LedgerEntry>[
+          LedgerEntry(
+            title: 'Morning brew',
+            category: custom.id,
+            at: DateTime(2026, 11, 19, 8),
+            amountPaise: 4500,
+          ),
+          LedgerEntry(
+            title: 'Bus Fare',
+            category: 'Travel',
+            at: DateTime(2026, 11, 18, 9),
+            amountPaise: 3000,
+          ),
+        ],
+      );
+      await pumpAllTransactions(tester, summary, categoryStore: store);
+
+      // The chip is keyed by the stored id and labelled with the stored name.
+      expect(find.byKey(Key('category-filter-${custom.id}')), findsOneWidget);
+      expect(find.text('Tea Leaves'), findsWidgets);
+
+      await tester.enterText(
+        find.byKey(const Key('search-field')),
+        'tea leaves',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Morning brew'), findsOneWidget);
+      expect(find.text('Bus Fare'), findsNothing);
+      expect(statedCount('Showing 1 of 2 transactions'), findsOneWidget);
+      // Searching by the shown name never rewrites the stored token.
+      expect(find.byKey(Key('category-filter-${custom.id}')), findsOneWidget);
+    });
+
+    testWidgets('the built-in Bengali label is searchable too', (
+      WidgetTester tester,
+    ) async {
+      final AppStrings strings = AppStrings(AppLanguage.bn);
+      await pumpAllTransactions(
+        tester,
+        LedgerSummary(
+          openingBalancePaise: 0,
+          entries: <LedgerEntry>[
+            spent('দুপুরের খাবার', 'Food', DateTime(2026, 11, 19, 13), 58000),
+            spent('বাস ভাড়া', 'Travel', DateTime(2026, 11, 18, 9), 3000),
+          ],
+        ),
+        language: AppLanguage.bn,
+      );
+
+      // The Bengali label is what the row and the chip show, so typing it must
+      // find the row - while the stored token stays `Food`.
+      await tester.enterText(
+        find.byKey(const Key('search-field')),
+        strings.text(AppString.food),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('দুপুরের খাবার'), findsOneWidget);
+      expect(find.text('বাস ভাড়া'), findsNothing);
+
+      // The canonical stored token keeps working in Bengali as well.
+      await tester.enterText(find.byKey(const Key('search-field')), 'Travel');
+      await tester.pumpAndSettle();
+      expect(find.text('বাস ভাড়া'), findsOneWidget);
+      expect(find.text('দুপুরের খাবার'), findsNothing);
+    });
+  });
+
   group('date range', () {
     testWidgets('includes the picked day at both ends', (
       WidgetTester tester,
@@ -660,6 +754,130 @@ void main() {
     });
   });
 
+  group('filter disclosure and active state', () {
+    testWidgets('the strip keeps every live filter stated and liftable', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpAllTransactions(tester, sampleSummary());
+
+      // Nothing is narrowing the list yet, and the strip says so rather than
+      // leaving the reader to infer it from the panels.
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(find.byKey(const Key('clear-filters-inline')), findsNothing);
+
+      await tapChip(tester, 'type-filter-income');
+      await tapChip(tester, 'category-filter-Income');
+      await tester.enterText(find.byKey(const Key('search-field')), 'salary');
+      await tester.pumpAndSettle();
+
+      // Three filters at once: each is named, and the count is the filtered
+      // one, not the khata total.
+      expect(find.text('Filters applied'), findsOneWidget);
+      expect(find.text('Search: salary'), findsOneWidget);
+      expect(find.text('Type: Income'), findsOneWidget);
+      expect(find.text('Category: Income'), findsOneWidget);
+      expect(statedCount('Showing 1 of 8 transactions'), findsOneWidget);
+
+      // The strip speaks the same state a sighted reader sees.
+      expect(find.bySemanticsLabel(RegExp('Search: salary')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Type: Income')), findsOneWidget);
+
+      // Lifting one filter from the strip leaves the others alone.
+      await tapControl(tester, find.byKey(const Key('active-filter-type')));
+      expect(find.text('Type: Income'), findsNothing);
+      expect(find.text('Search: salary'), findsOneWidget);
+      expect(find.text('Category: Income'), findsOneWidget);
+
+      // One reachable action clears everything - query included.
+      final Finder clear = find.byKey(const Key('clear-filters-inline'));
+      expect(tester.getSize(clear).height, greaterThanOrEqualTo(44));
+      await tapControl(tester, clear);
+
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(statedCount('Showing 8 transactions'), findsOneWidget);
+      expect(searchText(tester), isEmpty);
+      expect(chipCheck('type-filter-all'), findsOneWidget);
+      expect(chipCheck('category-filter-all'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('the state survives the panels being closed', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await tapChip(tester, 'type-filter-expense');
+      await tester.enterText(find.byKey(const Key('search-field')), 'food');
+      await tester.pumpAndSettle();
+      expect(statedCount('Showing 2 of 8 transactions'), findsOneWidget);
+
+      // Close the panels: the choices are still stated, the list still
+      // filtered, and the clear action still reachable without reopening.
+      await tapControl(tester, find.byKey(const Key('filters-state')));
+      expect(find.byKey(const Key('type-filter-expense')), findsNothing);
+      expect(find.text('Type: Expense'), findsOneWidget);
+      expect(find.text('Search: food'), findsOneWidget);
+      expect(statedCount('Showing 2 of 8 transactions'), findsOneWidget);
+      // Search is still usable while the panels are shut.
+      expect(find.byKey(const Key('search-field')), findsOneWidget);
+
+      await tapControl(tester, find.byKey(const Key('clear-filters-inline')));
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(find.text('Search: food'), findsNothing);
+      expect(find.text('Type: Expense'), findsNothing);
+      expect(statedCount('Showing 8 transactions'), findsOneWidget);
+      expect(searchText(tester), isEmpty);
+    });
+
+    testWidgets('dates are stated as a span, and one open end is named', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await pickDate(tester, 'date-filter-from', '18');
+      // A single bound is labelled as the open-ended filter it is, so a closed
+      // panel never implies a span the user did not choose.
+      expect(find.text('Dates: From: 18 Nov 2026'), findsOneWidget);
+
+      await pickDate(tester, 'date-filter-to', '19');
+      expect(find.text('Dates: 18 Nov 2026 to 19 Nov 2026'), findsOneWidget);
+      expect(statedCount('Showing 4 of 8 transactions'), findsOneWidget);
+    });
+
+    testWidgets('combined filters still compose after the disclosure change', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      await tapChip(tester, 'category-filter-Food');
+      await tapChip(tester, 'type-filter-expense');
+      await tester.enterText(find.byKey(const Key('search-field')), 'tea');
+      await tester.pumpAndSettle();
+
+      // Food + expense + "tea": one row, one month, one total.
+      expect(find.text('Tea Stall'), findsOneWidget);
+      expect(find.text('Lunch with Friends'), findsNothing);
+      expect(statedCount('Showing 1 of 8 transactions'), findsOneWidget);
+      expect(find.text('Sep 2026'), findsOneWidget);
+      expect(find.text('Nov 2026'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('month-2026-09')),
+          matching: find.text('₹25'),
+        ),
+        findsOneWidget,
+      );
+
+      // An empty khata still says something different from no matches.
+      expect(find.byKey(const Key('transactions-no-match')), findsNothing);
+      await tester.enterText(find.byKey(const Key('search-field')), 'zzz');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('transactions-no-match')), findsOneWidget);
+      expect(find.byKey(const Key('transactions-empty')), findsNothing);
+    });
+  });
+
   group('filter rules', () {
     final DateTimeRange nov19 = DateTimeRange(
       start: DateTime(2026, 11, 19),
@@ -713,6 +931,48 @@ void main() {
       expect(
         matchesLocalDateRange(DateTime(2030, 6, 15, 23, 30), null),
         isTrue,
+      );
+    });
+
+    test('the displayed category is an extra haystack, never a replacement', () {
+      final LedgerEntry entry = spent(
+        'দুপুরের খাবার',
+        'Food',
+        DateTime(2026, 11, 19),
+        58000,
+      );
+      // The stored token keeps matching, exactly as before the optional
+      // parameter existed: current callers see no change in behaviour.
+      expect(matchesSearchQuery(entry, 'Food'), isTrue);
+      // The label the screen shows is findable too...
+      expect(
+        matchesSearchQuery(entry, 'খাবার', displayCategory: 'খাবার'),
+        isTrue,
+      );
+      // ...without making an unrelated query match.
+      expect(
+        matchesSearchQuery(entry, 'Travel', displayCategory: 'খাবার'),
+        isFalse,
+      );
+      // A whitespace query stays "no filter", whatever the label is.
+      expect(matchesSearchQuery(entry, '  ', displayCategory: 'খাবার'), isTrue);
+    });
+
+    test('a custom category id stays the identity behind its name', () {
+      final LedgerEntry entry = LedgerEntry(
+        title: 'Morning brew',
+        category: 'custom:7f00-tea',
+        at: DateTime(2026, 11, 19, 8),
+        amountPaise: 4500,
+      );
+      expect(matchesSearchQuery(entry, 'custom:7f00'), isTrue);
+      expect(
+        matchesSearchQuery(entry, 'tea leaves', displayCategory: 'Tea Leaves'),
+        isTrue,
+      );
+      expect(
+        matchesSearchQuery(entry, 'coffee', displayCategory: 'Tea Leaves'),
+        isFalse,
       );
     });
 
@@ -889,6 +1149,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('the strip and the panels fit 320 dp at 200% text', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await pumpAllTransactions(
+        tester,
+        sampleSummary(),
+        size: smallPhone,
+        scale: 2.0,
+      );
+      expect(tester.takeException(), isNull);
+
+      // The state chip is still a full-size target at this scale, and it says
+      // what it does rather than relying on its glyph.
+      final Finder state = find.byKey(const Key('filters-state'));
+      await reveal(tester, state);
+      expect(tester.getSize(state).height, greaterThanOrEqualTo(44));
+      expect(find.text('No filters applied'), findsOneWidget);
+
+      // Filtering at this size keeps the strip honest and stays tappable.
+      await tester.enterText(find.byKey(const Key('search-field')), 'food');
+      await tester.pumpAndSettle();
+      final Finder searchChip = find.byKey(const Key('active-filter-search'));
+      await reveal(tester, searchChip);
+      expect(
+        tester.getSize(searchChip).height,
+        greaterThanOrEqualTo(44),
+      );
+      expect(find.text('Search: food'), findsOneWidget);
+
+      await tapControl(tester, find.byKey(const Key('clear-filters-inline')));
+      expect(find.text('No filters applied'), findsOneWidget);
+      expect(statedCount('Showing 8 transactions'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+
     testWidgets('fits the default phone at 100%', (WidgetTester tester) async {
       await pumpAllTransactions(tester, sampleSummary(), size: midPhone);
       expect(tester.takeException(), isNull);
@@ -898,24 +1195,26 @@ void main() {
   });
 
   group('visual hierarchy', () {
-    testWidgets('summary, search, filters and rows stack in reading order', (
+    testWidgets('summary, search, state and rows stack in reading order', (
       WidgetTester tester,
     ) async {
       await pumpAllTransactions(tester, sampleSummary());
 
       final Finder card = find.byKey(const Key('transactions-summary'));
       final Finder field = find.byKey(const Key('search-field'));
-      final Finder dates = find.byKey(const Key('date-filter-from'));
+      final Finder state = find.byKey(const Key('filters-state'));
       final Finder row = find.text('Grocery Shopping');
 
       final double summaryTop = tester.getTopLeft(card).dy;
       final double searchTop = tester.getTopLeft(field).dy;
-      final double datesTop = tester.getTopLeft(dates).dy;
+      final double stateTop = tester.getTopLeft(state).dy;
       final double rowTop = tester.getTopLeft(row).dy;
 
       expect(summaryTop, lessThan(searchTop));
-      expect(searchTop, lessThan(datesTop));
-      expect(datesTop, lessThan(rowTop));
+      expect(searchTop, lessThan(stateTop));
+      // The ledger comes straight after the search box and its filter state:
+      // the panels are disclosed below the rows now, not stacked above them.
+      expect(stateTop, lessThan(rowTop));
       expect(tester.takeException(), isNull);
     });
   });

@@ -134,7 +134,18 @@ String normalizeSearchQuery(String raw) => raw.trim().toLowerCase();
 /// category when there is no description), against the category, and against
 /// the stored description. An empty or whitespace-only query matches
 /// everything, which is what "no search" means.
-bool matchesSearchQuery(LedgerEntry entry, String rawQuery) {
+///
+/// [displayCategory] adds the category name the screen is actually showing -
+/// the translated label for a built-in category, or a custom category's own
+/// name. It is a *third* haystack, never a replacement: the stored token is
+/// still searched, so a query behaves the same in both languages and a user
+/// who types what they can see is not told their row is missing. Nothing is
+/// written back; the stored id stays exactly as it was.
+bool matchesSearchQuery(
+  LedgerEntry entry,
+  String rawQuery, {
+  String? displayCategory,
+}) {
   final String query = normalizeSearchQuery(rawQuery);
   if (query.isEmpty) {
     return true;
@@ -147,6 +158,10 @@ bool matchesSearchQuery(LedgerEntry entry, String rawQuery) {
   }
   final String? description = entry.description;
   if (description != null && description.toLowerCase().contains(query)) {
+    return true;
+  }
+  final String? shown = displayCategory;
+  if (shown != null && shown.toLowerCase().contains(query)) {
     return true;
   }
   return false;
@@ -171,6 +186,28 @@ class _ScreenCopy {
   String get showFilters => bn ? 'ফিল্টার দেখান' : 'Show filters';
   String get live => bn ? 'সরাসরি' : 'LIVE';
   String get backTooltip => bn ? 'পেছনে' : 'Back';
+
+  /// The filter action's two jobs, named separately: the pill's cap opens the
+  /// panels, and the chip under the search box closes them again. A control is
+  /// never labelled "Hide" while it would open something.
+  String get openFilters => bn ? 'ফিল্টার খুলুন' : 'Open filters';
+
+  /// The summary of what is narrowing the list while the panels are closed, so
+  /// a hidden filter is never mistaken for no filter.
+  String get noActiveFilters => bn ? 'কোনো ফিল্টার নেই' : 'No filters applied';
+  String get activeFilters => bn ? 'সক্রিয় ফিল্টার' : 'Filters applied';
+
+  /// One line per active filter in the collapsed summary. The values are the
+  /// same localized labels the chips show when the panels are open.
+  String get searchLabel => bn ? 'খোঁজ' : 'Search';
+  String get typeLabel => bn ? 'ধরন' : 'Type';
+  String get categoryLabel => bn ? 'বিভাগ' : 'Category';
+  String get datesLabel => bn ? 'তারিখ' : 'Dates';
+
+  /// The two halves of a date span, with an open end spelled out rather than
+  /// drawn as a dash the reader has to interpret.
+  String get anyDate => bn ? 'যেকোনো তারিখ' : 'any date';
+  String get dateSpanSeparator => bn ? 'থেকে' : 'to';
 }
 
 /// S2 — All Transactions. See docs/spec/screens.md#s2--all-transactions.
@@ -233,9 +270,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   /// before focusing it on a short screen.
   final GlobalKey _searchKey = GlobalKey();
 
-  /// Whether the filter panels are open. They are open by default - the
-  /// reference shows them, and a filter nobody can find is not a filter - and
-  /// the tune control collapses them to give the rows the whole screen.
+  /// Whether the filter panels are open.
+  ///
+  /// Open by default, but *disclosed*: the header, the totals, the search box
+  /// and the first rows were what the user came for, so the page is ordered
+  /// ledgers-first (see [_buildContent]) and the panels are compact one-line
+  /// groups rather than tall cards. The tune cap closes them to give the rows
+  /// the whole screen, and the state strip underneath keeps every live choice
+  /// visible and liftable while they are shut.
   bool _filtersOpen = true;
 
   /// The live query the rows are filtered by, updated on every keystroke so
@@ -270,10 +312,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     setState(() => _query = '');
   }
 
-  /// The header's tune control: open the panels if they are closed, put the
-  /// cursor in the search box, and scroll it into view. It never toggles the
-  /// panels shut under the user's finger - closing them is the panel button's
-  /// own job - so one press always does something visible.
+  /// The search shortcut behind the tune control's long press: open the panels
+  /// if they are closed, put the cursor in the search box, and scroll it into
+  /// view. A plain press toggles the panels instead ([_toggleFilters]), because
+  /// opening filters must not be the same gesture as summoning the keyboard.
   Future<void> _focusFilters() async {
     if (!_filtersOpen) {
       setState(() => _filtersOpen = true);
@@ -570,7 +612,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   /// Entries matching all four filters, newest first.
-  List<LedgerEntry> get _visibleEntries {
+  ///
+  /// [categories] is the custom-category catalog, when the parent wired one, so
+  /// search can also match the name the row is displaying. Without it the
+  /// built-in labels are still used, which is what a screen with no store has
+  /// been showing all along.
+  List<LedgerEntry> _visibleEntries(List<CustomCategory>? categories) {
     final List<LedgerEntry> rows = _summary.entries
         .where((LedgerEntry entry) {
           final bool typeMatches =
@@ -581,10 +628,69 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               categoryMatches &&
               (_fromDay == null || !localDayOf(entry.at).isBefore(_fromDay!)) &&
               (_toDay == null || !localDayOf(entry.at).isAfter(_toDay!)) &&
-              matchesSearchQuery(entry, _query);
+              matchesSearchQuery(
+                entry,
+                _query,
+                displayCategory: categories == null
+                    ? _categoryLabel(_strings, entry.category)
+                    : categoryDisplayName(
+                        widget.language,
+                        entry.category,
+                        categories,
+                      ),
+              );
         })
         .toList(growable: false);
     return List<LedgerEntry>.from(rows)..sort(_newestFirst);
+  }
+
+  /// What is narrowing the list right now, in words, for the strip under the
+  /// search box. Each non-null field is both a statement ("Type: Income") and a
+  /// button that lifts that filter, so a closed panel never hides a live filter
+  /// and a live filter can always be undone without opening the panels.
+  _ActiveFilterSummary _activeFilterSummary(List<CustomCategory>? categories) {
+    final AppStrings strings = _strings;
+    final _ScreenCopy copy = _copy;
+    final String query = _query.trim();
+    final EntryType? type = _typeFilter;
+    final String? category = _categoryFilter;
+    final DateTime? from = _fromDay;
+    final DateTime? to = _toDay;
+
+    String? dates;
+    if (from != null && to != null) {
+      dates =
+          '${strings.day(from)} ${copy.dateSpanSeparator} '
+          '${strings.day(to)}';
+    } else if (from != null) {
+      // One open end is named as such: a single picked day must not read as a
+      // span that includes days the user never chose.
+      dates = strings.dateFilter(from: true, date: from);
+    } else if (to != null) {
+      dates = strings.dateFilter(from: false, date: to);
+    }
+
+    return _ActiveFilterSummary(
+      search: query.isEmpty ? null : query,
+      type: type == null
+          ? null
+          : strings.text(
+              type == EntryType.income ? AppString.income : AppString.expense,
+            ),
+      category: category == null
+          ? null
+          : (categories == null
+                ? _categoryLabel(strings, category)
+                : categoryDisplayName(widget.language, category, categories)),
+      dates: dates,
+      labels: _ActiveFilterSummaryLabels(
+        search: copy.searchLabel,
+        type: copy.typeLabel,
+        category: copy.categoryLabel,
+        dates: copy.datesLabel,
+        none: copy.noActiveFilters,
+      ),
+    );
   }
 
   /// Newest first, with a total order so equal timestamps are still stable:
@@ -745,7 +851,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
     // One filtered list feeds the rows, the month totals and the summary card,
     // so the three can never disagree after a filter change.
-    final List<LedgerEntry> visible = _visibleEntries;
+    final List<LedgerEntry> visible = _visibleEntries(categories);
     final List<_MonthGroup> groups = _group(visible);
 
     final DateTime? fromDay = _fromDay;
@@ -777,7 +883,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: <Widget>[
                   _SummaryCard(
-                    totalCount: allEntries.length,
+                    countText: strings.transactionCount(
+                      shown: visible.length,
+                      total: allEntries.length,
+                    ),
                     entries: visible,
                     strings: strings,
                     copy: _copy,
@@ -793,135 +902,32 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     label: strings.text(AppString.searchTransactions),
                     tuneTooltip: _filtersOpen
                         ? _copy.closeFilters
-                        : _copy.showFilters,
+                        : _copy.openFilters,
                     filtersOpen: _filtersOpen,
-                    onTune: _filtersOpen ? _toggleFilters : _focusFilters,
-                    onTuneLongPress: _toggleFilters,
+                    // One press, one predictable job: open or close the
+                    // panels. It never moves the cursor into the search box,
+                    // so opening the filters cannot pull the keyboard up over
+                    // the list the user was reading.
+                    onTune: _toggleFilters,
+                    // The long press keeps the old shortcut for anyone who
+                    // reached for it: open the panels *and* focus search.
+                    onTuneLongPress: _focusFilters,
                   ),
-                  if (_filtersOpen) ...<Widget>[
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.date),
-                      icon: Icons.event_outlined,
-                      action: hasDates
-                          ? _FilterClearAction(
-                              key: const Key('date-filter-clear'),
-                              label: strings.text(AppString.clearDates),
-                              semanticsLabel: strings.text(
-                                AppString.clearDatesFilter,
-                              ),
-                              onTap: _clearDates,
-                            )
-                          : null,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('date-filter-from'),
-                          label: fromLabel,
-                          semanticLabel: fromSemantics,
-                          icon: Icons.calendar_today_outlined,
-                          selected: fromDay != null,
-                          onTap: _pickFromDay,
-                        ),
-                        _FilterChip(
-                          key: const Key('date-filter-to'),
-                          label: toLabel,
-                          semanticLabel: toSemantics,
-                          icon: Icons.calendar_month_outlined,
-                          selected: toDay != null,
-                          onTap: _pickToDay,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.type),
-                      icon: Icons.swap_vert,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('type-filter-all'),
-                          label: strings.text(AppString.all),
-                          semanticLabel: strings.text(AppString.allTypesFilter),
-                          selected: _typeFilter == null,
-                          onTap: () => _selectType(null),
-                        ),
-                        _FilterChip(
-                          key: const Key('type-filter-income'),
-                          label: strings.text(AppString.income),
-                          semanticLabel: strings.text(AppString.incomeFilter),
-                          icon: Icons.trending_up_rounded,
-                          iconColor: AppColors.incomeGreen,
-                          selected: _typeFilter == EntryType.income,
-                          onTap: () => _selectType(EntryType.income),
-                        ),
-                        _FilterChip(
-                          key: const Key('type-filter-expense'),
-                          label: strings.text(AppString.expense),
-                          semanticLabel: strings.text(AppString.expenseFilter),
-                          icon: Icons.trending_down_rounded,
-                          iconColor: AppColors.expenseRed,
-                          selected: _typeFilter == EntryType.expense,
-                          onTap: () => _selectType(EntryType.expense),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: _cardGap),
-                    _FilterPanel(
-                      title: strings.text(AppString.category),
-                      icon: Icons.sell_outlined,
-                      children: <Widget>[
-                        _FilterChip(
-                          key: const Key('category-filter-all'),
-                          label: strings.text(AppString.all),
-                          semanticLabel: strings.text(
-                            AppString.allCategoriesFilter,
-                          ),
-                          selected: _categoryFilter == null,
-                          onTap: () => _selectCategory(null),
-                        ),
-                        // The key and the filter value stay the canonical
-                        // stored category; only the visible label is
-                        // translated, so a tapped chip still matches the same
-                        // rows in either language.
-                        for (final String category in _categoryOptions)
-                          _FilterChip(
-                            key: Key('category-filter-$category'),
-                            label: categories == null
-                                ? _categoryLabel(strings, category)
-                                : categoryDisplayName(
-                                    widget.language,
-                                    category,
-                                    categories,
-                                  ),
-                            customCategory: categories == null
-                                ? null
-                                : findCustomCategory(category, categories),
-                            semanticLabel: strings.categoryLabel(
-                              categories == null
-                                  ? _categoryLabel(strings, category)
-                                  : categoryDisplayName(
-                                      widget.language,
-                                      category,
-                                      categories,
-                                    ),
-                              filter: true,
-                            ),
-                            selected: _categoryFilter == category,
-                            onTap: () => _selectCategory(category),
-                          ),
-                      ],
-                    ),
-                  ] else ...<Widget>[
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _FilterClearAction(
-                        key: const Key('filters-show'),
-                        label: _copy.showFilters,
-                        semanticsLabel: _copy.showFilters,
-                        onTap: _toggleFilters,
-                      ),
-                    ),
-                  ],
+                  const SizedBox(height: 10),
+                  _ActiveFilterStrip(
+                    strings: strings,
+                    copy: _copy,
+                    summary: _activeFilterSummary(categories),
+                    filtersOpen: _filtersOpen,
+                    count: visible.length,
+                    total: allEntries.length,
+                    onToggle: _toggleFilters,
+                    onClear: _hasFilters ? _clearFilters : null,
+                    onType: _selectType,
+                    onCategory: _selectCategory,
+                    onDates: _clearDates,
+                    onSearch: _clearQuery,
+                  ),
                   const SizedBox(height: _groupGap),
                   if (groups.isEmpty)
                     _NoMatches(strings: strings, onClear: _clearFilters)
@@ -950,6 +956,29 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     // nothing below" is never mistaken for "the list is still
                     // there".
                     _EndOfList(strings: strings, hasFilters: _hasFilters),
+                  ],
+                  if (_filtersOpen) ...<Widget>[
+                    const SizedBox(height: _groupGap),
+                    _FilterPanelsInline(
+                      strings: strings,
+                      fromLabel: fromLabel,
+                      toLabel: toLabel,
+                      fromSemantics: fromSemantics,
+                      toSemantics: toSemantics,
+                      fromDay: fromDay,
+                      toDay: toDay,
+                      hasDates: hasDates,
+                      typeFilter: _typeFilter,
+                      categoryFilter: _categoryFilter,
+                      categoryOptions: _categoryOptions,
+                      categories: categories,
+                      language: widget.language,
+                      onPickFrom: _pickFromDay,
+                      onPickTo: _pickToDay,
+                      onClearDates: _clearDates,
+                      onSelectType: _selectType,
+                      onSelectCategory: _selectCategory,
+                    ),
                   ],
                   _FooterArtwork(copy: _copy),
                 ],
@@ -1175,13 +1204,15 @@ class _RoundHeaderAction extends StatelessWidget {
 /// honest note that these totals describe only the rows shown.
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
-    required this.totalCount,
+    required this.countText,
     required this.entries,
     required this.strings,
     required this.copy,
   });
 
-  final int totalCount;
+  /// "Showing 2 of 8 transactions", built by the screen so the card and the
+  /// active-filter strip can never state two different counts.
+  final String countText;
   final List<LedgerEntry> entries;
   final AppStrings strings;
   final _ScreenCopy copy;
@@ -1198,10 +1229,6 @@ class _SummaryCard extends StatelessWidget {
       }
     }
 
-    final String countText = strings.transactionCount(
-      shown: entries.length,
-      total: totalCount,
-    );
     final String totalsText = strings.flowTotals(
       incomePaise: incomePaise,
       expensePaise: expensePaise,
@@ -1213,6 +1240,10 @@ class _SummaryCard extends StatelessWidget {
     final double scale = MediaQuery.textScalerOf(context).scale(14) / 14;
     final double ribbonHeight =
         MediaQuery.textScalerOf(context).scale(12) * 1.3 + 14;
+    // The card is the page's preface, not the page: with the filter panels
+    // closed the rows must start on the first screen of a 390x844 phone, so
+    // the card's own rhythm is one step tighter than the reference file. Every
+    // element stays - ribbon, two totals, rule, note, artwork.
 
     return Semantics(
       container: true,
@@ -1225,7 +1256,7 @@ class _SummaryCard extends StatelessWidget {
           children: <Widget>[
             Container(
               key: const Key('transactions-summary'),
-              padding: EdgeInsets.fromLTRB(16, ribbonHeight / 2 + 12, 16, 14),
+              padding: EdgeInsets.fromLTRB(16, ribbonHeight / 2 + 4, 16, 10),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(_cardRadius),
@@ -1299,13 +1330,13 @@ class _SummaryCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 8),
                   Divider(
                     height: 1,
                     thickness: 1,
                     color: AppColors.outline.withValues(alpha: 0.55),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   // The bundled coins sit beside the note, never over it: a
                   // decorative asset may share this row, it may not hide a
                   // word of the promise the totals rely on.
@@ -1325,7 +1356,7 @@ class _SummaryCard extends StatelessWidget {
                           child: Image.asset(
                             'assets/illustrations/counter_header_coins.png',
                             key: const Key('transactions-summary-art'),
-                            height: 40,
+                            height: 32,
                             fit: BoxFit.contain,
                             excludeFromSemantics: true,
                           ),
@@ -1633,6 +1664,163 @@ class _TuneButton extends StatelessWidget {
   }
 }
 
+/// The three filter groups, rendered once, in their own compact band below the
+/// ledger: date, type and category, each still its own warm panel with its own
+/// heading and its own clear action.
+///
+/// They live behind the search box's filter cap instead of above the list, so
+/// the first screen of the history is the history - while every choice the user
+/// has made stays stated (and liftable) in the active-filter strip above.
+class _FilterPanelsInline extends StatelessWidget {
+  const _FilterPanelsInline({
+    required this.strings,
+    required this.fromLabel,
+    required this.toLabel,
+    required this.fromSemantics,
+    required this.toSemantics,
+    required this.fromDay,
+    required this.toDay,
+    required this.hasDates,
+    required this.typeFilter,
+    required this.categoryFilter,
+    required this.categoryOptions,
+    required this.categories,
+    required this.language,
+    required this.onPickFrom,
+    required this.onPickTo,
+    required this.onClearDates,
+    required this.onSelectType,
+    required this.onSelectCategory,
+  });
+
+  final AppStrings strings;
+  final String fromLabel;
+  final String toLabel;
+  final String fromSemantics;
+  final String toSemantics;
+  final DateTime? fromDay;
+  final DateTime? toDay;
+  final bool hasDates;
+  final EntryType? typeFilter;
+  final String? categoryFilter;
+  final List<String> categoryOptions;
+  final List<CustomCategory>? categories;
+  final AppLanguage language;
+  final VoidCallback onPickFrom;
+  final VoidCallback onPickTo;
+  final VoidCallback onClearDates;
+  final ValueChanged<EntryType?> onSelectType;
+  final ValueChanged<String?> onSelectCategory;
+
+  /// The label a category chip shows: the stored token is the identity and the
+  /// key, the label is display only.
+  String _labelFor(String category) => categories == null
+      ? _categoryLabel(strings, category)
+      : categoryDisplayName(language, category, categories!);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _FilterPanel(
+          title: strings.text(AppString.date),
+          icon: Icons.event_outlined,
+          action: hasDates
+              ? _FilterClearAction(
+                  key: const Key('date-filter-clear'),
+                  label: strings.text(AppString.clearDates),
+                  semanticsLabel: strings.text(AppString.clearDatesFilter),
+                  onTap: onClearDates,
+                )
+              : null,
+          children: <Widget>[
+            _FilterChip(
+              key: const Key('date-filter-from'),
+              label: fromLabel,
+              semanticLabel: fromSemantics,
+              icon: Icons.calendar_today_outlined,
+              selected: fromDay != null,
+              onTap: onPickFrom,
+            ),
+            _FilterChip(
+              key: const Key('date-filter-to'),
+              label: toLabel,
+              semanticLabel: toSemantics,
+              icon: Icons.calendar_month_outlined,
+              selected: toDay != null,
+              onTap: onPickTo,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _FilterPanel(
+          title: strings.text(AppString.type),
+          icon: Icons.swap_vert,
+          children: <Widget>[
+            _FilterChip(
+              key: const Key('type-filter-all'),
+              label: strings.text(AppString.all),
+              semanticLabel: strings.text(AppString.allTypesFilter),
+              selected: typeFilter == null,
+              onTap: () => onSelectType(null),
+            ),
+            _FilterChip(
+              key: const Key('type-filter-income'),
+              label: strings.text(AppString.income),
+              semanticLabel: strings.text(AppString.incomeFilter),
+              icon: Icons.trending_up_rounded,
+              iconColor: AppColors.incomeGreen,
+              selected: typeFilter == EntryType.income,
+              onTap: () => onSelectType(EntryType.income),
+            ),
+            _FilterChip(
+              key: const Key('type-filter-expense'),
+              label: strings.text(AppString.expense),
+              semanticLabel: strings.text(AppString.expenseFilter),
+              icon: Icons.trending_down_rounded,
+              iconColor: AppColors.expenseRed,
+              selected: typeFilter == EntryType.expense,
+              onTap: () => onSelectType(EntryType.expense),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _FilterPanel(
+          title: strings.text(AppString.category),
+          icon: Icons.sell_outlined,
+          children: <Widget>[
+            _FilterChip(
+              key: const Key('category-filter-all'),
+              label: strings.text(AppString.all),
+              semanticLabel: strings.text(AppString.allCategoriesFilter),
+              selected: categoryFilter == null,
+              onTap: () => onSelectCategory(null),
+            ),
+            // The key and the filter value stay the canonical stored category;
+            // only the visible label is translated, so a tapped chip still
+            // matches the same rows in either language.
+            for (final String category in categoryOptions)
+              _FilterChip(
+                key: Key('category-filter-$category'),
+                label: _labelFor(category),
+                customCategory: categories == null
+                    ? null
+                    : findCustomCategory(category, categories!),
+                semanticLabel: strings.categoryLabel(
+                  _labelFor(category),
+                  filter: true,
+                ),
+                selected: categoryFilter == category,
+                onTap: () => onSelectCategory(category),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// One warm panel per filter group: a heading with its own glyph, an optional
 /// clear action, and the chips.
 class _FilterPanel extends StatelessWidget {
@@ -1650,8 +1838,11 @@ class _FilterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // One warm card per group, but a compact one: the heading and the chips
+    // share a tighter rhythm than a data card, because these panels sit *under*
+    // the ledger now - they must cost the reader a scroll, not a screen.
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
@@ -1664,7 +1855,7 @@ class _FilterPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(icon, size: 16, color: AppColors.primaryGreen),
+              Icon(icon, size: 15, color: AppColors.primaryGreen),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -1677,8 +1868,13 @@ class _FilterPanel extends StatelessWidget {
               if (action case final Widget clear) clear,
             ],
           ),
-          const SizedBox(height: _labelGap),
-          Wrap(spacing: _cardGap, runSpacing: _cardGap, children: children),
+          const SizedBox(height: 4),
+          // One gap for every chip group on the screen, the strip included.
+          Wrap(
+            spacing: _cardGap,
+            runSpacing: _cardGap,
+            children: children,
+          ),
         ],
       ),
     );
@@ -1730,6 +1926,273 @@ class _FilterClearAction extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The localized words the active-filter strip needs: four filter names, the
+/// two panel-action names and the "nothing is applied" line.
+class _ActiveFilterSummaryLabels {
+  const _ActiveFilterSummaryLabels({
+    required this.search,
+    required this.type,
+    required this.category,
+    required this.dates,
+    required this.none,
+  });
+
+  final String search;
+  final String type;
+  final String category;
+  final String dates;
+  final String none;
+}
+
+/// What the strip states about the current filter state. A `null` field means
+/// that filter is not narrowing the list; every non-null one is spoken and is
+/// the button that lifts it.
+class _ActiveFilterSummary {
+  const _ActiveFilterSummary({
+    required this.search,
+    required this.type,
+    required this.category,
+    required this.dates,
+    required this.labels,
+  });
+
+  final String? search;
+  final String? type;
+  final String? category;
+  final String? dates;
+  final _ActiveFilterSummaryLabels labels;
+
+  bool get isEmpty =>
+      search == null && type == null && category == null && dates == null;
+
+  /// The whole state as one readable line, so a screen reader gets the same
+  /// sentence a sighted user reads across the chips.
+  String get sentence {
+    final List<String> parts = <String>[
+      if (search != null) '${labels.search}: $search',
+      if (type != null) '${labels.type}: $type',
+      if (category != null) '${labels.category}: $category',
+      if (dates != null) '${labels.dates}: $dates',
+    ];
+    return parts.isEmpty ? labels.none : parts.join(', ');
+  }
+}
+
+/// The one line between the search box and the ledger that states, in words,
+/// what is filtering the list.
+///
+/// The state chip says "No filters applied" - or "Filters applied" - and its
+/// tap opens or closes the panels, carrying the count so the state and the
+/// number are read together. Every live filter follows as its own chip, and
+/// **Clear filters** appears beside them only when there is something to clear,
+/// so the action never promises a change it cannot make.
+///
+/// The chip is deliberately *not* a text field and never requests focus:
+/// opening the panels must not force the keyboard up over the ledger.
+class _ActiveFilterStrip extends StatelessWidget {
+  const _ActiveFilterStrip({
+    required this.strings,
+    required this.copy,
+    required this.summary,
+    required this.filtersOpen,
+    required this.count,
+    required this.total,
+    required this.onToggle,
+    required this.onClear,
+    required this.onType,
+    required this.onCategory,
+    required this.onDates,
+    required this.onSearch,
+  });
+
+  final AppStrings strings;
+  final _ScreenCopy copy;
+  final _ActiveFilterSummary summary;
+  final bool filtersOpen;
+  final int count;
+  final int total;
+  final VoidCallback onToggle;
+  final VoidCallback? onClear;
+  final ValueChanged<EntryType?> onType;
+  final ValueChanged<String?> onCategory;
+  final VoidCallback onDates;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    // The count lives here too: with the panels closed the summary card is the
+    // only thing above the rows, so the strip is where "2 of 8" is easiest to
+    // see while scanning.
+    final String toggleLabel = filtersOpen ? copy.closeFilters : copy.show;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Wrap(
+          spacing: _cardGap,
+          runSpacing: _cardGap,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            // The state chip is a real control: it opens the panels, reports
+            // the state in its label, and carries the count so the two facts
+            // are read together.
+            _StripChip(
+              key: const Key('filters-state'),
+              label: summary.isEmpty
+                  ? copy.noActiveFilters
+                  : copy.activeFilters,
+              semanticsLabel:
+                  '${toggleLabel}. ${summary.sentence}. '
+                  '${strings.transactionCount(shown: count, total: total)}',
+              icon: filtersOpen ? Icons.tune : Icons.filter_list,
+              iconColor: AppColors.primaryGreen,
+              background: AppColors.lightGreen,
+              foreground: AppColors.primaryGreen,
+              onTap: onToggle,
+            ),
+            if (summary.search != null)
+              _StripChip(
+                key: const Key('active-filter-search'),
+                label: '${copy.searchLabel}: ${summary.search}',
+                semanticsLabel:
+                    '${copy.searchLabel}: ${summary.search}. '
+                    '${strings.text(AppString.clearSearch)}',
+                icon: Icons.search,
+                background: AppColors.warmIvory,
+                foreground: AppColors.darkText,
+                onTap: onSearch,
+              ),
+            if (summary.type != null)
+              _StripChip(
+                key: const Key('active-filter-type'),
+                label: '${copy.typeLabel}: ${summary.type}',
+                semanticsLabel: '${copy.typeLabel}: ${summary.type}. '
+                    '${strings.text(AppString.allTypesFilter)}',
+                icon: Icons.swap_vert,
+                background: AppColors.warmIvory,
+                foreground: AppColors.darkText,
+                onTap: () => onType(null),
+              ),
+            if (summary.category != null)
+              _StripChip(
+                key: const Key('active-filter-category'),
+                label: '${copy.categoryLabel}: ${summary.category}',
+                semanticsLabel:
+                    '${copy.categoryLabel}: ${summary.category}. '
+                    '${strings.text(AppString.allCategoriesFilter)}',
+                icon: Icons.sell_outlined,
+                background: AppColors.warmIvory,
+                foreground: AppColors.darkText,
+                onTap: () => onCategory(null),
+              ),
+            if (summary.dates != null)
+              _StripChip(
+                key: const Key('active-filter-dates'),
+                label: '${copy.datesLabel}: ${summary.dates}',
+                semanticsLabel:
+                    '${copy.datesLabel}: ${summary.dates}. '
+                    '${strings.text(AppString.clearDatesFilter)}',
+                icon: Icons.event_outlined,
+                background: AppColors.warmIvory,
+                foreground: AppColors.darkText,
+                onTap: onDates,
+              ),
+            if (onClear != null)
+              _FilterClearAction(
+                key: const Key('clear-filters-inline'),
+                label: strings.text(AppString.clearFilters),
+                semanticsLabel: strings.text(AppString.clearFilters),
+                onTap: onClear!,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+}
+
+/// A compact, 44 dp+ statement-and-action chip for the active-filter strip.
+/// It keeps the chip language of the panels (capsule, flat fill, tinted glyph)
+/// at a third of the panel's height.
+class _StripChip extends StatelessWidget {
+  const _StripChip({
+    super.key,
+    required this.label,
+    required this.semanticsLabel,
+    required this.icon,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  final String label;
+  final String semanticsLabel;
+  final IconData icon;
+  final Color background;
+  final Color foreground;
+  final Color? iconColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      button: true,
+      label: semanticsLabel,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          child: Material(
+            color: background,
+            clipBehavior: Clip.antiAlias,
+            elevation: 0,
+            shape: StadiumBorder(
+              side: BorderSide(
+                color: AppColors.outline.withValues(alpha: _edge),
+              ),
+            ),
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                // The label takes the room it needs up to the strip's width,
+                // then ellipsizes: with `Flexible` alone inside a `Wrap` the
+                // row was asked to shrink-wrap a flexible child, which throws
+                // once the text is long enough to matter.
+                child: IntrinsicWidth(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(icon, size: 15, color: iconColor ?? foreground),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: _cardLabel.copyWith(
+                            color: foreground,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
