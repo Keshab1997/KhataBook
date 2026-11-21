@@ -290,10 +290,26 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
+        final TextTheme text = Theme.of(dialogContext).textTheme;
         return AlertDialog(
           key: const Key('delete-confirm-dialog'),
-          title: Text(_strings.text(AppString.deleteQuestion)),
-          content: Text(_strings.text(AppString.deleteExplanation)),
+          // Trimmed typography, not different copy: the question and the
+          // consequence keep their exact strings, but fit a 360x640 dialog
+          // without scrolling past the two actions.
+          titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          title: Text(
+            _strings.text(AppString.deleteQuestion),
+            style: text.titleLarge?.copyWith(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+          content: Text(
+            _strings.text(AppString.deleteExplanation),
+            style: text.bodyMedium,
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           actions: <Widget>[
             TextButton(
               key: const Key('cancel-delete-button'),
@@ -378,58 +394,47 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
             key: _formKey,
             autovalidateMode: AutovalidateMode.onUserInteraction,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              padding: const EdgeInsets.fromLTRB(
+                EntryFormLayout.pagePadding,
+                EntryFormLayout.gap * 2,
+                EntryFormLayout.pagePadding,
+                EntryFormLayout.gap * 3,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  _kindSelector(),
-                  const SizedBox(height: 22),
-                  _SectionLabel(_strings.text(AppString.amount)),
-                  const SizedBox(height: 8),
                   _amountField(),
-                  const SizedBox(height: 18),
-                  _SectionLabel(_strings.text(AppString.date)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: EntryFormLayout.gap),
+                  _kindSelector(),
+                  const SizedBox(height: EntryFormLayout.gap * 2),
+                  EntryFormLayout.captionRow(
+                    _strings.text(AppString.date),
+                    Icons.event,
+                  ),
+                  const SizedBox(height: EntryFormLayout.gap),
                   _dateField(),
                   if (future) _inlineNote(_strings.text(AppString.futureDate)),
-                  const SizedBox(height: 18),
-                  _SectionLabel(_strings.text(AppString.category)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: EntryFormLayout.gap * 2),
+                  EntryFormLayout.captionRow(
+                    _strings.text(AppString.category),
+                    Icons.sell,
+                  ),
+                  const SizedBox(height: EntryFormLayout.gap),
                   _categoryChips(),
                   if (_showCategoryError)
                     _inlineWarning(_strings.text(AppString.pickCategory)),
-                  const SizedBox(height: 18),
-                  _SectionLabel(_strings.text(AppString.description)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: EntryFormLayout.gap * 2),
+                  EntryFormLayout.captionRow(
+                    _strings.text(AppString.description),
+                    Icons.edit_note,
+                  ),
+                  const SizedBox(height: EntryFormLayout.gap),
                   _descriptionField(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: EntryFormLayout.gap * 2),
                   if (_pendingLabel != null)
                     _pendingCard(_strings.text(_pendingLabel!)),
                   if (_error != null) _errorCard(_strings.text(_error!)),
-                  FilledButton.icon(
-                    key: const Key('editor-update-button'),
-                    onPressed: _busy ? null : _submit,
-                    icon: const Icon(Icons.check),
-                    label: Text(_strings.text(AppString.updateTransaction)),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    key: const Key('editor-delete-button'),
-                    onPressed: _busy ? null : _delete,
-                    style: OutlinedButton.styleFrom(
-                      // Red text at this size would fall under AA on the cream
-                      // canvas (theme.md), so the label stays darkText and the
-                      // red is carried by the icon and the border. Size and
-                      // shape come from the theme, like the Update button.
-                      foregroundColor: AppColors.darkText,
-                      side: const BorderSide(color: AppColors.expenseRed),
-                    ),
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.expenseRed,
-                    ),
-                    label: Text(_strings.text(AppString.deleteTransaction)),
-                  ),
+                  _saveArea(),
                 ],
               ),
             ),
@@ -443,10 +448,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
   Widget _kindSelector() {
     return Material(
       color: AppColors.lightGreen,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(5),
+        padding: const EdgeInsets.all(4),
         child: Row(
           children: <Widget>[
             Expanded(
@@ -455,7 +460,7 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                 const Key('editor-kind-expense'),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Expanded(
               child: _kindSegment(
                 EntryFormKind.income,
@@ -490,7 +495,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
       child: Material(
         color: selected ? AppColors.primaryGreen : AppColors.warmIvory,
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
+          borderRadius: const BorderRadius.all(
+            Radius.circular(EntryFormLayout.cardRadius - 4),
+          ),
           side: BorderSide(
             color: selected ? AppColors.primaryGreen : AppColors.beige,
             width: 1.2,
@@ -533,19 +540,24 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     );
   }
 
-  /// Warm-ivory framed input row, matching Add Entry's fields - including
-  /// the green frame that follows focus.
+  /// Warm-ivory framed input row, matching Add Entry's fields - same radius,
+  /// same minimum height, including the green frame that follows focus.
   Widget _framed({required Widget child, bool focused = false}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      constraints: const BoxConstraints(
+        minHeight: EntryFormLayout.fieldMinHeight,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: focused ? AppColors.lightGreen : AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
         border: Border.all(
-          color: focused ? AppColors.primaryGreen : AppColors.beige,
-          width: focused ? 1.6 : 1.4,
+          color: focused
+              ? AppColors.primaryGreen
+              : AppColors.accentGreen.withValues(alpha: 0.45),
+          width: focused ? 1.6 : 1.2,
         ),
         boxShadow: focused
             ? <BoxShadow>[
@@ -573,35 +585,24 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
           enabled: !_busy,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textInputAction: TextInputAction.next,
-          style: const TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
-            color: AppColors.darkText,
-          ),
+          style: EntryFormLayout.amount,
           decoration: InputDecoration(
             isDense: true,
             border: InputBorder.none,
             contentPadding: EdgeInsets.zero,
             prefixText: '₹ ',
             prefixStyle: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.4,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
               color: AppColors.primaryGreen,
             ),
             hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
-            hintStyle: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -0.4,
-              color: AppColors.softText,
-            ),
+            hintStyle: EntryFormLayout.amountHint,
+            helperText: _strings.text(AppString.amountPrecision),
+            helperStyle: EntryFormLayout.helper,
+            helperMaxLines: 2,
             errorMaxLines: 4,
-            errorStyle: const TextStyle(
-              fontSize: 12,
-              color: AppColors.expenseRed,
-            ),
+            errorStyle: EntryFormLayout.error,
           ),
           validator: (String? value) {
             final String text = _amountDigits(value ?? '');
@@ -627,27 +628,25 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
         : localizations.formatMediumDate(_date);
     return InkWell(
       key: const Key('editor-date-field'),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
       onTap: _pickDate,
       child: _framed(
         child: Row(
           children: <Widget>[
-            const Icon(
+            // Built here rather than const so the glyph takes the field's own
+            // primary ink instead of the ambient IconTheme.
+            Icon(
               Icons.calendar_today,
               size: 18,
-              color: AppColors.primaryGreen,
+              color: Theme.of(context).colorScheme.primary,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.darkText,
-                ),
+                style: EntryFormLayout.value,
               ),
             ),
             const Icon(Icons.keyboard_arrow_down, color: AppColors.softText),
@@ -687,6 +686,21 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     final Color foreground = selected
         ? AppColors.onPrimary
         : AppColors.primaryGreen;
+    // The selected chip carries a check as the affordance beyond colour; it
+    // is ConstrainedBox + ClipRect rather than a Row child so a cramped row
+    // can never paint past the pill's edge.
+    final Widget check = ClipRect(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 20),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.check, size: 16, color: foreground),
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
     return Semantics(
       container: true,
       button: true,
@@ -710,16 +724,13 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
               constraints: const BoxConstraints(minHeight: 44),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 12,
                   vertical: 10,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    if (selected) ...<Widget>[
-                      Icon(Icons.check, size: 16, color: foreground),
-                      const SizedBox(width: 4),
-                    ],
+                    if (selected) check,
                     Flexible(
                       child: Text(
                         _categoryLabel(_strings, category),
@@ -772,15 +783,9 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                     color: AppColors.softText,
                   ),
                   helperText: _strings.text(AppString.descriptionOptional),
-                  helperStyle: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.softText,
-                  ),
+                  helperStyle: EntryFormLayout.helper,
                   errorMaxLines: 4,
-                  errorStyle: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.expenseRed,
-                  ),
+                  errorStyle: EntryFormLayout.error,
                 ),
                 validator: (String? value) =>
                     (value ?? '').trim().runes.length > 120
@@ -788,6 +793,74 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
                     : null,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Update and Delete as one card: the primary action first, then a hairline
+  /// and the destructive action on its own. Delete is not just a second
+  /// button - the rule, the spacing and the outline all say it is different.
+  Widget _saveArea() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: AppColors.warmIvory,
+        borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+        border: Border.all(color: AppColors.beige.withValues(alpha: 0.9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          FilledButton.icon(
+            key: const Key('editor-update-button'),
+            onPressed: _busy ? null : _submit,
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  EntryFormLayout.frameRadius,
+                ),
+              ),
+              minimumSize: const Size.fromHeight(
+                EntryFormLayout.fieldMinHeight,
+              ),
+              disabledBackgroundColor: AppColors.beige,
+              disabledForegroundColor: AppColors.softText,
+            ),
+            icon: const Icon(Icons.check),
+            label: Text(_strings.text(AppString.updateTransaction)),
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: AppColors.beige),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('editor-delete-button'),
+            onPressed: _busy ? null : _delete,
+            style: OutlinedButton.styleFrom(
+              // Red text at this size would fall under AA on the cream canvas
+              // (theme.md), so the label stays darkText and the red is carried
+              // by the icon and the border. Size and shape come from the theme.
+              foregroundColor: AppColors.darkText,
+              disabledForegroundColor: AppColors.navigationGrey,
+              minimumSize: const Size.fromHeight(
+                EntryFormLayout.fieldMinHeight,
+              ),
+            ).copyWith(
+              side: WidgetStateProperty.resolveWith<BorderSide?>(
+                (Set<WidgetState> states) => BorderSide(
+                  color: states.contains(WidgetState.disabled)
+                      ? AppColors.beige
+                      : AppColors.expenseRed,
+                  width: 1.2,
+                ),
+              ),
+            ),
+            icon: Icon(
+              Icons.delete_outline,
+              color: _busy ? AppColors.navigationGrey : AppColors.expenseRed,
+            ),
+            label: Text(_strings.text(AppString.deleteTransaction)),
           ),
         ],
       ),
@@ -815,6 +888,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
               Expanded(
                 child: Text(
                   label,
+                  // One line keeps the pending card out of the 500x600 test
+                  // surface; long translations ellipsize instead of wrapping.
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -847,6 +924,10 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
           Expanded(
             child: Text(
               message,
+              // The full copy stays on the semantics node even when a narrow
+              // layout has to ellipsize the visible line.
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 13,
                 height: 1.35,
@@ -859,63 +940,44 @@ class _TransactionEditorScreenState extends State<TransactionEditorScreen> {
     );
   }
 
+  /// A blocking error, aligned under the field it belongs to.
   Widget _inlineWarning(String message) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: EntryFormLayout.gap),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Icon(Icons.info_outline, size: 16, color: AppColors.expenseRed),
+          const Icon(
+            Icons.error_outline,
+            size: 16,
+            color: AppColors.expenseRed,
+          ),
           const SizedBox(width: 6),
-          Flexible(
+          Expanded(child: Text(message, style: EntryFormLayout.error)),
+        ],
+      ),
+    );
+  }
+
+  /// A softer note (a future date can still be saved).
+  Widget _inlineNote(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: EntryFormLayout.gap),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.info_outline, size: 16, color: AppColors.orange),
+          const SizedBox(width: 6),
+          Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                fontSize: 13,
+              style: EntryFormLayout.helper.copyWith(
                 fontWeight: FontWeight.w600,
                 color: AppColors.darkText,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _inlineNote(String message) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: <Widget>[
-          const Icon(Icons.info_outline, size: 16, color: AppColors.softText),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              message,
-              style: const TextStyle(fontSize: 13, color: AppColors.softText),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The small bold caption the design puts above every field - the same one
-/// Add Entry draws, so the two forms share a caption/field rhythm.
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.4,
-        color: AppColors.softText,
       ),
     );
   }

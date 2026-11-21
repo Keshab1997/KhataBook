@@ -1,4 +1,7 @@
-// Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
+import 'dart:ui' as ui;
+
+// Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated
+// dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,31 +37,110 @@ class _CategoryOption {
   final AppString label;
 }
 
-/// The small bold caption the design puts above every framed field
-/// (`Amount`, `Date`, `Category`, `Description`).
+/// The form's typographic scale and spacing rhythm, shared by Add Entry and
+/// the transaction editor so the two screens cannot drift apart.
 ///
-/// It sits a step quieter than the value it names: the field below is the
-/// thing to read, the caption is the label for it.
+/// Everything is on an 8 dp grid ([gap], [pagePadding]) with one card radius
+/// family for input frames (18) and for the save area (20). Colours still come
+/// from [AppColors] only; these are sizes and type, not a second token set.
+class EntryFormLayout {
+  const EntryFormLayout._();
+
+  /// Page gutter and the single step between groups.
+  static const double pagePadding = 16;
+  static const double gap = 8;
+
+  /// Radius of a framed input row.
+  static const double frameRadius = 18;
+
+  /// Radius of the save area card and the category tiles.
+  static const double cardRadius = 20;
+
+  /// Height of a framed row at normal text scale; a minimum, not a cap.
+  static const double fieldMinHeight = 48;
+
+  /// The amount is the loudest element on the screen: 40 sp, tabular figures.
+  static const TextStyle amount = TextStyle(
+    fontSize: 40,
+    height: 1.15,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.6,
+    fontFeatures: <ui.FontFeature>[ui.FontFeature.tabularFigures()],
+    color: AppColors.darkText,
+  );
+
+  static const TextStyle amountHint = TextStyle(
+    fontSize: 40,
+    height: 1.15,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.6,
+    fontFeatures: <ui.FontFeature>[ui.FontFeature.tabularFigures()],
+    color: AppColors.softText,
+  );
+
+  /// The ₹ that sits on the amount's baseline, just before the first digit.
+  static const TextStyle currency = TextStyle(
+    fontSize: 26,
+    fontWeight: FontWeight.w800,
+    color: AppColors.primaryGreen,
+  );
+
+  static const TextStyle value = TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    color: AppColors.darkText,
+  );
+
+  static const TextStyle caption = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0.4,
+    color: AppColors.softText,
+  );
+
+  /// A calm single line under the amount: what the field expects, in words.
+  static const TextStyle helper = TextStyle(
+    fontSize: 12,
+    height: 1.3,
+    color: AppColors.softText,
+  );
+
+  static const TextStyle error = TextStyle(
+    fontSize: 12,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: AppColors.expenseRed,
+  );
+
+  /// The small bold caption the design puts above every framed field
+  /// (`Amount`, `Date`, `Category`, `Description`): a step quieter than the
+  /// value it names.
+  static Widget captionRow(
+    String text,
+    IconData icon, {
+    double iconSize = 18,
+  }) => _SectionLabel(text, icon, iconSize);
+}
+
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text, this.icon);
+  const _SectionLabel(this.text, this.icon, [this.iconSize = 18]);
 
   final String text;
   final IconData icon;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Icon(icon, color: AppColors.primaryGreen, size: 22),
-        const SizedBox(width: 12),
+        Icon(icon, color: AppColors.primaryGreen, size: iconSize),
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: AppColors.headerGreen,
-            ),
+            style: EntryFormLayout.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -69,8 +151,10 @@ class _SectionLabel extends StatelessWidget {
 /// Collects an entry without owning navigation or persistence.
 ///
 /// S2 in docs/spec/screens.md, styled after the "Add Expense" phone in
-/// docs/design/ui-preview.png: cream canvas, green header and action, framed
-/// amount/date/description rows, AI-illustrated category chips and a save action at the end of the form.
+/// docs/design/ui-preview.png: cream canvas, green header and action, a loud
+/// tabular amount, segmented Expense/Income, framed date and description rows,
+/// AI-illustrated category tiles, a live "After saving" preview and one save
+/// action at the end of the form.
 class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
     super.key,
@@ -126,6 +210,11 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   EntryFormKind _kind = EntryFormKind.expense;
   String? _category;
   bool _showCategoryError = false;
+  bool _saving = false;
+
+  /// True once Save was pressed on an incomplete form, so the inline amount
+  /// error can appear even while the field is still empty.
+  bool _attemptedSave = false;
   late DateTime _date;
 
   @override
@@ -179,7 +268,18 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         )
       : text;
 
+  /// The live "After saving" figure: the balance this entry would leave, or
+  /// `null` while the amount is not a valid positive one.
+  int? _projectedBalance() {
+    final int? paise = _parseAmount(_amount.text);
+    if (paise == null) return null;
+    return _kind == EntryFormKind.income
+        ? widget.openingBalancePaise + paise
+        : widget.openingBalancePaise - paise;
+  }
+
   Future<void> _pickDate() async {
+    if (_saving) return;
     final bool bengali = widget.language == AppLanguage.bn;
     final DateTime? chosen = await showDatePicker(
       context: context,
@@ -206,12 +306,23 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   void _save() {
-    final bool validFields = _formKey.currentState!.validate();
+    if (_saving) return;
+    // Drop focus first: the frames lose their green ring and the inline
+    // errors below them become the thing to read.
+    _amountFocus.unfocus();
+    _descriptionFocus.unfocus();
+    final FormState? form = _formKey.currentState;
+    final bool validFields = form?.validate() ?? false;
+    final bool validAmount = _parseAmount(_amount.text) != null;
     final bool validCategory =
         _kind == EntryFormKind.income || _category != null;
-    setState(() => _showCategoryError = !validCategory);
-    if (!validFields || !validCategory) return;
+    setState(() {
+      _showCategoryError = !validCategory;
+      _attemptedSave = true;
+    });
+    if (!validFields || !validAmount || !validCategory) return;
     HapticFeedback.mediumImpact();
+    setState(() => _saving = true);
     widget.onSave(
       EntryFormResult(
         kind: _kind,
@@ -221,9 +332,16 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         occurredAt: _date,
       ),
     );
+    // The host normally pops this route once the write lands, which disposes
+    // the state. When it does not (a directly pumped screen), the button must
+    // not stay stuck in its saving look for the rest of the session.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _saving) setState(() => _saving = false);
+    });
   }
 
   void _selectKind(EntryFormKind kind) {
+    if (_saving) return;
     HapticFeedback.lightImpact();
     setState(() {
       _kind = kind;
@@ -232,6 +350,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
   }
 
   void _selectCategory(String category) {
+    if (_saving) return;
     HapticFeedback.lightImpact();
     setState(() {
       _category = category;
@@ -244,72 +363,134 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final DateTime now = DateTime.now();
     final bool future = _date.isAfter(DateTime(now.year, now.month, now.day));
 
-    return Hero(tag: 'add-entry-fab', child: Scaffold(
-      backgroundColor: AppColors.creamBackground,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        toolbarHeight: _compact ? 56 : 76,
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_compact ? 8 : 14),
-          child: SizedBox(height: _compact ? 8 : 14),
-        ),
-        flexibleSpace: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            const CustomPaint(painter: _EntryHeaderPainter()),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Image.asset(
-                'assets/illustrations/entry_header_leaves.png',
-                height: 48,
-                fit: BoxFit.contain,
-                excludeFromSemantics: true,
+    return Hero(
+      tag: 'add-entry-fab',
+      child: Scaffold(
+        backgroundColor: AppColors.creamBackground,
+        appBar: _appBar(),
+        // Only the form scrolls. The decorative leaves are the last row of
+        // that scroll content, below the save button, so they can never cover
+        // a field or the action - and they scroll away with the form.
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                EntryFormLayout.pagePadding,
+                EntryFormLayout.gap,
+                EntryFormLayout.pagePadding,
+                EntryFormLayout.gap,
               ),
-            ),
-          ],
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          tooltip: _strings.text(AppString.back),
-          onPressed: () => Navigator.of(context).maybePop(),
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.primaryGreen,
-            foregroundColor: AppColors.onPrimary,
-          ),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: <Widget>[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                'assets/illustrations/entry_header_notebook.png',
-                width: 42,
-                height: 42,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
-                  Text(
-                    _strings.text(AppString.addEntry),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
+                  _amountSection(),
+                  _sectionGap(),
+                  _kindSelector(),
+                  _sectionGap(),
+                  _dateSection(future: future),
+                  _sectionGap(),
+                  _categorySection(),
+                  _sectionGap(),
+                  _descriptionSection(),
+                  _sectionGap(),
+                  _saveArea(),
+                  const SizedBox(height: 12),
+                  ExcludeSemantics(
+                    child: Image(
+                      key: const Key('entry-footer-artwork'),
+                      image: const AssetImage(
+                        'assets/illustrations/entry_footer_leaves.png',
+                      ),
+                      height: _compact ? 20 : 44,
+                      fit: BoxFit.fitWidth,
+                      excludeFromSemantics: true,
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Two grid steps between groups, one where the form has to stay dense
+  /// (a short phone still has to fit the whole form without scrolling).
+  double get _groupGap => _compact ? EntryFormLayout.gap : 20;
+
+  Widget _sectionGap() => SizedBox(height: _groupGap);
+
+  PreferredSizeWidget _appBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      // White status-bar glyphs, matching the rest of the app's headers.
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      toolbarHeight: _compact ? 56 : 64,
+      bottom: PreferredSize(
+        preferredSize: Size.fromHeight(_compact ? 6 : 10),
+        child: SizedBox(height: _compact ? 6 : 10),
+      ),
+      flexibleSpace: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          const CustomPaint(painter: _EntryHeaderPainter()),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            // Shorter in compact mode so the crest never crowds the title.
+            child: Image.asset(
+              'assets/illustrations/entry_header_leaves.png',
+              height: _compact ? 40 : 52,
+              fit: BoxFit.contain,
+              excludeFromSemantics: true,
+            ),
+          ),
+        ],
+      ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: _strings.text(AppString.back),
+        onPressed: () => Navigator.of(context).maybePop(),
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.primaryGreen,
+          foregroundColor: AppColors.onPrimary,
+        ),
+      ),
+      titleSpacing: 0,
+      title: Row(
+        children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(EntryFormLayout.gap),
+            child: Image.asset(
+              'assets/illustrations/entry_header_notebook.png',
+              width: _compact ? 34 : 40,
+              height: _compact ? 34 : 40,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  _strings.text(AppString.addEntry),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 19,
+                  ),
+                ),
+                if (!_compact)
                   Text(
                     widget.language == AppLanguage.bn
-                        ? 'হিসাব রাখুন নিয়মিত'
+                        ? 'হিসাব রাখুন নিয়মিত'
                         : 'Keep Your Account Updated',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -318,135 +499,184 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-          ],
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        IconButton(
+          onPressed: _saving ? null : _save,
+          tooltip: _strings.text(AppString.save),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.primaryGreen,
+            foregroundColor: AppColors.onPrimary,
+            disabledBackgroundColor: AppColors.navigationGrey.withValues(
+              alpha: 0.35,
+            ),
+            disabledForegroundColor: AppColors.onPrimary,
+          ),
+          icon: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: AppColors.onPrimary,
+                  ),
+                )
+              : const Icon(Icons.save),
         ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _save,
-            tooltip: _strings.text(AppString.save),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-              foregroundColor: AppColors.onPrimary,
-            ),
-            icon: const Icon(Icons.save),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Stack(
-        children: <Widget>[
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              child: Image.asset(
-                'assets/illustrations/entry_footer_leaves.png',
-                fit: BoxFit.fitWidth,
-                excludeFromSemantics: true,
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  _compact ? 4 : 12,
-                  20,
-                  _compact ? 1 : 28,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    _kindSelector(),
-                    SizedBox(height: _compact ? 4 : 14),
-                    _SectionLabel(
-                      _strings.text(AppString.amount),
-                      Icons.account_balance_wallet,
-                    ),
-                    SizedBox(height: _compact ? 3 : 8),
-                    _amountField(),
-                    SizedBox(height: _compact ? 4 : 12),
-                    _SectionLabel(_strings.text(AppString.date), Icons.event),
-                    SizedBox(height: _compact ? 3 : 8),
-                    _dateField(),
-                    if (future)
-                      _inlineWarning(_strings.text(AppString.futureDate)),
-                    SizedBox(height: _compact ? 4 : 12),
-                    _SectionLabel(
-                      _strings.text(AppString.category),
-                      Icons.sell,
-                    ),
-                    SizedBox(height: _compact ? 4 : 12),
-                    if (_kind == EntryFormKind.expense) ...<Widget>[
-                      _categoryChips(),
-                      if (_showCategoryError)
-                        _inlineWarning(_strings.text(AppString.pickCategory)),
-                    ] else
-                      _incomeCategoryPill(),
-                    SizedBox(height: _compact ? 4 : 12),
-                    _SectionLabel(
-                      _strings.text(AppString.description),
-                      Icons.edit_note,
-                    ),
-                    SizedBox(height: _compact ? 3 : 8),
-                    _descriptionField(),
-                    SizedBox(height: _compact ? 6 : 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(40),
-                        border: Border.all(
-                          color: AppColors.onPrimary,
-                          width: 3,
-                        ),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: AppColors.golden.withValues(alpha: 0.4),
-                            blurRadius: 9,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: FilledButton.icon(
-                        onPressed: _save,
-                        style: FilledButton.styleFrom(
-                          shape: const StadiumBorder(),
-                          minimumSize: Size.fromHeight(_compact ? 48 : 58),
-                          backgroundColor: AppColors.primaryGreen,
-                        ),
-                        icon: const Icon(Icons.save),
-                        label: Text(_strings.text(AppString.saveEntry)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 
-  /// Expense | Income as the two-segment pill under the header.
+  /// Amount first and loudest: ₹ aligned to the first digit, tabular figures,
+  /// a calm helper line instead of a floating label, errors under the frame.
+  Widget _amountSection() {
+    final bool focused = _amountFocus.hasFocus;
+    final String hint = widget.language == AppLanguage.bn
+        ? '০.০০'
+        : '0.00';
+    final bool valid = _parseAmount(_amount.text) != null;
+    final bool showError =
+        !focused && !valid && (_amount.text.isNotEmpty || _attemptedSave);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        EntryFormLayout.captionRow(
+          _strings.text(AppString.amount),
+          Icons.account_balance_wallet,
+          iconSize: _compact ? 16 : 18,
+        ),
+        const SizedBox(height: EntryFormLayout.gap),
+        // The frame is the card around the row, never an ancestor of the
+        // amount field: the tests read the focused frame as the closest card
+        // above the field, and a field inside its own frame would be its own.
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.fromLTRB(
+            _compact ? 12 : 16,
+            _compact ? 8 : 12,
+            _compact ? 10 : 12,
+            _compact ? 8 : 12,
+          ),
+          decoration: BoxDecoration(
+            color: focused ? AppColors.lightGreen : AppColors.warmIvory,
+            borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+            border: Border.all(
+              color: showError
+                  ? AppColors.expenseRed
+                  : focused
+                  ? AppColors.primaryGreen
+                  : AppColors.beige.withValues(alpha: 0.9),
+              width: focused || showError ? 1.6 : 1.2,
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: AppColors.headerGreen.withValues(
+                  alpha: focused ? 0.12 : 0.06,
+                ),
+                blurRadius: focused ? 16 : 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              // The caption above names the field; the frame's own semantics
+              // label is merged in here so a screen reader reads it once.
+              Semantics(
+                label: _strings.text(AppString.amount),
+                child: TextField(
+                  key: const Key('amount-field'),
+                  controller: _amount,
+                  focusNode: _amountFocus,
+                  enabled: !_saving,
+                  maxLines: 1,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.next,
+                  style: EntryFormLayout.amount,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: EdgeInsets.zero,
+                    // The error text lives under the frame (below), aligned
+                    // with the card's own edge; the field's slot collapses.
+                    errorStyle: const TextStyle(
+                      fontSize: 0,
+                      height: 0,
+                      color: Colors.transparent,
+                    ),
+                    errorMaxLines: 1,
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 0,
+                      minHeight: 0,
+                    ),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(right: 2),
+                      child: Text('₹', style: EntryFormLayout.currency),
+                    ),
+                    hintText: hint,
+                    hintStyle: EntryFormLayout.amountHint,
+                  ),
+                  // Validated by the screen, not by a form validator: the
+                  // message belongs in the visible row under the frame, and
+                  // a duplicate in the field's own slot would paint twice.
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      _strings.text(AppString.amountPrecision),
+                      maxLines: 2,
+                      style: EntryFormLayout.helper,
+                    ),
+                  ),
+                  const SizedBox(width: EntryFormLayout.gap),
+                  Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 20,
+                    color: focused
+                        ? AppColors.primaryGreen
+                        : AppColors.softText,
+                  ),
+                ],
+              ),
+              if (showError)
+                _inlineError(_strings.text(AppString.validAmount)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Expense | Income as the two-segment pill, directly under the amount.
   Widget _kindSelector() {
     return Material(
       color: AppColors.lightGreen,
-      borderRadius: BorderRadius.circular(32),
+      borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: EdgeInsets.all(_compact ? 2 : 5),
+        padding: const EdgeInsets.all(4),
         child: Row(
           children: <Widget>[
             Expanded(child: _kindSegment(EntryFormKind.expense)),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Expanded(child: _kindSegment(EntryFormKind.income)),
           ],
         ),
@@ -463,7 +693,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     // Unselected keeps the label in body ink and lets the arrow carry the
     // income/expense colour; selected inverts the pair. That is the same
     // treatment the editor uses, so the two forms read as one screen family.
-    final Color textColor = selected ? AppColors.onPrimary : AppColors.darkText;
+    final Color textColor = selected
+        ? AppColors.onPrimary
+        : AppColors.darkText;
     final Color iconColor = selected
         ? AppColors.onPrimary
         : (income ? AppColors.incomeGreen : AppColors.expenseRed);
@@ -478,7 +710,9 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       child: Material(
         color: background,
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(32)),
+          borderRadius: const BorderRadius.all(
+            Radius.circular(EntryFormLayout.cardRadius - 4),
+          ),
           side: BorderSide(
             color: selected ? AppColors.primaryGreen : AppColors.beige,
             width: 1.2,
@@ -487,35 +721,42 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _selectKind(kind),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: _compact ? 9 : 11,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: _compact
+                  ? EntryFormLayout.fieldMinHeight - 12
+                  : EntryFormLayout.fieldMinHeight - 8,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(
-                  income ? Icons.arrow_downward : Icons.arrow_upward,
-                  size: 16,
-                  color: iconColor,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _strings.text(
-                      income ? AppString.income : AppString.expense,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: _compact ? 8 : 11,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Icon(
+                    income ? Icons.arrow_downward : Icons.arrow_upward,
+                    size: 16,
+                    color: iconColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _strings.text(
+                        income ? AppString.income : AppString.expense,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -523,28 +764,31 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  /// The ivory input card used for amount, date and description: warm ivory
-  /// fill, beige frame, rounded corners.
+  /// The ivory input card used for the date and description rows: warm ivory
+  /// fill, beige frame, one radius.
   ///
   /// The card holding focus turns green and lifts very slightly, so the row
   /// being edited is obvious without moving any of the other rows.
-  Widget _framed({required Widget child, bool focused = false}) {
+  Widget _framed({required Widget child, bool focused = false, Key? key}) {
     return AnimatedContainer(
+      key: key,
       duration: const Duration(milliseconds: 140),
       curve: Curves.easeOut,
-      constraints: const BoxConstraints(minHeight: 44),
+      constraints: const BoxConstraints(
+        minHeight: EntryFormLayout.fieldMinHeight,
+      ),
       padding: EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: _compact ? 4 : 14,
+        horizontal: _compact ? 12 : 16,
+        vertical: _compact ? 10 : 12,
       ),
       decoration: BoxDecoration(
         color: focused ? AppColors.lightGreen : AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
         border: Border.all(
           color: focused
               ? AppColors.primaryGreen
-              : AppColors.accentGreen.withValues(alpha: 0.5),
-          width: focused ? 1.6 : 1.4,
+              : AppColors.accentGreen.withValues(alpha: 0.45),
+          width: focused ? 1.6 : 1.2,
         ),
         boxShadow: focused
             ? <BoxShadow>[
@@ -560,77 +804,7 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  Widget _amountField() {
-    return _framed(
-      focused: _amountFocus.hasFocus,
-      // The caption above the frame is its own Text, so the field carries its
-      // own accessible name rather than being an unlabeled text field.
-      child: Semantics(
-        label: _strings.text(AppString.amount),
-        child: TextFormField(
-          key: const Key('amount-field'),
-          controller: _amount,
-          focusNode: _amountFocus,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textInputAction: TextInputAction.next,
-          style: const TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.4,
-            color: AppColors.darkText,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            errorBorder: InputBorder.none,
-            focusedErrorBorder: InputBorder.none,
-            filled: false,
-            contentPadding: EdgeInsets.zero,
-            prefixIcon: Container(
-              margin: const EdgeInsets.only(right: 12),
-              decoration: const BoxDecoration(
-                color: AppColors.lightGreen,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.currency_rupee,
-                color: AppColors.primaryGreen,
-                size: 26,
-              ),
-            ),
-            hintText: widget.language == AppLanguage.bn ? '০.০০' : '0.00',
-            hintStyle: const TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w500,
-              letterSpacing: -0.4,
-              color: AppColors.headerGreen,
-            ),
-            suffixIcon: IconButton(
-              tooltip: _strings.text(AppString.amount),
-              onPressed: () => _amountFocus.requestFocus(),
-              icon: const Icon(
-                Icons.grid_view_rounded,
-                color: AppColors.primaryGreen,
-              ),
-            ),
-            errorMaxLines: 4,
-            errorStyle: const TextStyle(
-              fontSize: 12,
-              color: AppColors.expenseRed,
-            ),
-          ),
-          onChanged: (_) => setState(() {}),
-          validator: (String? value) => _parseAmount(value ?? '') == null
-              ? _strings.text(AppString.validAmount)
-              : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _dateField() {
+  Widget _dateSection({required bool future}) {
     final MaterialLocalizations localizations = MaterialLocalizations.of(
       context,
     );
@@ -638,46 +812,83 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     final String englishDate = mediumDate.contains('${_date.year}')
         ? mediumDate
         : '$mediumDate, ${_date.year}';
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: _pickDate,
-      child: _framed(
-        child: Row(
-          children: <Widget>[
-            const Icon(
-              Icons.calendar_today,
-              size: 18,
-              color: AppColors.primaryGreen,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                widget.language == AppLanguage.bn
-                    ? _strings.day(_date)
-                    : englishDate,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.darkText,
-                ),
-              ),
-            ),
-            const Icon(Icons.keyboard_arrow_down, color: AppColors.softText),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        EntryFormLayout.captionRow(
+          _strings.text(AppString.date),
+          Icons.event,
         ),
-      ),
+        const SizedBox(height: EntryFormLayout.gap),
+        InkWell(
+          borderRadius: BorderRadius.circular(EntryFormLayout.frameRadius),
+          onTap: _pickDate,
+          child: _framed(
+            key: const Key('date-field'),
+            child: Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.calendar_today,
+                  size: 18,
+                  color: AppColors.primaryGreen,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.language == AppLanguage.bn
+                        ? _strings.day(_date)
+                        : englishDate,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EntryFormLayout.value,
+                  ),
+                ),
+                const Icon(
+                  Icons.keyboard_arrow_down,
+                  color: AppColors.softText,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (future) _inlineNote(_strings.text(AppString.futureDate)),
+      ],
+    );
+  }
+
+  Widget _categorySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        EntryFormLayout.captionRow(
+          _strings.text(AppString.category),
+          Icons.sell,
+        ),
+        const SizedBox(height: EntryFormLayout.gap),
+        if (_kind == EntryFormKind.expense) ...<Widget>[
+          _categoryChips(),
+          if (_showCategoryError)
+            _inlineError(_strings.text(AppString.pickCategory)),
+        ] else
+          _incomeCategoryPill(),
+      ],
     );
   }
 
   Widget _categoryChips() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double tileWidth = (constraints.maxWidth - 36) / 4;
+        // One row of five on a short phone (the whole form has to fit without
+        // scrolling there), four even columns otherwise: five starter tiles
+        // become 4 + 1 rather than a lonely fifth tile. Custom chips flow
+        // underneath in both cases.
+        final int columns = _compact ? 5 : 4;
+        final double gap = _compact ? 6 : 10;
+        final double tileWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
-          spacing: 12,
-          runSpacing: _compact ? 5 : 12,
+          spacing: gap,
+          runSpacing: gap,
           children: <Widget>[
             ..._categories.map((option) => _categoryTile(option, tileWidth)),
             if (widget.categoryStore != null)
@@ -695,7 +906,8 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _categoryTile(_CategoryOption option, double width) {
     final bool selected = _category == option.id;
-    final Color accent = _categoryAccent(option.id);
+    final double art = _compact ? 26 : 40;
+    final double pad = _compact ? 6 : 8;
     return Semantics(
       container: true,
       button: true,
@@ -705,54 +917,83 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
       onTap: () => _selectCategory(option.id),
       child: Material(
         color: selected ? AppColors.lightGreen : AppColors.warmIvory,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
           onTap: () => _selectCategory(option.id),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
             width: width,
-            padding: EdgeInsets.symmetric(
-              vertical: _compact ? 4 : 8,
-              horizontal: 4,
-            ),
+            padding: EdgeInsets.all(pad),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
               border: Border.all(
-                color: selected ? accent : AppColors.beige,
-                width: selected ? 1.8 : 1.1,
+                color: selected
+                    ? AppColors.primaryGreen
+                    : AppColors.beige.withValues(alpha: 0.9),
+                width: selected ? 2 : 1.2,
               ),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: AppColors.headerGreen.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.asset(
-                    'assets/illustrations/entry_category_${option.id.toLowerCase()}.png',
-                    key: Key('category-artwork-${option.id}'),
-                    width: _compact ? 28 : 48,
-                    height: _compact ? 28 : 48,
-                    fit: BoxFit.cover,
-                    excludeFromSemantics: true,
-                  ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/illustrations/'
+                        'entry_category_${option.id.toLowerCase()}.png',
+                        key: Key('category-artwork-${option.id}'),
+                        width: art,
+                        height: art,
+                        fit: BoxFit.cover,
+                        excludeFromSemantics: true,
+                      ),
+                    ),
+                    // The check is the selected affordance beyond colour and
+                    // border weight; it rides the artwork corner so a tile
+                    // needs no extra row and stays short on a small phone.
+                    if (selected)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: DecoratedBox(
+                          decoration: const BoxDecoration(
+                            color: AppColors.primaryGreen,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2),
+                            child: Icon(
+                              Icons.check,
+                              key: Key('category-check-${option.id}'),
+                              size: 11,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                SizedBox(height: _compact ? 2 : 5),
+                SizedBox(height: _compact ? 4 : 6),
+                // Never clipped at 320 dp: the label shrinks to fit its tile
+                // and stays on one line.
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
                     _strings.text(option.label),
                     maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.headerGreen,
+                    style: TextStyle(
+                      fontSize: _compact ? 10.5 : 11.5,
+                      fontWeight: selected
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                      color: selected
+                          ? AppColors.primaryGreen
+                          : AppColors.headerGreen,
                     ),
                   ),
                 ),
@@ -764,29 +1005,14 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  Color _categoryAccent(String category) {
-    switch (category) {
-      case 'Food':
-        return AppColors.orange;
-      case 'Travel':
-        return AppColors.secondaryGreen;
-      case 'Bills':
-        return AppColors.golden;
-      case 'Gifts':
-        return AppColors.expenseRed;
-      default:
-        return AppColors.primaryGreen;
-    }
-  }
-
   Widget _incomeCategoryPill() {
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.lightGreen,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(EntryFormLayout.cardRadius),
           border: Border.all(color: AppColors.accentGreen),
         ),
         child: Row(
@@ -813,81 +1039,209 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
     );
   }
 
-  Widget _descriptionField() {
-    return _framed(
-      focused: _descriptionFocus.hasFocus,
+  Widget _descriptionSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        EntryFormLayout.captionRow(
+          _strings.text(AppString.description),
+          Icons.edit_note,
+        ),
+        const SizedBox(height: EntryFormLayout.gap),
+        _framed(
+          focused: _descriptionFocus.hasFocus,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.edit, size: 18, color: AppColors.softText),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                // The caption above the frame is a separate Text, so the field
+                // carries its own accessible name.
+                child: Semantics(
+                  label: _strings.text(AppString.description),
+                  child: TextFormField(
+                    key: const Key('description-field'),
+                    controller: _description,
+                    focusNode: _descriptionFocus,
+                    enabled: !_saving,
+                    maxLines: 2,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: AppColors.darkText,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      filled: false,
+                      contentPadding: EdgeInsets.zero,
+                      hintText: _strings.text(AppString.descriptionHint),
+                      hintStyle: const TextStyle(
+                        fontSize: 15,
+                        color: AppColors.navigationGrey,
+                      ),
+                      helperText: _compact
+                          ? null
+                          : _strings.text(AppString.descriptionLimit),
+                      helperStyle: EntryFormLayout.helper,
+                      errorMaxLines: 4,
+                      errorStyle: EntryFormLayout.error,
+                    ),
+                    validator: (String? value) =>
+                        (value ?? '').characters.length > 120
+                        ? _strings.text(AppString.descriptionTooLong)
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The live projection and the one save action, composed as one column.
+  ///
+  /// The preview row always exists, so nothing above the button changes
+  /// height when the amount becomes valid; the state is carried by the row's
+  /// ink and icon instead.
+  Widget _saveArea() {
+    final int? projected = _projectedBalance();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Icon(
+              _kind == EntryFormKind.income
+                  ? Icons.trending_up
+                  : Icons.trending_down,
+              size: 18,
+              color: AppColors.softText,
+            ),
+            const SizedBox(width: EntryFormLayout.gap),
+            Expanded(
+              child: Text(
+                _strings.afterSave(projected),
+                key: const Key('after-saving-preview'),
+                maxLines: 2,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: projected == null
+                      ? FontWeight.w600
+                      : FontWeight.w700,
+                  color: projected == null
+                      ? AppColors.softText
+                      : AppColors.headerGreen,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          key: const Key('save-entry-button'),
+          // Deliberately not disabled on an invalid form: the first press is
+          // what reveals every inline error at once.
+          onPressed: _saving ? null : _save,
+          style: FilledButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                EntryFormLayout.frameRadius,
+              ),
+            ),
+            minimumSize: const Size.fromHeight(
+              EntryFormLayout.fieldMinHeight,
+            ),
+            disabledBackgroundColor: AppColors.beige,
+            disabledForegroundColor: AppColors.softText,
+          ),
+          child: _saving
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: AppColors.softText,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        _strings.text(AppString.save),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    const Icon(Icons.save_outlined, size: 20),
+                    const SizedBox(width: EntryFormLayout.gap),
+                    Flexible(
+                      child: Text(
+                        _strings.text(AppString.saveEntry),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Small red note under its own field: the missing-category error and the
+  /// amount flag, aligned to the field above rather than to the page edge.
+  Widget _inlineError(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: EntryFormLayout.gap),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: Icon(Icons.edit, size: 18, color: AppColors.softText),
+          const Icon(
+            Icons.error_outline,
+            size: 16,
+            color: AppColors.expenseRed,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            // Same reason as the amount field: the caption is a separate Text,
-            // so the field itself carries the accessible name.
-            child: Semantics(
-              label: _strings.text(AppString.description),
-              child: TextFormField(
-                key: const Key('description-field'),
-                controller: _description,
-                focusNode: _descriptionFocus,
-                onChanged: (_) => setState(() {}),
-                maxLines: 2,
-                textCapitalization: TextCapitalization.sentences,
-                style: const TextStyle(fontSize: 15, color: AppColors.darkText),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  filled: false,
-                  contentPadding: EdgeInsets.zero,
-                  hintText: _strings.text(AppString.descriptionHint),
-                  hintStyle: const TextStyle(
-                    fontSize: 15,
-                    color: AppColors.navigationGrey,
-                  ),
-                  helperText: _strings.text(AppString.descriptionLimit),
-                  counterText: '${_description.text.characters.length} / 120',
-                  helperStyle: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.softText,
-                  ),
-                  errorMaxLines: 4,
-                  errorStyle: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.expenseRed,
-                  ),
-                ),
-                validator: (String? value) =>
-                    (value ?? '').characters.length > 120
-                    ? _strings.text(AppString.descriptionTooLong)
-                    : null,
-              ),
-            ),
-          ),
+          const SizedBox(width: 6),
+          Expanded(child: Text(message, style: EntryFormLayout.error)),
         ],
       ),
     );
   }
 
-  /// Small red note under a field, used for the future-date flag and the
-  /// missing-category error.
-  Widget _inlineWarning(String message) {
+  /// The softer, non-blocking note (a future date can still be saved).
+  Widget _inlineNote(String message) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: EntryFormLayout.gap),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Icon(Icons.info_outline, size: 16, color: AppColors.expenseRed),
+          const Icon(Icons.info_outline, size: 16, color: AppColors.orange),
           const SizedBox(width: 6),
-          Flexible(
+          Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: AppColors.expenseRed),
+              style: EntryFormLayout.helper.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.darkText,
+              ),
             ),
           ),
         ],
