@@ -126,10 +126,13 @@ void main() {
         scale: 2,
       );
       await _reveal(tester, find.text(strings.text(AppString.homeEmpty)));
-      expect(
-        find.byKey(const Key('home-empty-instruction')).hitTestable(),
-        findsOneWidget,
+      // At 200% the instruction can start below the headline's viewport;
+      // verify that it too is reachable by scrolling, not that both fit at once.
+      final Finder instruction = find.byKey(
+        const Key('home-empty-instruction'),
       );
+      await _reveal(tester, instruction);
+      expect(instruction.hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
