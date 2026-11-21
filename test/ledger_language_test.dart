@@ -135,7 +135,9 @@ void main() {
       expect(find.text('All'), findsNWidgets(2));
       expect(find.text('Food'), findsOneWidget); // canonical category chip
       expect(find.text('Grocery Shopping'), findsOneWidget);
-      expect(find.text('Bills · 19 Nov 2026, 10:20 AM'), findsOneWidget);
+      // A row card shows `category · time`; the date itself is the calendar
+      // tile on its left and the day heading above it, in the shared format.
+      expect(find.text('Bills · 10:20 AM'), findsOneWidget);
       expect(summaryText('₹5,000'), findsOneWidget);
       expect(summaryText('₹1,979'), findsOneWidget);
       // The opening balance is never on this screen, in either language.
@@ -172,10 +174,14 @@ void main() {
       expect(find.text('Lunch with Friends'), findsOneWidget);
       expect(find.text('Salary'), findsOneWidget);
       expect(find.text(bn.monthYear(DateTime(2026, 11))), findsOneWidget);
+      // The row's metadata is the category plus the shared helper's time
+      // tail; its date is the calendar tile beside it and the day heading
+      // above, both still printed in the shared format. Only the row's own
+      // repeat of the date is dropped, in both languages alike.
       expect(
         find.text(
           '${bn.text(AppString.bills)} · '
-          '${bn.dateTime(DateTime(2026, 11, 19, 10, 20))}',
+          '${bn.dateTime(DateTime(2026, 11, 19, 10, 20)).split(',').last.trim()}',
         ),
         findsOneWidget,
       );

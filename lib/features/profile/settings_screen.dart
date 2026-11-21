@@ -2,6 +2,7 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
@@ -20,10 +21,13 @@ List<BoxShadow> _cardShadow() => <BoxShadow>[
 /// succeeds, false on cancellation, or throw on failure. Update [SettingsScreen.language]
 /// from the caller after success; this screen does not write to storage.
 ///
-/// Layout: grouped preference cards (radius 20, 1 dp beige border, one soft
-/// shadow), each row led by the same 36 dp rounded-square icon container, then
-/// a title, a plain-language detail and wrapped value/status pills. Section
-/// titles carry a 4 dp green rule so the groups read at a glance.
+/// Layout: the account-family header shared with Profile - the compact green
+/// banner with the rounded bottom edge and the 3 dp golden rule from the
+/// Counter's reference treatment - then grouped preference cards (radius 20,
+/// 1 dp beige border, one soft shadow), each row led by the same 36 dp
+/// rounded-square icon container, then a title, a plain-language detail and
+/// wrapped value/status pills. Section titles carry a 4 dp green rule so the
+/// groups read at a glance.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -108,228 +112,359 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final strings = AppStrings(widget.language);
     final text = strings.text;
     final bool canChoose = widget.onLanguageChanged != null;
+    final String subtitle = widget.language == AppLanguage.bn
+        ? 'মুদ্রা, থিম ও ভাষা'
+        : 'Currency, theme & language';
     if (kIsWeb) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            text(AppString.appSettings),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: _Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const _IconBadge(
-                        icon: Icons.info_outline,
-                        size: 52,
-                        radius: 16,
-                        iconSize: 26,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        text(AppString.webSettings),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          height: 1.4,
-                          color: AppColors.softText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return Scaffold(
-      key: const Key('settings-screen'),
-      appBar: AppBar(
-        // One line with ellipsis: at 200% text scale a wrapping title would
-        // overflow the fixed AppBar height.
-        title: Text(
-          text(AppString.appSettings),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+        body: Column(
           children: <Widget>[
-            if (!canChoose) ...<Widget>[
-              _ReadOnlyNotice(strings),
-              const SizedBox(height: 24),
-            ],
-            _SectionTitle(text(AppString.preferences)),
-            const SizedBox(height: 10),
-            _SettingsCard(
-              children: <Widget>[
-                _SettingRow(
-                  key: const Key('settings-currency-row'),
-                  icon: Icons.currency_rupee,
-                  title: text(AppString.currency),
-                  detail: text(AppString.currencyDetail),
-                  value: text(AppString.currencyInr),
-                  status: text(AppString.fixed),
-                ),
-                const _CardDivider(),
-                _SettingRow(
-                  key: const Key('settings-theme-row'),
-                  icon: Icons.light_mode_outlined,
-                  title: text(AppString.theme),
-                  detail: text(AppString.themeDetail),
-                  value: text(AppString.light),
-                  status: text(AppString.fixed),
-                ),
-                const _CardDivider(),
-                _SettingRow(
-                  key: const Key('settings-language-row'),
-                  icon: Icons.translate_outlined,
-                  title: text(AppString.language),
-                  detail: text(
-                    canChoose
-                        ? AppString.languageDetail
-                        : AppString.languageUnavailable,
-                  ),
-                  value: widget.language.endonym,
-                  status: canChoose ? null : text(AppString.notAvailable),
-                ),
-                if (canChoose) ...<Widget>[
-                  const _CardDivider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        OutlinedButton.icon(
-                          key: const Key('settings-change-language'),
-                          onPressed: _busy
-                              ? null
-                              : () => _chooseLanguage(strings),
-                          icon: const Icon(Icons.translate_outlined, size: 18),
-                          label: Text(text(AppString.changeLanguage)),
-                        ),
-                        if (_busy || _failed)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Semantics(
-                              liveRegion: true,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: <Widget>[
-                                  Icon(
-                                    _busy ? Icons.sync : Icons.error_outline,
-                                    size: 16,
-                                    color: _busy
-                                        ? AppColors.primaryGreen
-                                        : AppColors.expenseRed,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      text(
-                                        _busy
-                                            ? AppString.languagePending
-                                            : AppString.languageFailed,
-                                      ),
-                                      style: const TextStyle(
-                                        fontSize: 12.5,
-                                        height: 1.35,
-                                        color: AppColors.darkText,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+            _AccountHeader(
+              key: const Key('settings-header'),
+              title: text(AppString.appSettings),
+              subtitle: subtitle,
+              icon: Icons.settings_outlined,
+              leading: const _HeaderBackButton(),
+            ),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: _Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(22),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const _IconBadge(
+                            icon: Icons.info_outline,
+                            size: 52,
+                            radius: 16,
+                            iconSize: 26,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            text(AppString.webSettings),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              height: 1.4,
+                              color: AppColors.softText,
                             ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-                const _CardDivider(),
-                _SettingRow(
-                  key: const Key('settings-backup-row'),
-                  icon: Icons.cloud_off_outlined,
-                  title: text(AppString.cloudBackup),
-                  detail: text(AppString.cloudDetail),
-                  value: text(AppString.off),
-                  status: text(AppString.notAvailable),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(text(AppString.storage)),
-            const SizedBox(height: 10),
-            _SettingsCard(
-              children: <Widget>[
-                _SettingRow(
-                  key: const Key('settings-storage-row'),
-                  icon: Icons.smartphone_outlined,
-                  title: text(AppString.storageTitle),
-                  detail: text(AppString.storageDetail),
-                  value: text(AppString.thisDevice),
-                  status: text(AppString.localOnly),
-                ),
-                const _CardDivider(),
-                _SettingRow(
-                  icon: Icons.wifi_off_outlined,
-                  title: text(AppString.internetRequired),
-                  detail: text(AppString.internetDetail),
-                  value: text(AppString.no),
-                  status: text(AppString.offlineFirst),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _SettingsCard(
-              children: <Widget>[
-                _SettingRow(
-                  key: const Key('settings-offline-backup-row'),
-                  icon: Icons.save_alt,
-                  title: text(AppString.offlineBackupRestore),
-                  detail: text(AppString.androidBackupDetail),
-                  value: text(AppString.androidBackup),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.outline),
-                ),
-                child: Text(
-                  strings.buildLabel('1.0.0', 1),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.softText,
                   ),
                 ),
               ),
             ),
           ],
         ),
+      );
+    }
+    return Scaffold(
+      key: const Key('settings-screen'),
+      body: Column(
+        children: <Widget>[
+          _AccountHeader(
+            key: const Key('settings-header'),
+            title: text(AppString.appSettings),
+            subtitle: subtitle,
+            icon: Icons.settings_outlined,
+            leading: const _HeaderBackButton(),
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+                children: <Widget>[
+                  if (!canChoose) ...<Widget>[
+                    _ReadOnlyNotice(strings),
+                    const SizedBox(height: 24),
+                  ],
+                  _SectionTitle(text(AppString.preferences)),
+                  const SizedBox(height: 10),
+                  _SettingsCard(
+                    children: <Widget>[
+                      _SettingRow(
+                        key: const Key('settings-currency-row'),
+                        icon: Icons.currency_rupee,
+                        title: text(AppString.currency),
+                        detail: text(AppString.currencyDetail),
+                        value: text(AppString.currencyInr),
+                        status: text(AppString.fixed),
+                      ),
+                      const _CardDivider(),
+                      _SettingRow(
+                        key: const Key('settings-theme-row'),
+                        icon: Icons.light_mode_outlined,
+                        title: text(AppString.theme),
+                        detail: text(AppString.themeDetail),
+                        value: text(AppString.light),
+                        status: text(AppString.fixed),
+                      ),
+                      const _CardDivider(),
+                      _SettingRow(
+                        key: const Key('settings-language-row'),
+                        icon: Icons.translate_outlined,
+                        title: text(AppString.language),
+                        detail: text(
+                          canChoose
+                              ? AppString.languageDetail
+                              : AppString.languageUnavailable,
+                        ),
+                        value: widget.language.endonym,
+                        status: canChoose ? null : text(AppString.notAvailable),
+                      ),
+                      if (canChoose) ...<Widget>[
+                        const _CardDivider(),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              OutlinedButton.icon(
+                                key: const Key('settings-change-language'),
+                                onPressed: _busy
+                                    ? null
+                                    : () => _chooseLanguage(strings),
+                                icon: const Icon(
+                                  Icons.translate_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(text(AppString.changeLanguage)),
+                              ),
+                              if (_busy || _failed)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Icon(
+                                          _busy
+                                              ? Icons.sync
+                                              : Icons.error_outline,
+                                          size: 16,
+                                          color: _busy
+                                              ? AppColors.primaryGreen
+                                              : AppColors.expenseRed,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            text(
+                                              _busy
+                                                  ? AppString.languagePending
+                                                  : AppString.languageFailed,
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              height: 1.35,
+                                              color: AppColors.darkText,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const _CardDivider(),
+                      _SettingRow(
+                        key: const Key('settings-backup-row'),
+                        icon: Icons.cloud_off_outlined,
+                        title: text(AppString.cloudBackup),
+                        detail: text(AppString.cloudDetail),
+                        value: text(AppString.off),
+                        status: text(AppString.notAvailable),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(text(AppString.storage)),
+                  const SizedBox(height: 10),
+                  _SettingsCard(
+                    children: <Widget>[
+                      _SettingRow(
+                        key: const Key('settings-storage-row'),
+                        icon: Icons.smartphone_outlined,
+                        title: text(AppString.storageTitle),
+                        detail: text(AppString.storageDetail),
+                        value: text(AppString.thisDevice),
+                        status: text(AppString.localOnly),
+                      ),
+                      const _CardDivider(),
+                      _SettingRow(
+                        icon: Icons.wifi_off_outlined,
+                        title: text(AppString.internetRequired),
+                        detail: text(AppString.internetDetail),
+                        value: text(AppString.no),
+                        status: text(AppString.offlineFirst),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _SettingsCard(
+                    children: <Widget>[
+                      _SettingRow(
+                        key: const Key('settings-offline-backup-row'),
+                        icon: Icons.save_alt,
+                        title: text(AppString.offlineBackupRestore),
+                        detail: text(AppString.androidBackupDetail),
+                        value: text(AppString.androidBackup),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppColors.outline),
+                      ),
+                      child: Text(
+                        strings.buildLabel('1.0.0', 1),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.softText,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The account-family header shared with Profile: the compact green banner
+/// with the rounded bottom edge and the 3 dp golden rule from the Counter's
+/// reference treatment, plus a circular golden icon badge, the screen title,
+/// a restrained contextual subtitle and a 48 dp back target.
+class _AccountHeader extends StatelessWidget {
+  const _AccountHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.leading,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget? leading;
+
+  @override
+  Widget build(BuildContext context) {
+    final double topInset = MediaQuery.viewPaddingOf(context).top;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: AppColors.headerGreen,
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+          ),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+          border: Border(bottom: BorderSide(color: AppColors.golden, width: 3)),
+        ),
+        padding: EdgeInsets.only(
+          top: topInset + 10,
+          left: 12,
+          right: 12,
+          bottom: 12,
+        ),
+        child: Row(
+          children: <Widget>[
+            if (leading != null) ...<Widget>[
+              SizedBox(width: 48, height: 48, child: leading!),
+              const SizedBox(width: 2),
+            ],
+            Container(
+              width: 46,
+              height: 46,
+              decoration: const BoxDecoration(
+                color: AppColors.golden,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 24, color: AppColors.headerGreen),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FittedBox(
+                alignment: Alignment.centerLeft,
+                fit: BoxFit.scaleDown,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.onPrimary,
+                        height: 1.15,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.onPrimary.withValues(alpha: 0.85),
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A real [BackButton] in a 48 dp box: unchanged runtime type and semantics
+/// for the existing navigation test, larger than the default target.
+class _HeaderBackButton extends StatelessWidget {
+  const _HeaderBackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    // Like an AppBar, the control only exists when there is something to pop,
+    // so a standalone Settings route offers no dead tap.
+    if (!Navigator.of(context).canPop()) return const SizedBox.shrink();
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: BackButton(
+        color: AppColors.onPrimary,
+        onPressed: () => Navigator.maybePop(context),
       ),
     );
   }

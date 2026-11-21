@@ -1,21 +1,22 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
 import '../entry/add_entry_screen.dart';
-import '../entry/category_artwork.dart';
 import '../entry/category_picker.dart';
 import '../entry/category_store.dart';
 import '../entry/transaction_editor_screen.dart';
 import 'data/local_ledger.dart';
 
-/// Geometry shared by this screen, mirroring Home so the two ledger surfaces
-/// are the same system: one card radius, one 1 px rule between rows, one
-/// border tone for a card that carries data and a softer one for a placeholder
-/// that has nothing in it.
+/// Geometry shared by this screen: one card radius, one 1 px rule between the
+/// rows of a day, one border tone for a card that carries data and a softer one
+/// for a placeholder that has nothing in it. Sizes the reference calls for - a
+/// rounded calendar tile, a circular type badge, a capsule ribbon on the totals
+/// card - are named here too, so the screen is one set of numbers.
 const double _cardRadius = 20;
 const double _cardGap = 12;
 const double _groupGap = 16;
@@ -24,26 +25,22 @@ const double _separator = 1;
 const double _edge = 0.85;
 const double _softEdge = 0.6;
 
-/// Row geometry: the rule between rows starts where their text starts, so it
-/// never cuts under the avatars.
+/// Row geometry: one calendar tile, one gap, then the text column.
 const double _rowPadding = 12;
 const double _avatarSize = 40;
 const double _rowGap = 12;
-const double _rowTextInset = _rowPadding + _avatarSize + _rowGap;
 
-/// The one type scale for this screen, matching Home's: a caption, a row
-/// title, a card title, a figure inside a card and a row amount. Only the text
-/// a user types into the search box sits outside it, and it keeps the size the
-/// Add Entry screen uses for the same kind of box.
+/// The one type scale for this screen. Only the text a user types into the
+/// search box sits outside it.
 const double _labelSize = 12;
 const double _rowTitleSize = 15;
 const double _cardTitleSize = 16;
 const double _valueSize = 20;
 const double _rowAmountSize = 18;
+const double _headerTitleSize = 23;
 
-/// A caption above a figure (the totals tiles), quiet but deliberate: the
-/// same 12 sp / w800 / 0.4 the entry screens' caption uses, so one scale
-/// covers both the form and the list.
+/// A caption above a figure (the totals tiles), quiet but deliberate: the same
+/// 12 sp / w800 / 0.4 the entry screens' caption uses.
 const TextStyle _cardLabel = TextStyle(
   fontSize: _labelSize,
   height: 1.25,
@@ -66,9 +63,25 @@ const TextStyle _metaBlock = TextStyle(
   color: AppColors.softText,
 );
 
+/// The 1 dp beige edge a placeholder uses: softer than a card that carries
+/// data, because there is nothing in it to frame.
+BorderSide get _softCardBorder =>
+    BorderSide(color: AppColors.outline.withValues(alpha: _softEdge));
+
+/// The single soft shadow from `theme.md` (blur 14, offset 0/4), kept for the
+/// two cards that are the point of the screen: the design asks for depth on the
+/// totals card and on the rows, and for nothing else.
+List<BoxShadow> _cardShadow({double alpha = 0.05}) => <BoxShadow>[
+  BoxShadow(
+    color: AppColors.darkText.withValues(alpha: alpha),
+    blurRadius: 14,
+    offset: const Offset(0, 4),
+  ),
+];
+
 /// Money text, right-aligned where it is scanned in a column. Tabular figures
-/// give every digit the same width, so amounts line up at the decimal place
-/// down the list instead of stepping with each glyph's natural advance.
+/// give every digit the same width, so amounts line up down the list instead of
+/// stepping with each glyph's natural advance.
 TextStyle _money({
   required double size,
   required Color color,
@@ -85,11 +98,6 @@ TextStyle _money({
     fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
   );
 }
-
-/// The input frame the Add Entry screen uses, expressed as decoration so this
-/// screen's search box and the entry form read as one control: warm ivory
-/// fill, 1 dp beige edge, 1.5 dp green edge while focused.
-const double _inputRadius = 16;
 
 /// The device-local calendar day of [instant].
 ///
@@ -138,37 +146,45 @@ bool matchesSearchQuery(LedgerEntry entry, String rawQuery) {
     return true;
   }
   final String? description = entry.description;
-  return description != null && description.toLowerCase().contains(query);
+  if (description != null && description.toLowerCase().contains(query)) {
+    return true;
+  }
+  return false;
 }
 
-/// S7 - All Transactions, docs/spec/screens.md (secondary screen S7).
+/// The screen's own copy: the decorative subtitle and footer the shared
+/// dictionary does not carry, in both languages. Everything a user acts on is
+/// still an [AppString], so stored values stay canonical.
+class _ScreenCopy {
+  const _ScreenCopy(this.bn);
+
+  final bool bn;
+
+  String get subtitle =>
+      bn ? 'আয় ও ব্যয়ের হিসাব রাখুন' : 'Track Your Income & Expenses';
+  String get footer => bn
+      ? 'স্মার্ট হিসাব… সুন্দর পরিকল্পনা…'
+      : 'Smart Tracking… Better Planning…';
+  String get calendarTooltip => bn ? 'তারিখ বেছে নিন' : 'Pick a date';
+  String get filters => bn ? 'ফিল্টার ও অনুসন্ধান' : 'Filters & search';
+  String get closeFilters => bn ? 'ফিল্টার গোপন করুন' : 'Hide filters';
+  String get showFilters => bn ? 'ফিল্টার দেখান' : 'Show filters';
+  String get live => bn ? 'সরাসরি' : 'LIVE';
+  String get backTooltip => bn ? 'পেছনে' : 'Back';
+}
+
+/// S2 — All Transactions. See docs/spec/screens.md#s2--all-transactions.
 ///
-/// A view of the khata it is given: every entry, newest first,
-/// grouped by local calendar day inside its calendar month. Each month heading
-/// carries that month's income and expense totals, and the card at the top
-/// carries the same two totals for exactly the rows currently shown.
+/// Reads nothing: the parent supplies an immutable [summary] and this screen
+/// filters, groups and totals it for display only. Editing goes back through the
+/// parent's [ledger] + [khataId] pair, and every change is re-read from storage,
+/// never patched locally.
 ///
-/// Four filters narrow that list and always compose: a search query over the
-/// description/title and the category, a "from"/"to" pair of local calendar
-/// days (both inclusive), and the type and category chips. One filtered list
-/// feeds the rows, the counts, the summary card and the month headings, so no
-/// figure on the screen can describe a row the user cannot see. An empty
-/// result is reported as "no matches", which is deliberately a different
-/// message from an empty khata.
-///
-/// Money stays integer paise end to end ([AppStrings.money] wraps the shared
-/// `formatPaise`) and dates come from [AppStrings], so nothing here can
-/// disagree with Home. The opening balance is deliberately **not** part of any
-/// figure on this screen - every total counts transactions only - and the card
-/// says so in words, so no number can be mistaken for the remaining balance.
-///
-/// With a ledger and khata ID it supports editing and reversible deletion;
-/// without them it remains a read-only view.
-///
-/// [language] localizes the copy only. Stored values - entry titles,
-/// descriptions, categories and transaction ids - stay canonical, so a filter,
-/// a search or an edit always acts on the data rather than on its label.
-/// English remains the default, so an unwired call site reads exactly as before.
+/// Presentation follows the illustrated reference: a branded green header with a
+/// wavy golden lower edge, one ivory totals card carrying a live count ribbon,
+/// a search pill, three filter panels and one ivory card per transaction, each
+/// with a local-calendar tile on the left. No figure is invented: totals come
+/// from the rows currently shown, and the note under them says so.
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({
     super.key,
@@ -202,9 +218,25 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   /// never routed through it.
   AppStrings get _strings => AppStrings(widget.language);
 
+  /// The screen's own decorative copy (subtitle, footer, tooltips).
+  _ScreenCopy get _copy => _ScreenCopy(widget.language == AppLanguage.bn);
+
   /// The search box's text. Owned by the screen so the query survives a
   /// rebuild after an edit and the controller is released with the screen.
   final TextEditingController _searchController = TextEditingController();
+
+  /// The search box's focus node, so the header's tune control can put the
+  /// cursor in it instead of being decoration.
+  final FocusNode _searchFocus = FocusNode();
+
+  /// The key of the search field, so the tune control can scroll it into view
+  /// before focusing it on a short screen.
+  final GlobalKey _searchKey = GlobalKey();
+
+  /// Whether the filter panels are open. They are open by default - the
+  /// reference shows them, and a filter nobody can find is not a filter - and
+  /// the tune control collapses them to give the rows the whole screen.
+  bool _filtersOpen = true;
 
   /// The live query the rows are filtered by, updated on every keystroke so
   /// the list and the totals change together.
@@ -225,6 +257,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -237,10 +270,39 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     setState(() => _query = '');
   }
 
+  /// The header's tune control: open the panels if they are closed, put the
+  /// cursor in the search box, and scroll it into view. It never toggles the
+  /// panels shut under the user's finger - closing them is the panel button's
+  /// own job - so one press always does something visible.
+  Future<void> _focusFilters() async {
+    if (!_filtersOpen) {
+      setState(() => _filtersOpen = true);
+    }
+    final BuildContext? field = _searchKey.currentContext;
+    if (field != null) {
+      await Scrollable.ensureVisible(
+        field,
+        duration: const Duration(milliseconds: 220),
+        alignment: 0.1,
+      );
+    }
+    if (mounted) {
+      _searchFocus.requestFocus();
+    }
+  }
+
+  void _toggleFilters() {
+    setState(() => _filtersOpen = !_filtersOpen);
+    if (!_filtersOpen) {
+      _searchFocus.unfocus();
+    }
+  }
+
   Future<void> _refresh() async {
-    final ledger = widget.ledger!;
-    final khataId = widget.khataId!;
+    final ledger = widget.ledger;
+    final khataId = widget.khataId;
     final onSummaryChanged = widget.onSummaryChanged;
+    if (ledger == null || khataId == null) return;
     try {
       final updated = await ledger.readSummary(khataId: khataId);
       if (mounted) {
@@ -263,6 +325,8 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     final AppStrings strings = _strings;
     final messenger = ScaffoldMessenger.of(context);
     final onSummaryChanged = widget.onSummaryChanged;
+    // A tap is only an edit when the row carries a persisted id; a preview row
+    // (id == null) has nothing to update, so it must never look tappable.
     final result = await Navigator.of(context).push<TransactionEditResult>(
       MaterialPageRoute<TransactionEditResult>(
         builder: (_) => TransactionEditorScreen(
@@ -400,20 +464,43 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     return newest;
   }
 
-  Future<void> _pickFromDay() async {
+  /// [intl] copy for the two date pickers. Bengali gets Bengali labels; the
+  /// picker's own strings are only overridden where the app has a translation.
+  Future<DateTime?> _showDayPicker({
+    required DateTime initial,
+    required AppString help,
+  }) {
+    final bool bengali = widget.language == AppLanguage.bn;
+    final AppStrings strings = _strings;
+    final DateTime first = DateTime(1900);
+    final DateTime last = DateTime(DateTime.now().year + 100, 12, 31);
+    final DateTime clamped = initial.isBefore(first)
+        ? first
+        : (initial.isAfter(last) ? last : initial);
+    return showDatePicker(
+      context: context,
+      helpText: strings.text(help),
+      cancelText: bengali ? strings.text(AppString.cancel) : null,
+      confirmText: bengali ? 'ঠিক আছে' : null,
+      fieldLabelText: bengali ? strings.text(AppString.date) : null,
+      initialDate: clamped,
+      firstDate: first,
+      lastDate: last,
+    );
+  }
+
+  DateTime get _clampedInitial {
     final DateTime now = DateTime.now();
     final DateTime first = DateTime(1900);
     final DateTime last = DateTime(now.year + 100, 12, 31);
-    final DateTime proposed = _fromDay ?? _newestEntryDay ?? now;
-    final DateTime initial = proposed.isBefore(first)
-        ? first
-        : (proposed.isAfter(last) ? last : proposed);
-    final DateTime? chosen = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: last,
-      helpText: _strings.text(AppString.pickFromDay),
+    return now.isBefore(first) ? first : (now.isAfter(last) ? last : now);
+  }
+
+  Future<void> _pickFromDay() async {
+    final DateTime proposed = _fromDay ?? _newestEntryDay ?? _clampedInitial;
+    final DateTime? chosen = await _showDayPicker(
+      initial: proposed,
+      help: AppString.pickFromDay,
     );
     if (chosen == null || !mounted) {
       return;
@@ -433,19 +520,11 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   Future<void> _pickToDay() async {
-    final DateTime now = DateTime.now();
-    final DateTime first = DateTime(1900);
-    final DateTime last = DateTime(now.year + 100, 12, 31);
-    final DateTime proposed = _toDay ?? _fromDay ?? _newestEntryDay ?? now;
-    final DateTime initial = proposed.isBefore(first)
-        ? first
-        : (proposed.isAfter(last) ? last : proposed);
-    final DateTime? chosen = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: last,
-      helpText: _strings.text(AppString.pickToDay),
+    final DateTime proposed =
+        _toDay ?? _fromDay ?? _newestEntryDay ?? _clampedInitial;
+    final DateTime? chosen = await _showDayPicker(
+      initial: proposed,
+      help: AppString.pickToDay,
     );
     if (chosen == null || !mounted) {
       return;
@@ -570,51 +649,97 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
+  /// The branded header every state of this screen shares: the same green
+  /// gradient and wavy golden edge as the Counter banner and the Add Entry
+  /// header, a circular back action, the title and its subtitle, and the
+  /// calendar action that opens the real date picker.
+  Widget _header({bool calendarEnabled = true}) {
+    final AppStrings strings = _strings;
+    final _ScreenCopy copy = _copy;
+    final bool canPop = Navigator.of(context).canPop();
+    return _LedgerHeader(
+      title: strings.text(AppString.allTransactions),
+      subtitle: copy.subtitle,
+      titleKey: const Key('all-transactions-title'),
+      onBack: canPop ? () => Navigator.of(context).maybePop() : null,
+      backTooltip: copy.backTooltip,
+      trailing: _RoundHeaderAction(
+        key: const Key('all-transactions-calendar'),
+        icon: Icons.calendar_month_outlined,
+        tooltip: copy.calendarTooltip,
+        onPressed: calendarEnabled ? _pickFromDay : null,
+      ),
+    );
+  }
+
+  /// The failure state keeps the header and the back action, so a failed
+  /// refresh is still a page you can leave.
+  Widget _buildRefreshFailure(AppStrings strings) {
+    return Scaffold(
+      key: const Key('all-transactions-screen'),
+      backgroundColor: AppColors.creamBackground,
+      body: Column(
+        children: <Widget>[
+          _header(),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(
+                        Icons.error_outline,
+                        color: AppColors.expenseRed,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        strings.text(AppString.refreshTransactionsFailed),
+                        key: const Key('transactions-refresh-failed'),
+                        textAlign: TextAlign.center,
+                        style: _metaBlock,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        key: const Key('transactions-refresh-retry'),
+                        onPressed: widget.ledger == null ? null : _refresh,
+                        child: Text(strings.text(AppString.retry)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContent(BuildContext context, List<CustomCategory>? categories) {
     final AppStrings strings = _strings;
     if (_refreshError) {
-      return Scaffold(
-        appBar: AppBar(title: Text(strings.text(AppString.allTransactions))),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.expenseRed,
-                  size: 28,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  strings.text(AppString.refreshTransactionsFailed),
-                  textAlign: TextAlign.center,
-                  style: _metaBlock,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _refresh,
-                  child: Text(strings.text(AppString.retry)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildRefreshFailure(strings);
     }
     final List<LedgerEntry> allEntries = _summary.entries;
     if (allEntries.isEmpty) {
       return Scaffold(
         key: const Key('all-transactions-screen'),
-        appBar: AppBar(
-          title: Text(
-            strings.text(AppString.allTransactions),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+        backgroundColor: AppColors.creamBackground,
+        body: Column(
+          children: <Widget>[
+            _header(),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: _EmptyLedger(strings: strings, copy: _copy),
+              ),
+            ),
+          ],
         ),
-        body: SafeArea(top: false, child: _EmptyLedger(strings: strings)),
       );
     }
 
@@ -641,212 +766,326 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
     return Scaffold(
       key: const Key('all-transactions-screen'),
-      appBar: AppBar(
-        title: Text(
-          strings.text(AppString.allTransactions),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: <Widget>[
-            _SummaryCard(
-              totalCount: allEntries.length,
-              entries: visible,
-              strings: strings,
-            ),
-            const SizedBox(height: _cardGap),
-            TextField(
-              key: const Key('search-field'),
-              controller: _searchController,
-              onChanged: _onQueryChanged,
-              textInputAction: TextInputAction.search,
-              // The entry screen's value type, so text typed here and text
-              // typed in the form read the same.
-              style: const TextStyle(
-                fontSize: _rowTitleSize,
-                fontWeight: FontWeight.w600,
-                color: AppColors.darkText,
-              ),
-              decoration: InputDecoration(
-                labelText: strings.text(AppString.searchTransactions),
-                hintText: strings.text(AppString.searchHint),
-                // The floated label is the shared caption; the hint mirrors the
-                // type being typed, exactly as the amount field's hint mirrors
-                // the amount. The frame repeats what AppTheme's
-                // inputDecorationTheme defines - 16 dp corners, ivory fill, a
-                // 1 dp beige edge that turns 1.5 dp green under focus - so this
-                // box and every other real input in the app are one control.
-                floatingLabelStyle: _cardLabel.copyWith(
-                  color: AppColors.softText,
-                ),
-                prefixIcon: const Icon(Icons.search, color: AppColors.softText),
-                suffixIcon: _query.isEmpty ? null : _clearSearchButton(),
-                filled: true,
-                fillColor: AppColors.surface,
-                hintStyle: const TextStyle(
-                  fontSize: _rowTitleSize,
-                  height: 1.2,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.softText,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_inputRadius),
-                  borderSide: BorderSide(
-                    color: AppColors.beige.withValues(alpha: 0.9),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_inputRadius),
-                  borderSide: BorderSide(
-                    color: AppColors.beige.withValues(alpha: 0.9),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(_inputRadius),
-                  borderSide: const BorderSide(
-                    color: AppColors.primaryGreen,
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: _groupGap),
-            _SectionTitle(strings.text(AppString.date)),
-            const SizedBox(height: _labelGap),
-            Wrap(
-              spacing: _cardGap,
-              runSpacing: _cardGap,
-              children: <Widget>[
-                _FilterChip(
-                  key: const Key('date-filter-from'),
-                  label: fromLabel,
-                  semanticLabel: fromSemantics,
-                  selected: fromDay != null,
-                  onTap: _pickFromDay,
-                ),
-                _FilterChip(
-                  key: const Key('date-filter-to'),
-                  label: toLabel,
-                  semanticLabel: toSemantics,
-                  selected: toDay != null,
-                  onTap: _pickToDay,
-                ),
-                if (hasDates)
-                  _FilterChip(
-                    key: const Key('date-filter-clear'),
-                    label: strings.text(AppString.clearDates),
-                    semanticLabel: strings.text(AppString.clearDatesFilter),
-                    selected: false,
-                    onTap: _clearDates,
-                  ),
-              ],
-            ),
-            const SizedBox(height: _groupGap),
-            _SectionTitle(strings.text(AppString.type)),
-            const SizedBox(height: _labelGap),
-            Wrap(
-              spacing: _cardGap,
-              runSpacing: _cardGap,
-              children: <Widget>[
-                _FilterChip(
-                  key: const Key('type-filter-all'),
-                  label: strings.text(AppString.all),
-                  semanticLabel: strings.text(AppString.allTypesFilter),
-                  selected: _typeFilter == null,
-                  onTap: () => _selectType(null),
-                ),
-                _FilterChip(
-                  key: const Key('type-filter-income'),
-                  label: strings.text(AppString.income),
-                  semanticLabel: strings.text(AppString.incomeFilter),
-                  selected: _typeFilter == EntryType.income,
-                  onTap: () => _selectType(EntryType.income),
-                ),
-                _FilterChip(
-                  key: const Key('type-filter-expense'),
-                  label: strings.text(AppString.expense),
-                  semanticLabel: strings.text(AppString.expenseFilter),
-                  selected: _typeFilter == EntryType.expense,
-                  onTap: () => _selectType(EntryType.expense),
-                ),
-              ],
-            ),
-            const SizedBox(height: _groupGap),
-            _SectionTitle(strings.text(AppString.category)),
-            const SizedBox(height: _labelGap),
-            Wrap(
-              spacing: _cardGap,
-              runSpacing: _cardGap,
-              children: <Widget>[
-                _FilterChip(
-                  key: const Key('category-filter-all'),
-                  label: strings.text(AppString.all),
-                  semanticLabel: strings.text(AppString.allCategoriesFilter),
-                  selected: _categoryFilter == null,
-                  onTap: () => _selectCategory(null),
-                ),
-                // The key and the filter value stay the canonical stored
-                // category; only the visible label is translated, so a tapped
-                // chip still matches the same rows in either language.
-                for (final String category in _categoryOptions)
-                  _FilterChip(
-                    key: Key('category-filter-$category'),
-                    label: categories == null
-                        ? _categoryLabel(strings, category)
-                        : categoryDisplayName(
-                            widget.language,
-                            category,
-                            categories,
-                          ),
-                    customCategory: categories == null
-                        ? null
-                        : findCustomCategory(category, categories),
-                    semanticLabel: strings.categoryLabel(
-                      categories == null
-                          ? _categoryLabel(strings, category)
-                          : categoryDisplayName(
-                              widget.language,
-                              category,
-                              categories,
-                            ),
-                      filter: true,
-                    ),
-                    selected: _categoryFilter == category,
-                    onTap: () => _selectCategory(category),
-                  ),
-              ],
-            ),
-            const SizedBox(height: _groupGap),
-            if (groups.isEmpty)
-              _NoMatches(strings: strings, onClear: _clearFilters)
-            else ...<Widget>[
-              for (final _MonthGroup group in groups) ...<Widget>[
-                _MonthHeader(group: group, strings: strings),
-                for (final _DayGroup day in group.days) ...<Widget>[
-                  _DayHeader(day: day.day, strings: strings),
-                  // One sheet per day, rules between the rows: the day's
-                  // heading and its rows form a single object to scan down.
-                  _DaySheet(
-                    day: day.day,
-                    entries: day.entries,
+      backgroundColor: AppColors.creamBackground,
+      body: Column(
+        children: <Widget>[
+          _header(),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: <Widget>[
+                  _SummaryCard(
+                    totalCount: allEntries.length,
+                    entries: visible,
                     strings: strings,
-                    categories: categories,
-                    onEdit: widget.ledger == null ? null : _edit,
+                    copy: _copy,
                   ),
+                  const SizedBox(height: _cardGap + 2),
+                  _SearchPill(
+                    fieldKey: _searchKey,
+                    controller: _searchController,
+                    focusNode: _searchFocus,
+                    onChanged: _onQueryChanged,
+                    clearButton: _query.isEmpty ? null : _clearSearchButton(),
+                    hint: strings.text(AppString.searchHint),
+                    label: strings.text(AppString.searchTransactions),
+                    tuneTooltip: _filtersOpen
+                        ? _copy.closeFilters
+                        : _copy.showFilters,
+                    filtersOpen: _filtersOpen,
+                    onTune: _filtersOpen ? _toggleFilters : _focusFilters,
+                    onTuneLongPress: _toggleFilters,
+                  ),
+                  if (_filtersOpen) ...<Widget>[
+                    const SizedBox(height: _cardGap),
+                    _FilterPanel(
+                      title: strings.text(AppString.date),
+                      icon: Icons.event_outlined,
+                      action: hasDates
+                          ? _FilterClearAction(
+                              key: const Key('date-filter-clear'),
+                              label: strings.text(AppString.clearDates),
+                              semanticsLabel: strings.text(
+                                AppString.clearDatesFilter,
+                              ),
+                              onTap: _clearDates,
+                            )
+                          : null,
+                      children: <Widget>[
+                        _FilterChip(
+                          key: const Key('date-filter-from'),
+                          label: fromLabel,
+                          semanticLabel: fromSemantics,
+                          icon: Icons.calendar_today_outlined,
+                          selected: fromDay != null,
+                          onTap: _pickFromDay,
+                        ),
+                        _FilterChip(
+                          key: const Key('date-filter-to'),
+                          label: toLabel,
+                          semanticLabel: toSemantics,
+                          icon: Icons.calendar_month_outlined,
+                          selected: toDay != null,
+                          onTap: _pickToDay,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: _cardGap),
+                    _FilterPanel(
+                      title: strings.text(AppString.type),
+                      icon: Icons.swap_vert,
+                      children: <Widget>[
+                        _FilterChip(
+                          key: const Key('type-filter-all'),
+                          label: strings.text(AppString.all),
+                          semanticLabel: strings.text(AppString.allTypesFilter),
+                          selected: _typeFilter == null,
+                          onTap: () => _selectType(null),
+                        ),
+                        _FilterChip(
+                          key: const Key('type-filter-income'),
+                          label: strings.text(AppString.income),
+                          semanticLabel: strings.text(AppString.incomeFilter),
+                          icon: Icons.trending_up_rounded,
+                          iconColor: AppColors.incomeGreen,
+                          selected: _typeFilter == EntryType.income,
+                          onTap: () => _selectType(EntryType.income),
+                        ),
+                        _FilterChip(
+                          key: const Key('type-filter-expense'),
+                          label: strings.text(AppString.expense),
+                          semanticLabel: strings.text(AppString.expenseFilter),
+                          icon: Icons.trending_down_rounded,
+                          iconColor: AppColors.expenseRed,
+                          selected: _typeFilter == EntryType.expense,
+                          onTap: () => _selectType(EntryType.expense),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: _cardGap),
+                    _FilterPanel(
+                      title: strings.text(AppString.category),
+                      icon: Icons.sell_outlined,
+                      children: <Widget>[
+                        _FilterChip(
+                          key: const Key('category-filter-all'),
+                          label: strings.text(AppString.all),
+                          semanticLabel: strings.text(
+                            AppString.allCategoriesFilter,
+                          ),
+                          selected: _categoryFilter == null,
+                          onTap: () => _selectCategory(null),
+                        ),
+                        // The key and the filter value stay the canonical
+                        // stored category; only the visible label is
+                        // translated, so a tapped chip still matches the same
+                        // rows in either language.
+                        for (final String category in _categoryOptions)
+                          _FilterChip(
+                            key: Key('category-filter-$category'),
+                            label: categories == null
+                                ? _categoryLabel(strings, category)
+                                : categoryDisplayName(
+                                    widget.language,
+                                    category,
+                                    categories,
+                                  ),
+                            customCategory: categories == null
+                                ? null
+                                : findCustomCategory(category, categories),
+                            semanticLabel: strings.categoryLabel(
+                              categories == null
+                                  ? _categoryLabel(strings, category)
+                                  : categoryDisplayName(
+                                      widget.language,
+                                      category,
+                                      categories,
+                                    ),
+                              filter: true,
+                            ),
+                            selected: _categoryFilter == category,
+                            onTap: () => _selectCategory(category),
+                          ),
+                      ],
+                    ),
+                  ] else ...<Widget>[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: _FilterClearAction(
+                        key: const Key('filters-show'),
+                        label: _copy.showFilters,
+                        semanticsLabel: _copy.showFilters,
+                        onTap: _toggleFilters,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: _groupGap),
+                  if (groups.isEmpty)
+                    _NoMatches(strings: strings, onClear: _clearFilters)
+                  else ...<Widget>[
+                    for (final _MonthGroup group in groups) ...<Widget>[
+                      _MonthHeader(group: group, strings: strings),
+                      for (final _DayGroup day in group.days) ...<Widget>[
+                        _DayHeader(day: day.day, strings: strings),
+                        // One card per row: a transaction is the object being
+                        // scanned here, so it is the object that is framed.
+                        for (final LedgerEntry entry
+                            in day.entries) ...<Widget>[
+                          _EntryCard(
+                            entry: entry,
+                            strings: strings,
+                            categories: categories,
+                            onTap: widget.ledger == null || entry.id == null
+                                ? null
+                                : _edit,
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                      ],
+                    ],
+                    // The end of the list says so quietly, so "there is
+                    // nothing below" is never mistaken for "the list is still
+                    // there".
+                    _EndOfList(strings: strings, hasFilters: _hasFilters),
+                  ],
+                  _FooterArtwork(copy: _copy),
                 ],
-              ],
-              // The end of the list says so quietly, so "there is nothing
-              // below" is never mistaken for "the list is still there".
-              _EndOfList(strings: strings, hasFilters: _hasFilters),
-            ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The branded header: green gradient, wavy golden lower edge, optional leaf
+/// artwork on the right, a circular back action, the page title and its
+/// subtitle, and one trailing round action.
+///
+/// It paints under the status bar itself, so the green reaches the top edge
+/// while every control keeps a 48 dp hit area inside the safe area.
+class _LedgerHeader extends StatelessWidget {
+  const _LedgerHeader({
+    required this.title,
+    required this.subtitle,
+    required this.titleKey,
+    required this.trailing,
+    this.onBack,
+    this.backTooltip,
+  });
+
+  final String title;
+  final String subtitle;
+  final Key titleKey;
+  final Widget trailing;
+  final VoidCallback? onBack;
+  final String? backTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final MediaQueryData media = MediaQuery.of(context);
+    final double topInset = media.padding.top;
+    // The subtitle is the first thing a large text scale crowds out; the title
+    // alone carries the header above 145 %.
+    final double scale = media.textScaler.scale(14) / 14;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: AppColors.headerGreen,
+      ),
+      child: ClipRect(
+        key: const Key('all-transactions-header'),
+        child: Stack(
+          children: <Widget>[
+            // The wave and its golden edge, drawn rather than shipped as an
+            // image, so it scales with the header at any text size.
+            Positioned.fill(
+              child: CustomPaint(painter: const _HeaderWavePainter()),
+            ),
+            // The bundled leaf artwork, tucked into the right corner behind
+            // every control and every word.
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                // Below the title and subtitle rows: the leaves may brush the
+                // wave, never the words.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 96,
+                    maxHeight: 46,
+                  ),
+                  child: ClipRect(
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      heightFactor: 1,
+                      child: Image.asset(
+                        'assets/illustrations/entry_header_leaves.png',
+                        fit: BoxFit.contain,
+                        excludeFromSemantics: true,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 26),
+              child: Row(
+                children: <Widget>[
+                  _RoundHeaderAction(
+                    key: const Key('all-transactions-back'),
+                    icon: Icons.arrow_back,
+                    tooltip: backTooltip,
+                    onPressed: onBack,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          key: titleKey,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: _headerTitleSize,
+                            height: 1.2,
+                            letterSpacing: -0.3,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                        if (scale <= 1.45) ...<Widget>[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            key: const Key('all-transactions-subtitle'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              height: 1.3,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -854,18 +1093,98 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 }
 
-/// Top card: how many rows are shown and their income/expense totals, with the
-/// definition of those totals spelled out underneath.
+/// The header's shape: a green panel with a shallow wave along its bottom and a
+/// golden ribbon following the same curve. One painter, one path, so the gold
+/// never drifts away from the green.
+class _HeaderWavePainter extends CustomPainter {
+  const _HeaderWavePainter();
+
+  static const double _gold = 4;
+
+  Path _wave(Size size, double inset) {
+    final double bottom = size.height - inset;
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, bottom - 16)
+      ..cubicTo(
+        size.width * 0.72,
+        bottom + 10,
+        size.width * 0.34,
+        bottom - 30,
+        0,
+        bottom - 6,
+      )
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawPath(_wave(size, 0), Paint()..color = AppColors.golden);
+    canvas.drawPath(
+      _wave(size, _gold),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
+        ).createShader(Offset.zero & size),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// A circular, 48 dp header action: a pale ring on the green panel, so it reads
+/// as part of the banner rather than as a floating button.
+class _RoundHeaderAction extends StatelessWidget {
+  const _RoundHeaderAction({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.onPrimary.withValues(alpha: 0.16),
+      shape: const CircleBorder(
+        side: BorderSide(color: AppColors.onPrimary, width: 1.2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        color: AppColors.onPrimary,
+        iconSize: 22,
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        icon: Icon(icon),
+      ),
+    );
+  }
+}
+
+/// The totals card: warm ivory, a green ribbon on its top edge with the live
+/// count, income and expense as two columns divided by a hairline, and the
+/// honest note that these totals describe only the rows shown.
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.totalCount,
     required this.entries,
     required this.strings,
+    required this.copy,
   });
 
   final int totalCount;
   final List<LedgerEntry> entries;
   final AppStrings strings;
+  final _ScreenCopy copy;
 
   @override
   Widget build(BuildContext context) {
@@ -888,89 +1207,226 @@ class _SummaryCard extends StatelessWidget {
       expensePaise: expensePaise,
     );
 
+    // The ribbon straddles the card's top edge. Its own height grows with the
+    // text scale, so the card reserves half of it above the figures: at 200 %
+    // the capsule can never sit on top of the income caption.
+    final double scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final double ribbonHeight =
+        MediaQuery.textScalerOf(context).scale(12) * 1.3 + 14;
+
     return Semantics(
       container: true,
       label:
           '$countText. $totalsText '
           '${strings.text(AppString.filteredTotalsExplanation)}',
       child: ExcludeSemantics(
-        child: Container(
-          key: const Key('transactions-summary'),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[AppColors.lightGreen, AppColors.surface],
-            ),
-            borderRadius: BorderRadius.circular(_cardRadius),
-            border: Border.all(
-              color: AppColors.outline.withValues(alpha: _edge),
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: AppColors.darkText.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                countText,
-                style: const TextStyle(
-                  fontSize: _cardTitleSize,
-                  height: 1.3,
-                  letterSpacing: -0.1,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.darkText,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Container(
+              key: const Key('transactions-summary'),
+              padding: EdgeInsets.fromLTRB(16, ribbonHeight / 2 + 12, 16, 14),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(_cardRadius),
+                border: Border.all(
+                  color: AppColors.outline.withValues(alpha: _edge),
                 ),
+                boxShadow: _cardShadow(),
               ),
-              const SizedBox(height: _cardGap),
-              Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Expanded(
-                    child: _TotalTile(
+                  // Two columns at normal size, as the reference draws them.
+                  // At 200 % text each caption needs the full width, so the
+                  // pair stacks with a horizontal hairline in place of the
+                  // vertical one - the same two figures, never squeezed into
+                  // half a line each.
+                  if (scale > 1.45) ...<Widget>[
+                    _TotalTile(
                       label: strings.text(AppString.income),
                       value: strings.money(incomePaise),
                       color: AppColors.incomeGreen,
+                      icon: Icons.trending_up_rounded,
+                      income: true,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _TotalTile(
+                    const SizedBox(height: 10),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.outline.withValues(alpha: 0.8),
+                    ),
+                    const SizedBox(height: 10),
+                    _TotalTile(
                       label: strings.text(AppString.expense),
                       value: strings.money(expensePaise),
                       color: AppColors.expenseRed,
+                      icon: Icons.trending_down_rounded,
+                      income: false,
                     ),
+                  ] else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: _TotalTile(
+                            label: strings.text(AppString.income),
+                            value: strings.money(incomePaise),
+                            color: AppColors.incomeGreen,
+                            icon: Icons.trending_up_rounded,
+                            income: true,
+                          ),
+                        ),
+                        // One hairline between the two figures, with its own
+                        // breathing room on either side.
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Container(
+                            key: const Key('transactions-summary-rule'),
+                            width: _separator,
+                            height: 54,
+                            color: AppColors.outline.withValues(alpha: 0.8),
+                          ),
+                        ),
+                        Expanded(
+                          child: _TotalTile(
+                            label: strings.text(AppString.expense),
+                            value: strings.money(expensePaise),
+                            color: AppColors.expenseRed,
+                            icon: Icons.trending_down_rounded,
+                            income: false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 14),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: AppColors.outline.withValues(alpha: 0.55),
+                  ),
+                  const SizedBox(height: 10),
+                  // The bundled coins sit beside the note, never over it: a
+                  // decorative asset may share this row, it may not hide a
+                  // word of the promise the totals rely on.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          strings.text(AppString.filteredTotalsExplanation),
+                          style: _metaBlock,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ExcludeSemantics(
+                        child: Opacity(
+                          opacity: 0.7,
+                          child: Image.asset(
+                            'assets/illustrations/counter_header_coins.png',
+                            key: const Key('transactions-summary-art'),
+                            height: 40,
+                            fit: BoxFit.contain,
+                            excludeFromSemantics: true,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                strings.text(AppString.filteredTotalsExplanation),
-                style: _metaBlock,
+            ),
+            // The ribbon sits on the card's top edge: a green capsule with the
+            // chart glyph and the live count.
+            Positioned(
+              top: -ribbonHeight / 2,
+              left: 16,
+              right: 16,
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: _CountRibbon(label: countText, copy: copy),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// One half of a totals pair: the caption size, then the figure size, with
-/// tabular figures so the two totals in a row line up at the decimal. 20 dp
-/// w800 also keeps the red/green amounts at the "large text" size theme.md
-/// requires for AA contrast on light surfaces.
+/// The green capsule on the totals card's edge.
+class _CountRibbon extends StatelessWidget {
+  const _CountRibbon({required this.label, required this.copy});
+
+  final String label;
+  final _ScreenCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('transactions-summary-ribbon'),
+      constraints: const BoxConstraints(maxWidth: 300),
+      padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreen,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: _cardShadow(alpha: 0.10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const Icon(
+            Icons.bar_chart_rounded,
+            size: 16,
+            color: AppColors.onPrimary,
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: AppColors.golden,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              copy.live,
+              style: const TextStyle(
+                fontSize: 9.5,
+                height: 1.25,
+                letterSpacing: 0.6,
+                fontWeight: FontWeight.w800,
+                color: AppColors.headerGreen,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+                color: AppColors.onPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One column of the totals card: a tinted circular arrow badge, the caption,
+/// then the figure in tabular figures so the two totals share a baseline.
 class _TotalTile extends StatelessWidget {
   const _TotalTile({
     required this.label,
     required this.value,
     required this.color,
+    required this.icon,
+    required this.income,
   });
 
   final String label;
@@ -978,6 +1434,8 @@ class _TotalTile extends StatelessWidget {
   /// Already formatted for the active language; this tile does no arithmetic.
   final String value;
   final Color color;
+  final IconData icon;
+  final bool income;
 
   @override
   Widget build(BuildContext context) {
@@ -985,13 +1443,31 @@ class _TotalTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: _cardLabel.copyWith(color: AppColors.softText),
+        Row(
+          children: <Widget>[
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 15, color: color),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                // Two lines: at 200 % a single line of this caption would
+                // ellipsize to "Inco…", which names nothing.
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: _cardLabel.copyWith(color: AppColors.softText),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
@@ -1007,36 +1483,256 @@ class _TotalTile extends StatelessWidget {
   }
 }
 
-/// Heading above a filter group. Same leading rule the day headings use, one
-/// step up in weight, so the three kinds of heading on this screen are
-/// recognisably the same device at three sizes.
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+/// The rounded search pill: leading glyph, the real controller, and the tune
+/// control on a pale-green cap. The tune button simply reflects what it does -
+/// while the panels are open it collapses them, and while they are closed it
+/// reopens them and puts the cursor in the search box.
+class _SearchPill extends StatelessWidget {
+  const _SearchPill({
+    required this.fieldKey,
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.hint,
+    required this.label,
+    required this.clearButton,
+    required this.filtersOpen,
+    required this.tuneTooltip,
+    required this.onTune,
+    required this.onTuneLongPress,
+  });
 
-  final String text;
+  final GlobalKey fieldKey;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final String hint;
+  final String label;
+  final Widget? clearButton;
+  final bool filtersOpen;
+  final String tuneTooltip;
+  final VoidCallback onTune;
+  final VoidCallback onTuneLongPress;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 3,
-          height: _cardTitleSize,
-          decoration: BoxDecoration(
-            color: AppColors.primaryGreen,
-            borderRadius: BorderRadius.circular(1.5),
+    // Two anchors, two jobs: the outer container is the pill's frame (and the
+    // node the tune control scrolls to), the inner one is the field's own
+    // anchor.
+    return Container(
+      key: const Key('search-pill'),
+      padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
+        boxShadow: _cardShadow(alpha: 0.04),
+      ),
+      child: Container(
+        key: fieldKey,
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: <Widget>[
+            const Icon(Icons.search, size: 20, color: AppColors.softText),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                key: const Key('search-field'),
+                controller: controller,
+                focusNode: focusNode,
+                onChanged: onChanged,
+                textInputAction: TextInputAction.search,
+                style: const TextStyle(
+                  fontSize: _rowTitleSize,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.darkText,
+                ),
+                decoration: InputDecoration(
+                  // A pill, not a framed field: the search box and the entry
+                  // screens' inputs share a size and a voice, not a shape.
+                  hintText: hint,
+                  labelText: label,
+                  floatingLabelBehavior: FloatingLabelBehavior.never,
+                  isDense: true,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  hintStyle: const TextStyle(
+                    fontSize: _rowTitleSize,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.softText,
+                  ),
+                  suffixIcon: clearButton,
+                  suffixIconConstraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            _TuneButton(
+              filtersOpen: filtersOpen,
+              tooltip: tuneTooltip,
+              onPressed: onTune,
+              onLongPress: onTuneLongPress,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The pale-green filter cap at the end of the search pill. A real button: it
+/// has a tooltip, a 48 dp target and a state the user can hear.
+class _TuneButton extends StatelessWidget {
+  const _TuneButton({
+    required this.filtersOpen,
+    required this.tooltip,
+    required this.onPressed,
+    required this.onLongPress,
+  });
+
+  final bool filtersOpen;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      onTap: onPressed,
+      onLongPress: onLongPress,
+      excludeSemantics: true,
+      child: Material(
+        key: const Key('filters-tune'),
+        color: AppColors.lightGreen,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          onLongPress: onLongPress,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Icon(
+              filtersOpen ? Icons.tune : Icons.filter_list,
+              size: 20,
+              color: AppColors.primaryGreen,
+            ),
           ),
         ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: _cardLabel.copyWith(color: AppColors.darkText),
+      ),
+    );
+  }
+}
+
+/// One warm panel per filter group: a heading with its own glyph, an optional
+/// clear action, and the chips.
+class _FilterPanel extends StatelessWidget {
+  const _FilterPanel({
+    required this.title,
+    required this.icon,
+    required this.children,
+    this.action,
+  });
+
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        border: Border.all(
+          color: AppColors.outline.withValues(alpha: _softEdge),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon, size: 16, color: AppColors.primaryGreen),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _cardLabel.copyWith(color: AppColors.darkText),
+                ),
+              ),
+              if (action case final Widget clear) clear,
+            ],
+          ),
+          const SizedBox(height: _labelGap),
+          Wrap(spacing: _cardGap, runSpacing: _cardGap, children: children),
+        ],
+      ),
+    );
+  }
+}
+
+/// A quiet text action inside a filter panel heading ("Clear dates", "Show
+/// filters"). 44 dp tall, so it is as tappable as a chip.
+class _FilterClearAction extends StatelessWidget {
+  const _FilterClearAction({
+    super.key,
+    required this.label,
+    required this.semanticsLabel,
+    required this.onTap,
+  });
+
+  final String label;
+  final String semanticsLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.close, size: 14, color: AppColors.softText),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.softText,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -1049,6 +1745,8 @@ class _FilterChip extends StatelessWidget {
     required this.label,
     required this.semanticLabel,
     this.customCategory,
+    this.icon,
+    this.iconColor,
     required this.selected,
     required this.onTap,
   });
@@ -1056,6 +1754,8 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final String semanticLabel;
   final CustomCategory? customCategory;
+  final IconData? icon;
+  final Color? iconColor;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1070,6 +1770,8 @@ class _FilterChip extends StatelessWidget {
     final Color foreground = selected
         ? AppColors.primaryGreen
         : AppColors.darkText;
+    final IconData? glyph = icon;
+    final Color? glyphColor = iconColor;
 
     return Semantics(
       container: true,
@@ -1081,10 +1783,9 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: ExcludeSemantics(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
           // Flat: selection is carried by the fill, the edge and the check
-          // mark, so an elevation on the chosen chip would only add noise and
-          // make the filter bar look like a stack of cards.
+          // mark, so an elevation on the chosen chip would only add noise.
           child: Material(
             color: background,
             clipBehavior: Clip.antiAlias,
@@ -1101,7 +1802,7 @@ class _FilterChip extends StatelessWidget {
               onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 12,
                   vertical: 10,
                 ),
                 child: Row(
@@ -1112,6 +1813,15 @@ class _FilterChip extends StatelessWidget {
                         customCategory!.icon,
                         color: customCategory!.color,
                         size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                    ] else if (glyph != null) ...<Widget>[
+                      Icon(
+                        glyph,
+                        size: 15,
+                        color: selected
+                            ? foreground
+                            : (glyphColor ?? foreground),
                       ),
                       const SizedBox(width: 4),
                     ],
@@ -1164,13 +1874,9 @@ class _MonthHeader extends StatelessWidget {
         child: ExcludeSemantics(
           child: Container(
             key: Key(_monthKey(group.month)),
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[AppColors.lightGreen, AppColors.surface],
-              ),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(_cardRadius),
               border: Border.all(
                 color: AppColors.outline.withValues(alpha: _edge),
@@ -1191,23 +1897,28 @@ class _MonthHeader extends StatelessWidget {
                     color: AppColors.darkText,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
+                // The two figures stay on one line each, with their captions
+                // in the caption size, so a month reads as a compact summary
+                // rather than as a second totals card.
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Expanded(
-                      child: _TotalTile(
+                      child: _MonthFigure(
                         label: strings.text(AppString.income),
                         value: strings.money(group.incomePaise),
                         color: AppColors.incomeGreen,
+                        icon: Icons.trending_up_rounded,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: _TotalTile(
+                      child: _MonthFigure(
                         label: strings.text(AppString.expense),
                         value: strings.money(group.expensePaise),
                         color: AppColors.expenseRed,
+                        icon: Icons.trending_down_rounded,
                       ),
                     ),
                   ],
@@ -1221,9 +1932,60 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-/// Day heading inside a month: the label that owns the sheet under it, set in
-/// the caption size with extra letter spacing and a leading rule, so a heading
-/// is found by eye without being mistaken for a row.
+/// One month figure: glyph, caption and value on one baseline.
+class _MonthFigure extends StatelessWidget {
+  const _MonthFigure({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _meta.copyWith(fontSize: 11, height: 1.2),
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: _money(size: 15, color: color, letterSpacing: -0.2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Day heading inside a month: the label that owns the cards under it, set in
+/// the caption size with a leading rule, so a heading is found by eye without
+/// being mistaken for a row.
 class _DayHeader extends StatelessWidget {
   const _DayHeader({required this.day, required this.strings});
 
@@ -1233,7 +1995,7 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: _cardGap, bottom: _labelGap),
+      padding: const EdgeInsets.only(top: _labelGap, bottom: 6),
       child: Row(
         children: <Widget>[
           Container(
@@ -1254,96 +2016,6 @@ class _DayHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// One day's rows on a single sheet.
-///
-/// The rows inside it are separated by a 1 px beige rule rather than boxed one
-/// by one: a day then reads as one object, the amounts keep a single right
-/// column, and only the rules tell the rows apart.
-class _DaySheet extends StatelessWidget {
-  const _DaySheet({
-    required this.day,
-    required this.entries,
-    required this.strings,
-    this.categories,
-    this.onEdit,
-  });
-
-  /// The local calendar day this sheet belongs to, for its widget key only.
-  final DateTime day;
-  final List<LedgerEntry> entries;
-  final AppStrings strings;
-  final List<CustomCategory>? categories;
-
-  /// Null makes every row in the sheet a plain, inert row - a read-only view
-  /// of a summary has nothing to edit.
-  final ValueChanged<LedgerEntry>? onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    // Named outside the string so the key stays greppable.
-    final String dayKey = _dayKey(day);
-    return Container(
-      key: Key('day-sheet-$dayKey'),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_cardRadius),
-        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
-      ),
-      // The sheet is a Material, so a row's tap ripples on the surface the
-      // user is looking at instead of vanishing behind it.
-      child: Material(
-        color: AppColors.surface,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(_cardRadius - _separator),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            for (int index = 0; index < entries.length; index++) ...<Widget>[
-              if (index > 0) const _RowRule(),
-              _EntryRow(
-                entry: entries[index],
-                strings: strings,
-                categories: categories,
-                onTap: _tapFor(entries[index]),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// The stored id is what makes a row editable; a row without one - or a
-  /// screen without a ledger - stays inert instead of pretending to be
-  /// tappable.
-  VoidCallback? _tapFor(LedgerEntry entry) {
-    final ValueChanged<LedgerEntry>? edit = onEdit;
-    if (edit == null || entry.id == null) {
-      return null;
-    }
-    return () => edit(entry);
-  }
-}
-
-/// The 1 px rule between two rows, inset to the text column so it never cuts
-/// under the avatars.
-class _RowRule extends StatelessWidget {
-  const _RowRule();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(left: _rowTextInset),
-      child: SizedBox(
-        height: _separator,
-        child: ColoredBox(color: AppColors.beige),
       ),
     );
   }
@@ -1399,9 +2071,11 @@ class _EndOfList extends StatelessWidget {
 String _copy(AppStrings strings, {required String en, required String bn}) =>
     strings.language == AppLanguage.bn ? bn : en;
 
-/// One transaction: type icon, title, category and timestamp, signed amount.
-class _EntryRow extends StatelessWidget {
-  const _EntryRow({
+/// One transaction as its own ivory card: a local-calendar tile on the left, a
+/// tinted type arrow on it, the title and time, and the signed amount at the
+/// right in tabular figures.
+class _EntryCard extends StatelessWidget {
+  const _EntryCard({
     required this.entry,
     required this.strings,
     this.categories,
@@ -1411,7 +2085,7 @@ class _EntryRow extends StatelessWidget {
   final LedgerEntry entry;
   final AppStrings strings;
   final List<CustomCategory>? categories;
-  final VoidCallback? onTap;
+  final ValueChanged<LedgerEntry>? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1429,154 +2103,234 @@ class _EntryRow extends StatelessWidget {
     final String category = categories == null
         ? _categoryLabel(strings, entry.category)
         : categoryDisplayName(strings.language, entry.category, categories!);
-    final custom = categories == null
-        ? null
-        : findCustomCategory(entry.category, categories!);
-
     final title = categories != null && entry.title == entry.category
         ? category
         : entry.title;
 
+    final DateTime local = entry.at.toLocal();
+    // The day is the tile on the left and the day heading above, so the row's
+    // own metadata carries the category and the time of day rather than
+    // repeating the same date three times down one screen.
+    final String rowMeta = <String>[
+      category,
+      _timeOf(strings, local),
+    ].join(' \u00b7 ');
+    final VoidCallback? tap = onTap == null || entry.id == null
+        ? null
+        : () => onTap!(entry);
+
     return Semantics(
       container: true,
-      button: onTap != null,
-      onTap: onTap,
+      button: tap != null,
+      onTap: tap,
       label: strings.transactionLabel(
         title: title,
         category: category,
         amountPaise: entry.amountPaise,
         income: isIncome,
-        at: entry.at.toLocal(),
-        editable: onTap != null,
+        at: local,
+        editable: tap != null,
       ),
       child: ExcludeSemantics(
-        child: InkWell(
-          key: entry.id == null ? null : Key('transaction-${entry.id}'),
-          onTap: onTap,
-          // No box of its own: the day's sheet is the surface and the rule
-          // above is the divider, so a row is one line of a list rather than a
-          // card that has to be framed.
-          child: Padding(
-            padding: const EdgeInsets.all(_rowPadding),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                // The same 40 dp leading cue Home uses: artwork when a category
-                // is known, an up/down arrow in the type colour otherwise.
-                Container(
-                  width: _avatarSize,
-                  height: _avatarSize,
-                  decoration: BoxDecoration(
-                    color:
-                        (categories == null
-                                ? amountColor
-                                : _categoryAccent(entry.category, custom))
-                            .withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: categories == null
-                      ? Icon(
-                          isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-                          size: 20,
-                          color: amountColor,
-                        )
-                      : ClipOval(
-                          child: CategoryArtwork(
-                            category: entry.category,
-                            size: _avatarSize,
-                            fallbackColor: AppColors.navigationGrey,
-                            customCategory: custom,
-                          ),
-                        ),
-                ),
-                const SizedBox(width: _rowGap),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: _rowTitleSize,
-                          height: 1.25,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.darkText,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$category · ${strings.dateTime(entry.at.toLocal())}',
-                        maxLines: 2,
-                        style: _meta.copyWith(height: 1.35),
-                      ),
-                      // The amount gets its own line, so 200% text scale never
-                      // squeezes it against the title.
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            signedAmount,
-                            maxLines: 1,
-                            softWrap: false,
-                            textAlign: TextAlign.right,
-                            // 18 dp w800: the size Home's rows use, and
-                            // the large-text size theme.md asks for before
-                            // an amount may be drawn in red or green.
-                            style: _money(
-                              size: _rowAmountSize,
-                              color: amountColor,
-                              letterSpacing: -0.2,
+        child: Container(
+          // Greppable, and stable per row: the title is the user's own text,
+          // which is what a reader would search for.
+          // Named on the card itself: the frame is the unit a reader scans,
+          // so it is the unit that carries the row's key.
+          key: Key('transaction-row-${entry.title}'),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(_cardRadius),
+            border: Border.all(
+              color: AppColors.outline.withValues(alpha: _edge),
+            ),
+            boxShadow: _cardShadow(alpha: 0.03),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: entry.id == null ? null : Key('transaction-${entry.id}'),
+              onTap: tap,
+              child: Padding(
+                padding: const EdgeInsets.all(_rowPadding),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    _CalendarTile(
+                      day: local,
+                      income: isIncome,
+                      strings: strings,
+                    ),
+                    const SizedBox(width: _rowGap),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: _rowTitleSize,
+                              height: 1.25,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkText,
                             ),
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            rowMeta,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: _meta.copyWith(height: 1.35),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // The amount is its own column at the right edge, so a
+                    // column of figures can be scanned down the list.
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 132),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          signedAmount,
+                          maxLines: 1,
+                          softWrap: false,
+                          textAlign: TextAlign.right,
+                          // 18 dp w800: the size Home's rows use, and the
+                          // large-text size theme.md asks for before an amount
+                          // may be drawn in red or green.
+                          style: _money(
+                            size: _rowAmountSize,
+                            color: amountColor,
+                            letterSpacing: -0.2,
+                          ),
                         ),
                       ),
+                    ),
+                    if (tap != null) ...<Widget>[
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                        color: AppColors.softText,
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-                if (onTap != null) ...<Widget>[
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.edit_outlined,
-                    size: 20,
-                    color: AppColors.softText,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  /// The tint behind the leading cue: a custom category's own colour when it
-  /// has one, otherwise the fixed category accents, so the same category is
-  /// the same colour on Home and here.
-  Color _categoryAccent(String category, CustomCategory? custom) {
-    if (custom != null) return custom.color;
-    return switch (category) {
-      'Shopping' => AppColors.primaryGreen,
-      'Food' => AppColors.orange,
-      'Travel' => AppColors.secondaryGreen,
-      'Bills' => AppColors.golden,
-      'Gifts' => AppColors.expenseRed,
-      _ => AppColors.navigationGrey,
-    };
+/// The pale-green calendar tile on the left of a row: the local day number over
+/// the month, with a tinted up/down arrow so the type is readable without the
+/// amount's colour.
+class _CalendarTile extends StatelessWidget {
+  const _CalendarTile({
+    required this.day,
+    required this.income,
+    required this.strings,
+  });
+
+  final DateTime day;
+  final bool income;
+  final AppStrings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    // The day number and the month come from the same localised helpers the
+    // headings use, so a Bengali row is Bengali on the tile too.
+    final String number = strings.number(day.day).padLeft(2, '0');
+    final String month = _shortMonth(strings, day);
+    final Color accent = income ? AppColors.incomeGreen : AppColors.expenseRed;
+    return Container(
+      key: const Key('transaction-day-tile'),
+      width: _avatarSize + 6,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreen,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outline.withValues(alpha: _edge)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            month,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 9.5,
+              height: 1.1,
+              letterSpacing: 0.4,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primaryGreen,
+            ),
+          ),
+          Text(
+            number,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 17,
+              height: 1.1,
+              fontWeight: FontWeight.w800,
+              color: AppColors.headerGreen,
+              fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Icon(
+            income ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 12,
+            color: accent,
+          ),
+        ],
+      ),
+    );
   }
+}
+
+/// The time of day in the active language: the shared `h:mm AM/PM` tail of the
+/// date-time helper, without the date the row's tile and day heading carry.
+String _timeOf(AppStrings strings, DateTime value) {
+  final String full = strings.dateTime(value);
+  final int comma = full.lastIndexOf(',');
+  return comma < 0 ? full : full.substring(comma + 1).trim();
+}
+
+/// The month above a tile's day number, abbreviated to three letters so it
+/// fits a 46 dp tile: the English initial letters, or the first three Bengali
+/// glyphs of the month name the screen already uses everywhere else.
+String _shortMonth(AppStrings strings, DateTime day) {
+  final String full = strings.monthYear(day);
+  final String name = full
+      .substring(0, full.length - strings.number(day.year).length)
+      .trim();
+  if (strings.language == AppLanguage.bn) {
+    return name.length <= 4 ? name : name.substring(0, 4);
+  }
+  return name.length <= 3 ? name : name.substring(0, 3);
 }
 
 /// Shown when the khata itself has no entries: no filters, because there is
 /// nothing to filter.
 class _EmptyLedger extends StatelessWidget {
-  const _EmptyLedger({required this.strings});
+  const _EmptyLedger({required this.strings, required this.copy});
 
   final AppStrings strings;
+  final _ScreenCopy copy;
 
   @override
   Widget build(BuildContext context) {
@@ -1589,6 +2343,7 @@ class _EmptyLedger extends StatelessWidget {
           title: strings.text(AppString.noTransactions),
           message: strings.text(AppString.transactionsEmptyHelp),
         ),
+        _FooterArtwork(copy: copy),
       ],
     );
   }
@@ -1641,9 +2396,7 @@ class _MessageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
-        border: Border.all(
-          color: AppColors.outline.withValues(alpha: _softEdge),
-        ),
+        border: Border.all(color: _softCardBorder.color),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1679,6 +2432,59 @@ class _MessageCard extends StatelessWidget {
   }
 }
 
+/// The quiet end of the page: bundled landscape artwork with one caption pill
+/// over it. It is the last child of the list, so it can never cover a row, the
+/// keyboard or a scroll target.
+class _FooterArtwork extends StatelessWidget {
+  const _FooterArtwork({required this.copy});
+
+  final _ScreenCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: _groupGap),
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: <Widget>[
+          ExcludeSemantics(
+            child: Image.asset(
+              'assets/illustrations/entry_footer_leaves.png',
+              key: const Key('all-transactions-footer-art'),
+              height: 56,
+              fit: BoxFit.fitWidth,
+              excludeFromSemantics: true,
+            ),
+          ),
+          Container(
+            key: const Key('all-transactions-footer'),
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: _softEdge),
+              ),
+            ),
+            child: Text(
+              copy.footer,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _meta.copyWith(
+                fontStyle: FontStyle.italic,
+                color: AppColors.headerGreen,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A calendar month's rows and its trading totals for those rows only.
 class _MonthGroup {
   _MonthGroup(this.month);
@@ -1700,12 +2506,6 @@ class _DayGroup {
 /// Stable widget key for a month heading, e.g. `month-2026-11`.
 String _monthKey(DateTime value) =>
     'month-${value.year}-${value.month.toString().padLeft(2, '0')}';
-
-/// Stable widget key for a day sheet, e.g. `2026-11-19`. Same local calendar
-/// day the heading above the sheet names.
-String _dayKey(DateTime value) =>
-    '${value.year}-${value.month.toString().padLeft(2, '0')}-'
-    '${value.day.toString().padLeft(2, '0')}';
 
 /// The editor's fixed category tokens, mapped to their dictionary keys.
 ///
