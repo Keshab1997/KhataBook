@@ -234,6 +234,47 @@ void main() {
     });
   });
 
+  group('keypad grid', () {
+    testWidgets('every key is the same size on one grid', (
+      WidgetTester tester,
+    ) async {
+      await pumpCalculator(tester);
+
+      // One grid means one hit target: the five-key top row and the four-key
+      // rows below it share the exact same key size.
+      final Size reference = tester.getSize(
+        find.byKey(const Key('calc-key-7')),
+      );
+      expect(reference.width, reference.height);
+      for (final String label in <String>[
+        'C',
+        '%',
+        '÷',
+        '×',
+        '−',
+        '+',
+        '=',
+        '00',
+        '.',
+        'history',
+        'backspace',
+      ]) {
+        final Size size = tester.getSize(find.byKey(Key('calc-key-$label')));
+        expect(
+          size.width,
+          moreOrLessEquals(reference.width, epsilon: 0.01),
+          reason: '$label must share the grid width',
+        );
+        expect(
+          size.height,
+          moreOrLessEquals(reference.height, epsilon: 0.01),
+          reason: '$label must share the grid height',
+        );
+      }
+      expectNoLayoutErrors(tester);
+    });
+  });
+
   group('editing keys', () {
     testWidgets('C resets expression and result to zero', (
       WidgetTester tester,

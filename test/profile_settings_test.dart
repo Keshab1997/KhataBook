@@ -337,6 +337,10 @@ void main() {
       expect(find.text(ProfileScreen.versionLabel), findsOneWidget);
       expect(find.text('This device only'), findsOneWidget);
       expect(find.text('Light only'), findsOneWidget);
+      // An About row's value is its heading: same 15 dp / w700 as a menu title.
+      final Text value = tester.widget<Text>(find.text('This device only'));
+      expect(value.style?.fontSize, 15);
+      expect(value.style?.fontWeight, FontWeight.w700);
       expect(
         find.text('Indian rupees (INR), Indian digit grouping'),
         findsOneWidget,
@@ -419,6 +423,31 @@ void main() {
         screen: SettingsScreen,
       );
       expect(find.text('KhataBook 1.0.0 (build 1)'), findsOneWidget);
+    });
+
+    testWidgets('value pills share one type scale with the rest of the app', (
+      WidgetTester tester,
+    ) async {
+      await pumpScreen(tester, const SettingsScreen(), size: tallPhone);
+
+      // The same pill metrics as the profile status chips and the sync card,
+      // so a "value + reason" reads identically on every settings-like screen.
+      final Text value = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('settings-currency-row')),
+          matching: find.text('INR (₹)'),
+        ),
+      );
+      expect(value.style?.fontSize, 11.5);
+      expect(value.style?.fontWeight, FontWeight.w700);
+
+      final Text status = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('settings-currency-row')),
+          matching: find.text('Fixed in v1'),
+        ),
+      );
+      expect(status.style?.fontSize, 11.5);
     });
 
     testWidgets('every row is read-only, with no toggles or dead buttons', (
