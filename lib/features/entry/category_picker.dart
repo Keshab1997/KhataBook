@@ -129,52 +129,31 @@ class CustomCategoryChoices extends StatelessWidget {
             !starterCategories.contains(selected) &&
             selected != 'Income' &&
             !categories.any((c) => c.id == selected && !c.archived))
-          Chip(
-            avatar: Icon(
+          _CategoryChip(
+            label: categoryDisplayName(language, selected!, categories),
+            selected: true,
+            leading: Icon(
               findCustomCategory(selected!, categories)?.icon ??
                   Icons.more_horiz,
               color:
                   findCustomCategory(selected!, categories)?.color ??
                   AppColors.navigationGrey,
             ),
-            label: Text(categoryDisplayName(language, selected!, categories)),
           ),
         for (final category in categories.where((c) => !c.archived))
-          ActionChip(
+          _CategoryChip(
             key: Key('custom-category-${category.id}'),
-            avatar: Icon(category.icon, color: category.color, size: 18),
-            label: Text(category.name),
-            backgroundColor: category.id == selected
-                ? AppColors.lightGreen
-                : AppColors.surface,
-            labelStyle: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: category.id == selected
-                  ? AppColors.primaryGreen
-                  : AppColors.darkText,
-            ),
-            side: BorderSide(
-              color: category.id == selected
-                  ? AppColors.primaryGreen
-                  : AppColors.beige,
-            ),
-            shape: const StadiumBorder(),
-            onPressed: () => onSelected(category.id),
+            label: category.name,
+            selected: category.id == selected,
+            leading: Icon(category.icon, color: category.color, size: 18),
+            onTap: () => onSelected(category.id),
           ),
-        ActionChip(
+        _CategoryChip(
           key: const Key('category-more'),
-          avatar: const Icon(Icons.more_horiz, size: 18),
-          label: Text(language == AppLanguage.bn ? 'আরও' : 'More'),
-          labelStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.darkText,
-          ),
-          backgroundColor: AppColors.surface,
-          side: const BorderSide(color: AppColors.beige),
-          shape: const StadiumBorder(),
-          onPressed: () async {
+          label: language == AppLanguage.bn ? 'আরও' : 'More',
+          selected: false,
+          leading: const Icon(Icons.more_horiz, size: 18),
+          onTap: () async {
             final id = await showModalBottomSheet<String>(
               context: context,
               isScrollControlled: true,
@@ -193,6 +172,65 @@ class CustomCategoryChoices extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// One outline chip in the picker row: the same shape, height and type for a
+/// custom category, the currently selected one and the "More" action.
+///
+/// Selection is carried by three things at once - tint, border weight and a
+/// trailing check - so it survives a grayscale screen or a colour-blind eye.
+/// The label is capped to the row width so a 30-character category name can
+/// never push a chip past a 320 dp screen.
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.leading,
+    this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Widget leading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final double maxLabel = MediaQuery.sizeOf(context).width - 120;
+    return ActionChip(
+      avatar: leading,
+      label: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxLabel < 96 ? 96 : maxLabel),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            if (selected) ...<Widget>[
+              const SizedBox(width: 4),
+              const Icon(Icons.check, size: 15, color: AppColors.primaryGreen),
+            ],
+          ],
+        ),
+      ),
+      backgroundColor: selected ? AppColors.lightGreen : AppColors.surface,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        color: selected ? AppColors.primaryGreen : AppColors.darkText,
+      ),
+      side: BorderSide(
+        color: selected ? AppColors.primaryGreen : AppColors.beige,
+        width: selected ? 1.6 : 1.1,
+      ),
+      shape: const StadiumBorder(),
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      onPressed: onTap,
+    );
+  }
 }
 
 class _CategorySheet extends StatelessWidget {
@@ -467,22 +505,52 @@ class _CategoryTile extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.lightGreen : AppColors.warmIvory,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selected ? AppColors.primaryGreen : AppColors.beige,
-                    width: selected ? 1.8 : 1.1,
+              Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.lightGreen
+                          : AppColors.warmIvory,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.primaryGreen
+                            : AppColors.beige,
+                        width: selected ? 2 : 1.1,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(17),
+                      child: child,
+                    ),
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(17),
-                  child: child,
-                ),
+                  // A check badge, not just tint: the chosen tile is still
+                  // obvious without relying on colour.
+                  if (selected)
+                    const Positioned(
+                      right: -4,
+                      top: -4,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryGreen,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.check,
+                            size: 12,
+                            color: AppColors.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 7),
               Text(

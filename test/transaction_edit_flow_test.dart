@@ -7,6 +7,11 @@ import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 
 Future<void> revealTap(WidgetTester tester, Finder finder) async {
+  // Let any in-flight scroll finish first. A focused text field keeps itself
+  // and its caret on screen with a scroll request that lands a frame after
+  // the field gains focus - if that lands after the jump below, it scrolls
+  // the target straight back off screen and the tap is dropped.
+  await tester.pumpAndSettle();
   if (finder.evaluate().isEmpty) {
     await tester.scrollUntilVisible(
       finder,
