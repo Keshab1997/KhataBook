@@ -350,6 +350,8 @@ class _AccountCardState extends State<AccountCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        _CardLabel(text: _pair('Cloud account', 'ক্লাউড অ্যাকাউন্ট')),
+        const SizedBox(height: 10),
         _CardHeader(
           badge: const _LeadingBadge(
             icon: Icons.cloud_off_outlined,
@@ -393,6 +395,8 @@ class _AccountCardState extends State<AccountCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        _CardLabel(text: _pair('Cloud account', 'ক্লাউড অ্যাকাউন্ট')),
+        const SizedBox(height: 10),
         _CardHeader(
           badge: const _LeadingBadge(
             icon: Icons.cloud_done_outlined,
@@ -408,16 +412,23 @@ class _AccountCardState extends State<AccountCard> {
             color: upToDate ? AppColors.greenSuccess : AppColors.softText,
           ),
         ),
-        const SizedBox(height: 10),
-        _MetaRow(
-          icon: Icons.history,
-          text: _lastSyncedLabel(current.lastSyncedAt),
-          textKey: const Key('account-card-last-synced'),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: _PendingChip(label: _pendingLabel(current.pendingCount)),
+        const SizedBox(height: 12),
+        // Last synced and what is still waiting are one fact about the same
+        // account, so they share one quiet panel instead of two loose lines.
+        _FactPanel(
+          key: const Key('account-card-sync-facts'),
+          children: <Widget>[
+            _MetaRow(
+              icon: Icons.history,
+              text: _lastSyncedLabel(current.lastSyncedAt),
+              textKey: const Key('account-card-last-synced'),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _PendingChip(label: _pendingLabel(current.pendingCount)),
+            ),
+          ],
         ),
         if (current.requiresAccountSwitchConfirmation) ...<Widget>[
           const SizedBox(height: 12),
@@ -479,6 +490,8 @@ class _AccountCardState extends State<AccountCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          _CardLabel(text: _pair('Cloud account', 'ক্লাউড অ্যাকাউন্ট')),
+          const SizedBox(height: 10),
           _CardHeader(
             badge: const _LeadingBadge(
               icon: Icons.sync,
@@ -571,6 +584,8 @@ class _AccountCardState extends State<AccountCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
+        _CardLabel(text: _pair('Cloud account', 'ক্লাউড অ্যাকাউন্ট')),
+        const SizedBox(height: 10),
         _CardHeader(
           badge: const _LeadingBadge(
             icon: Icons.error_outline,
@@ -586,20 +601,34 @@ class _AccountCardState extends State<AccountCard> {
             filled: true,
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          reason,
-          key: const Key('account-card-error-reason'),
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.4,
-            color: AppColors.darkText,
+        const SizedBox(height: 12),
+        // The failure reason gets its own warm surface with the red edge: it is
+        // the one line on this card the user may have to act on.
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.creamBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.expenseRed.withValues(alpha: 0.35),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: _PendingChip(label: _pendingLabel(current.pendingCount)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                reason,
+                key: const Key('account-card-error-reason'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.darkText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _PendingChip(label: _pendingLabel(current.pendingCount)),
+            ],
+          ),
         ),
         if (showOffline) ...<Widget>[
           const SizedBox(height: 12),
@@ -633,26 +662,93 @@ class _AccountCardState extends State<AccountCard> {
   }
 
   Widget _buildLogoutButton() {
-    return OutlinedButton.icon(
-      key: const Key('account-card-logout-button'),
-      onPressed: _busyAction || widget.onSignOut == null
-          ? null
-          : _confirmAndSignOut,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.expenseRed,
-        minimumSize: const Size.fromHeight(48),
-        side: const BorderSide(color: AppColors.expenseRed),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SizedBox(height: 14),
+        Divider(
+          height: 1,
+          thickness: 1,
+          color: AppColors.outline.withValues(alpha: 0.55),
         ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          key: const Key('account-card-logout-button'),
+          onPressed: _busyAction || widget.onSignOut == null
+              ? null
+              : _confirmAndSignOut,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.expenseRed,
+            minimumSize: const Size.fromHeight(48),
+            side: const BorderSide(color: AppColors.expenseRed),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+          ),
+          icon: const Icon(Icons.logout, color: AppColors.expenseRed),
+          label: Text(
+            _pair('Log out', 'লগ আউট'),
+            style: const TextStyle(
+              color: AppColors.expenseRed,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The small uppercase label that opens every state of the card.
+///
+/// It names what the card is for before it says what the state is, so a
+/// local-only and a signed-in card are read as two states of one object rather
+/// than as two unrelated panels.
+class _CardLabel extends StatelessWidget {
+  const _CardLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      key: const Key('account-card-label'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 11,
+        height: 1.2,
+        letterSpacing: 0.7,
+        fontWeight: FontWeight.w800,
+        color: AppColors.primaryGreen,
       ),
-      icon: const Icon(Icons.logout, color: AppColors.expenseRed),
-      label: Text(
-        _pair('Log out', 'লগ আউট'),
-        style: const TextStyle(
-          color: AppColors.expenseRed,
-          fontWeight: FontWeight.w700,
-        ),
+    );
+  }
+}
+
+/// A quiet inset panel that groups the read-only facts of the signed-in state.
+///
+/// One cream surface with a beige hairline keeps "last synced" and "N pending"
+/// together, so the card has one block of detail and not two stray lines.
+class _FactPanel extends StatelessWidget {
+  const _FactPanel({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.creamBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
       ),
     );
   }
@@ -824,8 +920,10 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A single chip: it hugs its text and ellipsizes inside itself, so a long
+    // localized state word at 200 % never forces the card wider than the phone.
     return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
+      key: const Key('account-card-status-pill'),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
         color: filled
@@ -871,7 +969,6 @@ class _PendingChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('account-card-pending-chip'),
-      constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,

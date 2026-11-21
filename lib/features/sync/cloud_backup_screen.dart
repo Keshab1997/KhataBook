@@ -64,48 +64,60 @@ class CloudBackupScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final CloudSync? service = cloudSync;
 
+    // This page is pushed from Profile / Settings: the branded header keeps a
+    // real back action, and on a short screen the whole body scrolls under it.
+    final bool canPop = Navigator.of(context).canPop();
+
     return Scaffold(
       key: const Key('cloud-backup-screen'),
       backgroundColor: AppColors.creamBackground,
-      appBar: AppBar(
-        title: Text(
-          _pair('Cloud Backup', 'ক্লাউড ব্যাকআপ'),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-          children: <Widget>[
-            if (service == null) ...<Widget>[
-              _UnconfiguredCard(bn: _bn),
-              const SizedBox(height: 16),
-              _LocalFirstNoteCard(bn: _bn),
-            ] else ...<Widget>[
-              AccountCard(
-                language: language,
-                status: service.currentStatus,
-                statusStream: service.statusStream,
-                isOnline: isOnline,
-                onSignIn: () => _openSignIn(context, service),
-                onBackupNow: service.backupNow,
-                onRetry: service.backupNow,
-                onConfirmAccountSwitch: service.confirmAccountSwitch,
-                onSignOut: service.signOut,
+      body: Column(
+        children: <Widget>[
+          AccountPageHeader(
+            title: _pair('Cloud Backup', 'ক্লাউড ব্যাকআপ'),
+            subtitle: _pair('Optional backup & sync', 'ঐচ্ছিক ব্যাকআপ ও সিঙ্ক'),
+            icon: Icons.cloud_outlined,
+            backTooltip: _pair('Back', 'পেছনে'),
+            onBack: canPop ? () => Navigator.of(context).maybePop() : null,
+          ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: <Widget>[
+                  if (service == null) ...<Widget>[
+                    _UnconfiguredCard(bn: _bn),
+                  ] else ...<Widget>[
+                    AccountCard(
+                      language: language,
+                      status: service.currentStatus,
+                      statusStream: service.statusStream,
+                      isOnline: isOnline,
+                      onSignIn: () => _openSignIn(context, service),
+                      onBackupNow: service.backupNow,
+                      onRetry: service.backupNow,
+                      onConfirmAccountSwitch: service.confirmAccountSwitch,
+                      onSignOut: service.signOut,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _LocalFirstNoteCard(bn: _bn),
+                ],
               ),
-              const SizedBox(height: 16),
-              _LocalFirstNoteCard(bn: _bn),
-            ],
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 /// A card with a rounded-square leading badge, a heading and body copy.
+///
+/// [quiet] is the reassurance variant used under the account card: the same
+/// geometry and border, but the cream background and no shadow, so it reads as
+/// supporting copy rather than as a second, equal statement of state.
 class _NoteCard extends StatelessWidget {
   const _NoteCard({
     super.key,
@@ -113,22 +125,24 @@ class _NoteCard extends StatelessWidget {
     required this.title,
     required this.body,
     this.footer,
+    this.quiet = false,
   });
 
   final IconData icon;
   final String title;
   final String body;
   final Widget? footer;
+  final bool quiet;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: quiet ? AppColors.creamBackground : AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.outline),
-        boxShadow: _cardShadow(),
+        boxShadow: quiet ? null : _cardShadow(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +250,8 @@ class _UnconfiguredCard extends StatelessWidget {
   }
 }
 
+/// The quiet reassurance under the account card: one warm surface, one short
+/// statement, no action - it is the last thing read, so it asks for nothing.
 class _LocalFirstNoteCard extends StatelessWidget {
   const _LocalFirstNoteCard({required this.bn});
 
@@ -247,6 +263,7 @@ class _LocalFirstNoteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _NoteCard(
       key: const Key('cloud-backup-local-note'),
+      quiet: true,
       icon: Icons.shield_outlined,
       title: _pair('Your phone is the primary copy', 'আপনার ফোনই মূল কপি'),
       body: _pair(
