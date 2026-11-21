@@ -48,3 +48,8 @@ service-account*.json
 # Python test artifacts
 tests/__pycache__/
 *.pyc
+
+# Merge/patch leftovers — never commit
+*.orig
+*.rej
+patch_*.diff
