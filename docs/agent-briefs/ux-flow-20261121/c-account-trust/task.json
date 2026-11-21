@@ -1,0 +1,18 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "c-account-trust",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "lib/features/sync/cloud_backup_screen.dart",
+    "test/profile_settings_test.dart",
+    "test/offline_profile_test.dart",
+    "test/settings_language_test.dart",
+    "test/cloud_backup_screen_test.dart"
+  ],
+  "commit": "fix(account): make backup and profile status clear [skip ci]",
+  "check": {"kind": "preflight"},
+  "arena": {"branch": "auto", "base_sha": "c6009f1787a9fb9d650efbe5a3236b0b1ecf7770"},
+  "tracker": null
+}

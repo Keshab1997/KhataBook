@@ -1,0 +1,22 @@
+# c-account-trust — Worker C
+
+**Repository:** `Keshab1997/KhataBook`
+**Base:** `c6009f1787a9fb9d650efbe5a3236b0b1ecf7770`, the verified tip of your own existing Arena branch.
+**Goal:** Give users an honest, usable offline-first Profile, Settings and Cloud Backup experience on supported platforms, without inventing account or backup status.
+
+## Acceptance
+
+1. `ProfileScreen` and `SettingsScreen` currently short-circuit on `kIsWeb` into a stale read-only preview even though `main.dart` opens the real browser ledger and passes callbacks. Render the normal capability-gated screens on web as well: enable only actions actually supplied by the host, keep unsupported file backup visibly unavailable, and never claim browser storage is a durable cloud backup. On web, language change works when its existing callback is supplied; missing callbacks stay inert and honestly labelled. Preserve the native experience and existing public APIs/keys.
+2. Profile currently always says `Not signed in`, `nothing is uploaded` and `no cloud copy` even though it receives no account state and cloud sync can be configured. Do not assert a sign-in status or a cloud state the screen cannot know: describe the **local profile** and offline-first behaviour neutrally and direct users to the actual Cloud Backup screen for current status. Do not fabricate an email, sync timestamp or success. Keep existing wallet/backup/settings callbacks, profile editing and safe photo handling.
+3. Settings currently hard-codes cloud as off/unavailable and says data is never uploaded, independent of actual state. Replace these unsupported claims with accurate capability-neutral English/Bengali guidance pointing to Cloud Backup for live status. Preserve callback-gated language behaviour and fixed currency/theme; do not add a fake toggle or a nonfunctional action.
+4. Correct the obsolete offline-backup description: version-2 Android JSON includes khatas, transactions, profile, custom categories and note-counter data, and is **unencrypted**. Tell users to keep the file private. Cloud sync covers khatas and transactions but not custom-category names/icons, local profile or note-counter data; explain that limitation without promising a cloud copy when unconfigured or signed out. The existing `CloudBackupScreen` unconditionally says entries sync automatically even when `cloudSync == null`—make that copy conditional or explicitly contingent on setup, sign-in and connection. Preserve `AccountCard`'s real status/actions and all cloud/backend/storage behaviour.
+5. All changed copy and actionable semantics must have English and Bengali forms, wrap and remain reachable at 320 dp / 200% text, and retain ≥44 dp action targets. No new dependency, external service, fake account state, or storage/schema change.
+6. Extend all four assigned test files with meaningful coverage of neutral/actual account states, bilingual corrected v2 and cloud limitations, callback-gated actions, normal browser-capable screen behaviour, unconfigured and signed-in cloud, and compact accessibility. Update old expectations that explicitly encoded the stale preview or incorrect backup claims; do not delete real coverage or introduce new skips. The VM gate does not prove a real browser run: report that limitation honestly.
+
+## Boundaries
+
+Preserve `ProfileScreen`, `SettingsScreen` and `CloudBackupScreen` public constructor arguments and callbacks; do not edit `MainShell`, the cloud engine/backend, account-card implementation, shared `lib/core/l10n/app_strings.dart`, storage, assets, dependencies, workflows, versions, Android/iOS or secrets. Use private localized pairs inside the owned screens for new/corrected copy, as those screens already do. This task stacks only on your verified C tip; no A/Captain prerequisite is required.
+
+## Delivery
+
+Stay on your existing `arena/*` branch. Verify HEAD equals the base above and the tree is clean; never switch, merge, rebase, amend, reset or force-push. Read this pinned brief and `task.json` by the Captain's docs SHA. Run only `python3 tool/preflight.py` as the local gate; no full suite/analyze/screenshots/builds/CI/PR/main push. Timeout or failed check means BLOCKED, not a pass. Commit the exact message including `[skip ci]` to prevent the automatic public Web Preview build; Captain will still dispatch mandatory manual Flutter CI on the branch. Push `git push origin HEAD` and report `AGENT C PUSHED`, repo, task, branch, full base and tip, changed files and actual check result. Skill: none; report in worker chat.

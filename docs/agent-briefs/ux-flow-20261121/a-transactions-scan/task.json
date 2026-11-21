@@ -1,0 +1,14 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "a-transactions-scan",
+  "allowed": [
+    "lib/features/ledger/all_transactions_screen.dart",
+    "test/all_transactions_test.dart",
+    "test/all_transactions_design_test.dart"
+  ],
+  "commit": "feat(ledger): make transaction search and filters easier to use [skip ci]",
+  "check": {"kind": "preflight"},
+  "arena": {"branch": "auto", "base_sha": "ba8575373c2cd1504101ef84dc44dd0508caa38d"},
+  "tracker": null
+}
