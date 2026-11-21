@@ -14,6 +14,7 @@ import 'package:khatabook/features/counter/note_counter_screen.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/home/home_screen.dart';
 import 'package:khatabook/features/home/models.dart';
+import 'package:khatabook/features/ledger/all_transactions_screen.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
 import 'package:khatabook/features/profile/settings_screen.dart';
 import 'package:khatabook/features/sync/cloud_backend.dart';
@@ -65,7 +66,8 @@ bool _isDetailShot(String name) =>
     name.startsWith('add_entry') ||
     name.startsWith('settings') ||
     name.startsWith('sign_in') ||
-    name.startsWith('cloud_backup');
+    name.startsWith('cloud_backup') ||
+    name.startsWith('all_transactions');
 
 int _tabIndex(String name) {
   if (name.startsWith('profile')) return 3;
@@ -180,6 +182,25 @@ final List<Shot> shots = <Shot>[
     dark: false,
   ),
   Shot(
+    name: 'all_transactions',
+    build: () => AllTransactionsScreen(summary: _referenceTransactions()),
+    dark: false,
+  ),
+  Shot(
+    name: 'all_transactions_small_large_text',
+    build: () => AllTransactionsScreen(summary: _referenceTransactions()),
+    logicalSize: const Size(320, 568),
+    textScale: 2,
+    dark: false,
+  ),
+  Shot(
+    name: 'all_transactions_empty',
+    build: () => AllTransactionsScreen(
+      summary: LedgerSummary(openingBalancePaise: 0, entries: <LedgerEntry>[]),
+    ),
+    dark: false,
+  ),
+  Shot(
     name: 'add_entry_compact',
     build: () => AddEntryScreen(openingBalancePaise: 642000, onSave: (_) {}),
     logicalSize: const Size(360, 780),
@@ -224,3 +245,24 @@ class _ScreenshotBackend implements CloudBackend {
   Future<CloudChangeSet> fetchChanges(DateTime? since) =>
       Future<CloudChangeSet>.error(UnsupportedError('Screenshot only'));
 }
+
+/// Screenshot-only data matching the user's visual reference. Never injected
+/// into the running application or used as the source of production totals.
+LedgerSummary _referenceTransactions() => LedgerSummary(
+  openingBalancePaise: 250000,
+  entries: <LedgerEntry>[
+    LedgerEntry(
+      title: 'Income from Business',
+      category: 'Income',
+      at: DateTime(2026, 11, 19, 10, 15),
+      amountPaise: 100000,
+      type: EntryType.income,
+    ),
+    LedgerEntry(
+      title: 'Shopping at Mart',
+      category: 'Shopping',
+      at: DateTime(2026, 11, 19, 9, 30),
+      amountPaise: 50000,
+    ),
+  ],
+);
