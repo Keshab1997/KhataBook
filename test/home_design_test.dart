@@ -20,6 +20,7 @@ Future<void> pumpHome(
   double scale = 1.0,
   VoidCallback? onAddEntry,
   VoidCallback? onViewAll,
+  ValueChanged<LedgerEntry>? onRecentEntry,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -37,7 +38,11 @@ Future<void> pumpHome(
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: HomeScreen(onAddEntry: onAddEntry, onViewAll: onViewAll),
+      home: HomeScreen(
+        onAddEntry: onAddEntry,
+        onViewAll: onViewAll,
+        onRecentEntry: onRecentEntry,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -343,12 +348,216 @@ void main() {
         find.bySemanticsLabel(RegExp(r'Total Expense, expense, ₹3,580')),
         findsOneWidget,
       );
+      // The category is no longer a node of its own: it is spoken inside the
+      // row's single label, so a reader hears one row rather than a row plus
+      // a floating "Category Shopping" from its decorative avatar.
       expect(
-        find.bySemanticsLabel(RegExp(r'Category Shopping')),
-        findsOneWidget,
+        tester
+            .getSemantics(
+              find.byKey(const Key('home-recent-Grocery Shopping')),
+            )
+            .label,
+        contains('Shopping'),
       );
       expect(find.byTooltip('Settings'), findsNothing);
       handle.dispose();
+    });
+  });
+
+  group('actionable activity rows', () {
+    /// A live, fully stored ledger: the only state in which a Home row may be
+    /// edited. Two rows, long names and large amounts, so the layout checks
+    /// below are the pessimistic ones from the brief.
+    LedgerSummary storedSummary() => LedgerSummary(
+      openingBalancePaise: 0,
+      entries: <LedgerEntry>[
+        LedgerEntry(
+          title:
+              'Freelance invoice settled by the client for the festival '
+              'campaign and the extra revisions',
+          category: 'Income',
+          at: DateTime(2026, 11, 19, 18, 30),
+          amountPaise: 876543210,
+          type: EntryType.income,
+          id: 'entry-design-income',
+        ),
+        LedgerEntry(
+          title:
+              'Monthly grocery and household supplies for the whole family',
+          category: 'Shopping',
+          at: DateTime(2026, 11, 19, 17),
+          amountPaise: 123456789,
+          id: 'entry-design-expense',
+        ),
+      ],
+    );
+
+    Finder rowOf(String title) => find.byKey(Key('home-recent-$title'));
+
+    testWidgets('a row announces direction, title and amount as one node', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final LedgerSummary summary = storedSummary();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomeScreen(summary: summary, onRecentEntry: (_) {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final String incomeTitle = summary.entries.first.title;
+      await tester.ensureVisible(rowOf(incomeTitle));
+      await tester.pumpAndSettle();
+
+      final SemanticsNode node = tester.getSemantics(rowOf(incomeTitle));
+      // Direction is in words, so the green/red amount is never the only
+      // carrier of the meaning; the figure is spoken with its sign.
+      expect(node.label, contains('income'));
+      expect(node.label, contains('+₹87,65,432.10'));
+      expect(node.label, contains(incomeTitle));
+      // A stored row with a handler announces the edit affordance.
+      expect(node.label, contains('Tap to edit'));
+      // The decorative avatar is not announced a second time.
+      expect(
+        find.descendant(
+          of: rowOf(incomeTitle),
+          matching: find.bySemanticsLabel(RegExp('Category')),
+        ),
+        findsNothing,
+        reason: 'the row speaks once, not once per decorative part',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('an expense row is signed and coloured differently', (
+      WidgetTester tester,
+    ) async {
+      final SemanticsHandle handle = tester.ensureSemantics();
+      final LedgerSummary summary = storedSummary();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomeScreen(summary: summary, onRecentEntry: (_) {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final String expenseTitle = summary.entries.last.title;
+      await tester.ensureVisible(rowOf(expenseTitle));
+      await tester.pumpAndSettle();
+
+      final SemanticsNode node = tester.getSemantics(rowOf(expenseTitle));
+      expect(node.label, contains('expense'));
+      expect(node.label, contains('-₹12,34,567.89'));
+
+      final Text amount = tester.widget<Text>(
+        find.descendant(
+          of: rowOf(expenseTitle),
+          matching: find.text('₹12,34,567.89'),
+        ),
+      );
+      expect(amount.style?.color, AppColors.expenseRed);
+      final Text incomeAmount = tester.widget<Text>(
+        find.descendant(
+          of: rowOf(summary.entries.first.title),
+          matching: find.text('+₹87,65,432.10'),
+        ),
+      );
+      expect(incomeAmount.style?.color, AppColors.incomeGreen);
+      handle.dispose();
+    });
+
+    testWidgets('the edit affordance appears only where a tap edits', (
+      WidgetTester tester,
+    ) async {
+      // Seed data has no ids: a preview row may not offer an edit icon, even
+      // when the parent supplies the callback.
+      await pumpHome(tester, onRecentEntry: (_) {});
+      await tester.ensureVisible(find.text('Gift for Mom'));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.edit_outlined), findsNothing);
+
+      // Stored rows with the same callback do offer it, once per row.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomeScreen(
+            summary: storedSummary(),
+            onRecentEntry: (_) {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(rowOf(storedSummary().entries.last.title));
+      expect(find.byIcon(Icons.edit_outlined), findsNWidgets(2));
+      expectNoLayoutErrors(tester);
+    });
+
+    testWidgets('every actionable row is at least 44 dp tall', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: HomeScreen(summary: storedSummary(), onRecentEntry: (_) {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final LedgerEntry entry in storedSummary().entries) {
+        await tester.ensureVisible(rowOf(entry.title));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(rowOf(entry.title)).height,
+          greaterThanOrEqualTo(44),
+          reason: '${entry.title} must be a full-size tap target',
+        );
+        // The width is the sheet's own: the row is the full sheet width, so
+        // the target is never a sliver beside the amount.
+        expect(
+          tester.getSize(rowOf(entry.title)).width,
+          greaterThanOrEqualTo(44),
+        );
+      }
+    });
+
+    testWidgets('a 320 dp phone at 200% still lays out the edit target', (
+      WidgetTester tester,
+    ) async {
+      addTearDown(tester.view.reset);
+      for (final Size size in <Size>[smallPhone, midPhone]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light(),
+            builder: (BuildContext context, Widget? child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: const TextScaler.linear(2),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            ),
+            home: HomeScreen(
+              summary: storedSummary(),
+              onRecentEntry: (_) {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expectNoLayoutErrors(tester);
+        final Finder row = rowOf(storedSummary().entries.last.title);
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(row).height, greaterThanOrEqualTo(44));
+        expect(row.hitTestable(), findsOneWidget);
+        // The rows stay inside the page grid: nothing is clipped at the edge.
+        expect(tester.getRect(row).left, greaterThanOrEqualTo(0));
+        expect(tester.getRect(row).right, lessThanOrEqualTo(size.width));
+        expectNoLayoutErrors(tester);
+      }
     });
   });
 
