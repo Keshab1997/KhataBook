@@ -388,18 +388,16 @@ class SyncEngine {
   }
 
   Future<void> _pushKhatas(String userId) async {
-    final Set<String> attemptedIds = <String>{};
+    String? afterId;
     while (true) {
-      final List<CloudKhataRow> pending = await ledger.readPendingKhatas();
-      final List<CloudKhataRow> batch = pending
-          .where((CloudKhataRow row) => !attemptedIds.contains(row.id))
-          .take(batchSize)
-          .toList(growable: false);
+      final List<CloudKhataRow> batch = await ledger.readPendingKhatas(
+        limit: batchSize,
+        afterId: afterId,
+      );
       if (batch.isEmpty) break;
-
-      for (final CloudKhataRow row in batch) {
-        attemptedIds.add(row.id);
-      }
+      // An edited-in-flight row remains pending, but is retried next sync
+      // rather than blocking other rows or being pushed twice this time.
+      afterId = batch.last.id;
 
       final List<CloudKhataRow> payload = batch
           .map((CloudKhataRow row) => row.copyWith(userId: userId))
@@ -438,19 +436,12 @@ class SyncEngine {
   }
 
   Future<void> _pushTransactions(String userId) async {
-    final Set<String> attemptedIds = <String>{};
+    String? afterId;
     while (true) {
-      final List<CloudTransactionRow> pending = await ledger
-          .readPendingTransactions();
-      final List<CloudTransactionRow> batch = pending
-          .where((CloudTransactionRow row) => !attemptedIds.contains(row.id))
-          .take(batchSize)
-          .toList(growable: false);
+      final List<CloudTransactionRow> batch = await ledger
+          .readPendingTransactions(limit: batchSize, afterId: afterId);
       if (batch.isEmpty) break;
-
-      for (final CloudTransactionRow row in batch) {
-        attemptedIds.add(row.id);
-      }
+      afterId = batch.last.id;
 
       final List<CloudTransactionRow> payload = batch
           .map((CloudTransactionRow row) => row.copyWith(userId: userId))
