@@ -167,7 +167,7 @@ enum _CountPhase { loading, ready, failed }
 enum _SavePhase { idle, saving, saved, failed }
 
 /// Vertical rhythm between the denomination rows.
-const double _rowGap = 2;
+const double _rowGap = 5;
 
 class _NoteCounterScreenState extends State<NoteCounterScreen> {
   /// Quantity per denomination in paise. Every denomination is present, so a
@@ -474,7 +474,6 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
   }
 
   Future<void> _copySummary() async {
-    if (_isEmpty) return;
     final _Copy copy = _copy();
     await Clipboard.setData(
       ClipboardData(text: _summaryLines(copy).join('\n')),
@@ -632,7 +631,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Container(
-              height: 56,
+              height: 76,
               margin: const EdgeInsets.only(bottom: 3),
               padding: const EdgeInsets.symmetric(horizontal: 6),
               decoration: BoxDecoration(
@@ -654,8 +653,8 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   ClipOval(
                     child: Image.asset(
                       'assets/illustrations/counter_header_coins.png',
-                      width: 48,
-                      height: 48,
+                      width: 60,
+                      height: 60,
                       fit: BoxFit.cover,
                       excludeFromSemantics: true,
                     ),
@@ -672,7 +671,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                           Text(
                             strings.text(AppString.counter),
                             style: const TextStyle(
-                              fontSize: 21,
+                              fontSize: 25,
                               fontWeight: FontWeight.w800,
                               color: AppColors.onPrimary,
                             ),
@@ -682,7 +681,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                                 ? 'গুনুন সহজে • সঞ্চয় করুন'
                                 : 'Count Smart • Save More',
                             style: const TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontStyle: FontStyle.italic,
                               color: AppColors.onPrimary,
                             ),
@@ -696,6 +695,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                     onPressed: _confirmNewCount,
                     tooltip: strings.text(AppString.newCount),
                     color: AppColors.onPrimary,
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.secondaryGreen,
+                    ),
                     icon: const Icon(Icons.refresh),
                   ),
                   if (widget.onSettings != null)
@@ -703,6 +705,9 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                       onPressed: widget.onSettings,
                       tooltip: 'Settings',
                       color: AppColors.onPrimary,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.secondaryGreen,
+                      ),
                       icon: const Icon(Icons.settings),
                     ),
                 ],
@@ -773,7 +778,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   Expanded(
                     child: _ActionButton.filled(
                       buttonKey: const Key('note-counter-copy-summary'),
-                      onPressed: _isEmpty ? null : _copySummary,
+                      onPressed: _copySummary,
                       icon: Icons.content_copy,
                       label: copy.copySummary,
                     ),
@@ -784,7 +789,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
             ] else ...<Widget>[
               _ActionButton.outlined(
                 buttonKey: const Key('note-counter-copy-summary'),
-                onPressed: _isEmpty ? null : _copySummary,
+                onPressed: _copySummary,
                 icon: Icons.content_copy,
                 label: copy.copySummary,
               ),
@@ -902,8 +907,8 @@ class _ActionButton extends StatelessWidget {
           minimumSize: const Size.fromHeight(44),
           backgroundColor: AppColors.primaryGreen,
           foregroundColor: AppColors.onPrimary,
-          disabledBackgroundColor: AppColors.lightGreen,
-          disabledForegroundColor: AppColors.softText,
+          disabledBackgroundColor: AppColors.primaryGreen,
+          disabledForegroundColor: AppColors.onPrimary,
           padding: labelPadding,
           shape: shape,
         ),
@@ -1006,7 +1011,7 @@ class _DenominationRowState extends State<_DenominationRow> {
       key: Key('note-counter-row-${widget.denominationPaise}'),
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.warmIvory,
         borderRadius: BorderRadius.circular(18),
@@ -1018,24 +1023,21 @@ class _DenominationRowState extends State<_DenominationRow> {
               : AppColors.accentGreen.withValues(alpha: 0.4),
           width: _focused ? 1.6 : (widget.counted ? 1.3 : 1),
         ),
-        // The focused row lifts off the canvas; an idle row is flat.
-        boxShadow: _focused
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.10),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: AppColors.beige.withValues(alpha: _focused ? 0.7 : 0.45),
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           ExcludeSemantics(
             child: SizedBox(
-              width: 84,
-              height: 42,
+              width: 100,
+              height: 48,
               child: Image.asset(
                 _asset,
                 fit: BoxFit.contain,
@@ -1066,7 +1068,7 @@ class _DenominationRowState extends State<_DenominationRow> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 17,
                     fontWeight: FontWeight.w800,
                     color: AppColors.darkText,
                   ),
@@ -1087,18 +1089,6 @@ class _DenominationRowState extends State<_DenominationRow> {
                     ),
                   ),
                 ),
-                if (widget.isCoinRow) ...<Widget>[
-                  const SizedBox(height: 1),
-                  Text(
-                    copy.coinsAmountLabel(strings),
-                    maxLines: 2,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      height: 1.15,
-                      color: AppColors.softText,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -1106,7 +1096,7 @@ class _DenominationRowState extends State<_DenominationRow> {
           // The quantity stepper: the same fixed width in every row, so all
           // seven fields line up down the screen.
           SizedBox(
-            width: 90,
+            width: 96,
             child: Semantics(
               textField: true,
               label: fieldLabel,
@@ -1132,20 +1122,18 @@ class _DenominationRowState extends State<_DenominationRow> {
                   errorMaxLines: 2,
                   isDense: true,
                   filled: true,
-                  fillColor: _focused
-                      ? AppColors.lightGreen
-                      : AppColors.warmIvory,
+                  fillColor: AppColors.lightGreen,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 4,
                     vertical: 8,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.beige),
+                    borderSide: const BorderSide(color: AppColors.accentGreen),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.beige),
+                    borderSide: const BorderSide(color: AppColors.accentGreen),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -1202,8 +1190,8 @@ class _GrandTotalCard extends StatelessWidget {
       child: Row(
         children: <Widget>[
           Container(
-            width: 36,
-            height: 36,
+            width: 48,
+            height: 48,
             decoration: const BoxDecoration(
               color: AppColors.warmIvory,
               shape: BoxShape.circle,
@@ -1215,6 +1203,8 @@ class _GrandTotalCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
+          Container(width: 1, height: 44, color: AppColors.accentGreen),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1223,10 +1213,9 @@ class _GrandTotalCard extends StatelessWidget {
                 Text(
                   strings.text(AppString.grandTotal),
                   style: const TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                    color: AppColors.softText,
+                    color: AppColors.headerGreen,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -1291,10 +1280,14 @@ class _SaveStatus extends StatelessWidget {
         border: failed ? Border.all(color: AppColors.beige) : null,
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          Expanded(
+          const Icon(Icons.info, size: 15, color: AppColors.primaryGreen),
+          const SizedBox(width: 6),
+          Flexible(
             child: Text(
               text,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 color: failed ? AppColors.darkText : AppColors.softText,

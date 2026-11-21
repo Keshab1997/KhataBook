@@ -349,7 +349,14 @@ void main() {
       expect(find.byKey(const Key('note-counter-row-100')), findsOneWidget);
       expect(find.byKey(const Key('note-counter-field-100')), findsOneWidget);
       expect(find.text('Coins'), findsOneWidget);
-      expect(find.text('Total value of coins (₹)'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Total value of coins (₹)',
+        ),
+        findsOneWidget,
+      );
       expectNoLayoutErrors(tester);
     });
 
@@ -656,8 +663,15 @@ void main() {
     ) async {
       await pumpCounter(tester);
 
-      // Not "how many coins" - the label says the total value in rupees.
-      expect(find.text('Total value of coins (₹)'), findsOneWidget);
+      // The accessible field label explains that coins are a rupee total.
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Total value of coins (₹)',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Coins'), findsOneWidget);
     });
   });
@@ -1158,6 +1172,21 @@ void main() {
         find.text('In-memory session - nothing is saved or added to a khata'),
         findsNothing,
       );
+    });
+
+    testWidgets('Copy summary works for a zero count', (
+      WidgetTester tester,
+    ) async {
+      final LocalLedger ledger = await openInMemoryLedger(tester);
+      final NoteCounterStore store = NoteCounterStore(ledger);
+      final ClipboardCapture clipboard = ClipboardCapture();
+      mockClipboard(clipboard);
+      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+      await tapHittable(
+        tester,
+        find.byKey(const Key('note-counter-copy-summary')),
+      );
+      expect(clipboard.text, contains('Grand Total: ₹0'));
     });
 
     testWidgets('Copy summary puts readable text on the clipboard', (
