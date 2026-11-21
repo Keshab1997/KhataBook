@@ -1,0 +1,15 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "a-home-activity",
+  "allowed": [
+    "lib/features/home/home_screen.dart",
+    "test/home_live_test.dart",
+    "test/home_entry_language_test.dart",
+    "test/home_design_test.dart"
+  ],
+  "commit": "feat(home): make recent activity actionable and accessible [skip ci]",
+  "check": {"kind": "preflight"},
+  "arena": {"branch": "auto", "base_sha": null},
+  "tracker": null
+}

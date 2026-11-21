@@ -1,0 +1,15 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "c-entry-confidence",
+  "allowed": [
+    "lib/features/entry/add_entry_screen.dart",
+    "lib/features/entry/transaction_editor_screen.dart",
+    "test/add_entry_screen_test.dart",
+    "test/transaction_editor_test.dart"
+  ],
+  "commit": "feat(entry): improve validation and protect edited drafts [skip ci]",
+  "check": {"kind": "preflight"},
+  "arena": {"branch": "auto", "base_sha": null},
+  "tracker": null
+}
