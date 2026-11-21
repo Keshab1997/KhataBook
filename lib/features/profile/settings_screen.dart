@@ -7,9 +7,9 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 
-/// The single soft card shadow from `theme.md` (blur 14, offset 0/4), kept
-/// here so every card on this screen looks identical.
-List<BoxShadow> _cardShadow() => <BoxShadow>[
+/// The single soft card shadow from `theme.md` (blur 14, offset 0/4), shared
+/// across the Profile and App Settings panels so every surface matches.
+List<BoxShadow> accountCardShadow() => <BoxShadow>[
   BoxShadow(
     color: AppColors.darkText.withValues(alpha: 0.05),
     blurRadius: 14,
@@ -23,11 +23,10 @@ List<BoxShadow> _cardShadow() => <BoxShadow>[
 ///
 /// Layout: the account-family header shared with Profile - the compact green
 /// banner with the rounded bottom edge and the 3 dp golden rule from the
-/// Counter's reference treatment - then grouped preference cards (radius 20,
-/// 1 dp beige border, one soft shadow), each row led by the same 36 dp
-/// rounded-square icon container, then a title, a plain-language detail and
-/// wrapped value/status pills. Section titles carry a 4 dp green rule so the
-/// groups read at a glance.
+/// Counter's reference treatment - then `Preferences` and `Storage` panels
+/// (radius 20, 1 dp beige border, one soft shadow) with clear panel headings.
+/// Every row uses the shared [AccountRow] primitive so titles and subtitles
+/// take the full remaining width while value/status chips wrap cleanly below.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -52,10 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _picking = true;
     final AppLanguage? choice = await showDialog<AppLanguage>(
       context: context,
-      builder: (dialogContext) => SimpleDialog(
+      builder: (BuildContext dialogContext) => SimpleDialog(
         backgroundColor: AppColors.surface,
         title: Text(strings.text(AppString.changeLanguage)),
-        children: [
+        children: <Widget>[
           for (final AppLanguage language in AppLanguage.values)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(dialogContext, language),
@@ -87,7 +86,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (!mounted) return;
     _picking = false;
-    final callback = widget.onLanguageChanged;
+    final Future<bool> Function(AppLanguage)? callback =
+        widget.onLanguageChanged;
     if (choice == null || choice == widget.language || callback == null) {
       return;
     }
@@ -109,17 +109,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final strings = AppStrings(widget.language);
-    final text = strings.text;
+    final AppStrings strings = AppStrings(widget.language);
+    final String Function(AppString) text = strings.text;
     final bool canChoose = widget.onLanguageChanged != null;
-    final String subtitle = widget.language == AppLanguage.bn
-        ? 'মুদ্রা, থিম ও ভাষা'
-        : 'Currency, theme & language';
+    final String subtitle = text(AppString.settingsDescription);
     if (kIsWeb) {
       return Scaffold(
         body: Column(
           children: <Widget>[
-            _AccountHeader(
+            AccountPageHeader(
               key: const Key('settings-header'),
               title: text(AppString.appSettings),
               subtitle: subtitle,
@@ -130,13 +128,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
-                  child: _Card(
+                  child: AccountSurfaceCard(
                     child: Padding(
                       padding: const EdgeInsets.all(22),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          const _IconBadge(
+                          const AccountIconBadge(
                             icon: Icons.info_outline,
                             size: 52,
                             radius: 16,
@@ -167,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       key: const Key('settings-screen'),
       body: Column(
         children: <Widget>[
-          _AccountHeader(
+          AccountPageHeader(
             key: const Key('settings-header'),
             title: text(AppString.appSettings),
             subtitle: subtitle,
@@ -182,44 +180,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: <Widget>[
                   if (!canChoose) ...<Widget>[
                     _ReadOnlyNotice(strings),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                   ],
-                  _SectionTitle(text(AppString.preferences)),
-                  const SizedBox(height: 10),
-                  _SettingsCard(
+                  AccountSectionPanel(
+                    heading: text(AppString.preferences),
                     children: <Widget>[
-                      _SettingRow(
+                      AccountRow(
                         key: const Key('settings-currency-row'),
                         icon: Icons.currency_rupee,
                         title: text(AppString.currency),
-                        detail: text(AppString.currencyDetail),
+                        subtitle: text(AppString.currencyDetail),
                         value: text(AppString.currencyInr),
                         status: text(AppString.fixed),
+                        mergeReadOnlySemantics: true,
                       ),
-                      const _CardDivider(),
-                      _SettingRow(
+                      const AccountRowDivider(),
+                      AccountRow(
                         key: const Key('settings-theme-row'),
                         icon: Icons.light_mode_outlined,
                         title: text(AppString.theme),
-                        detail: text(AppString.themeDetail),
+                        subtitle: text(AppString.themeDetail),
                         value: text(AppString.light),
                         status: text(AppString.fixed),
+                        mergeReadOnlySemantics: true,
                       ),
-                      const _CardDivider(),
-                      _SettingRow(
+                      const AccountRowDivider(),
+                      AccountRow(
                         key: const Key('settings-language-row'),
                         icon: Icons.translate_outlined,
                         title: text(AppString.language),
-                        detail: text(
+                        subtitle: text(
                           canChoose
                               ? AppString.languageDetail
                               : AppString.languageUnavailable,
                         ),
                         value: widget.language.endonym,
                         status: canChoose ? null : text(AppString.notAvailable),
+                        mergeReadOnlySemantics: true,
                       ),
                       if (canChoose) ...<Widget>[
-                        const _CardDivider(),
+                        const AccountRowDivider(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                           child: Column(
@@ -277,49 +277,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ],
-                      const _CardDivider(),
-                      _SettingRow(
+                      const AccountRowDivider(),
+                      AccountRow(
                         key: const Key('settings-backup-row'),
                         icon: Icons.cloud_off_outlined,
                         title: text(AppString.cloudBackup),
-                        detail: text(AppString.cloudDetail),
+                        subtitle: text(AppString.cloudDetail),
                         value: text(AppString.off),
                         status: text(AppString.notAvailable),
+                        mergeReadOnlySemantics: true,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  _SectionTitle(text(AppString.storage)),
-                  const SizedBox(height: 10),
-                  _SettingsCard(
+                  const SizedBox(height: 20),
+                  AccountSectionPanel(
+                    heading: text(AppString.storage),
                     children: <Widget>[
-                      _SettingRow(
+                      AccountRow(
                         key: const Key('settings-storage-row'),
                         icon: Icons.smartphone_outlined,
                         title: text(AppString.storageTitle),
-                        detail: text(AppString.storageDetail),
+                        subtitle: text(AppString.storageDetail),
                         value: text(AppString.thisDevice),
                         status: text(AppString.localOnly),
+                        mergeReadOnlySemantics: true,
                       ),
-                      const _CardDivider(),
-                      _SettingRow(
+                      const AccountRowDivider(),
+                      AccountRow(
                         icon: Icons.wifi_off_outlined,
                         title: text(AppString.internetRequired),
-                        detail: text(AppString.internetDetail),
+                        subtitle: text(AppString.internetDetail),
                         value: text(AppString.no),
                         status: text(AppString.offlineFirst),
+                        mergeReadOnlySemantics: true,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _SettingsCard(
-                    children: <Widget>[
-                      _SettingRow(
+                      const AccountRowDivider(),
+                      AccountRow(
                         key: const Key('settings-offline-backup-row'),
                         icon: Icons.save_alt,
                         title: text(AppString.offlineBackupRestore),
-                        detail: text(AppString.androidBackupDetail),
+                        subtitle: text(AppString.androidBackupDetail),
                         value: text(AppString.androidBackup),
+                        mergeReadOnlySemantics: true,
                       ),
                     ],
                   ),
@@ -337,6 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       child: Text(
                         strings.buildLabel('1.0.0', 1),
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -355,23 +355,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-/// The account-family header shared with Profile: the compact green banner
-/// with the rounded bottom edge and the 3 dp golden rule from the Counter's
-/// reference treatment, plus a circular golden icon badge, the screen title,
-/// a restrained contextual subtitle and a 48 dp back target.
-class _AccountHeader extends StatelessWidget {
-  const _AccountHeader({
+/// The account-family header shared between Profile and App Settings: the
+/// compact green banner with the rounded bottom edge and the 3 dp golden rule
+/// from the Counter's reference treatment, carrying a circular golden badge,
+/// the screen title, one restrained line of context, and an optional 48 dp
+/// leading or trailing control.
+class AccountPageHeader extends StatelessWidget {
+  const AccountPageHeader({
     super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
     this.leading,
+    this.action,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final Widget? leading;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -394,55 +397,59 @@ class _AccountHeader extends StatelessWidget {
           right: 12,
           bottom: 12,
         ),
-        child: Row(
-          children: <Widget>[
-            if (leading != null) ...<Widget>[
-              SizedBox(width: 48, height: 48, child: leading!),
-              const SizedBox(width: 2),
-            ],
-            Container(
-              width: 46,
-              height: 46,
-              decoration: const BoxDecoration(
-                color: AppColors.golden,
-                shape: BoxShape.circle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(
+            children: <Widget>[
+              if (leading != null) ...<Widget>[
+                SizedBox(width: 48, height: 48, child: leading),
+                const SizedBox(width: 2),
+              ],
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: AppColors.golden,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 24, color: AppColors.headerGreen),
               ),
-              child: Icon(icon, size: 24, color: AppColors.headerGreen),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FittedBox(
-                alignment: Alignment.centerLeft,
-                fit: BoxFit.scaleDown,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.onPrimary,
-                        height: 1.15,
+              const SizedBox(width: 10),
+              Expanded(
+                child: FittedBox(
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        title,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.onPrimary,
+                          height: 1.15,
+                        ),
                       ),
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                        color: AppColors.onPrimary.withValues(alpha: 0.85),
-                        height: 1.3,
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.onPrimary.withValues(alpha: 0.85),
+                          height: 1.3,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              ?action,
+            ],
+          ),
         ),
       ),
     );
@@ -450,7 +457,7 @@ class _AccountHeader extends StatelessWidget {
 }
 
 /// A real [BackButton] in a 48 dp box: unchanged runtime type and semantics
-/// for the existing navigation test, larger than the default target.
+/// for the existing navigation tests, larger than the default target.
 class _HeaderBackButton extends StatelessWidget {
   const _HeaderBackButton();
 
@@ -491,11 +498,12 @@ class _ReadOnlyNotice extends StatelessWidget {
             color: AppColors.lightGreen,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.outline),
+            boxShadow: accountCardShadow(),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const _IconBadge(
+              const AccountIconBadge(
                 icon: Icons.info_outline,
                 size: 40,
                 radius: 12,
@@ -536,104 +544,135 @@ class _ReadOnlyNotice extends StatelessWidget {
   }
 }
 
-/// Section heading: a 4 dp green rule, then the group name.
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Container(
-          width: 4,
-          height: 16,
-          decoration: BoxDecoration(
-            color: AppColors.primaryGreen,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: AppColors.darkText,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Warm-ivory rounded card for preference and storage information.
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.children});
-
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      ),
-    );
-  }
-}
-
-class _CardDivider extends StatelessWidget {
-  const _CardDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Divider(
-      height: 1,
-      thickness: 1,
-      indent: 62,
-      endIndent: 14,
-      color: AppColors.outline,
-    );
-  }
-}
-
 /// Rounded warm-ivory surface with the 1 dp beige border and one soft shadow.
-class _Card extends StatelessWidget {
-  const _Card({required this.child});
+class AccountSurfaceCard extends StatelessWidget {
+  const AccountSurfaceCard({super.key, required this.child, this.background});
 
   final Widget child;
+  final Color? background;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: background ?? AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.outline),
-        boxShadow: _cardShadow(),
+        boxShadow: accountCardShadow(),
       ),
       child: child,
     );
   }
 }
 
-/// The 36 dp rounded-square icon container shared by every row.
-class _IconBadge extends StatelessWidget {
-  const _IconBadge({
+/// Grouped panel shared by Profile and Settings: a warm-ivory card with a
+/// tinted header band (4 dp green rule + bold group heading) and a Material
+/// surface so enabled rows ripple cleanly while read-only rows stay inert.
+class AccountSectionPanel extends StatelessWidget {
+  const AccountSectionPanel({
+    super.key,
+    required this.heading,
+    required this.children,
+  });
+
+  final String heading;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: accountCardShadow(),
+      ),
+      child: Material(
+        color: AppColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: AppColors.lightGreen.withValues(alpha: 0.55),
+                border: const Border(
+                  bottom: BorderSide(color: AppColors.outline),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Container(
+                      width: 4,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGreen,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      heading,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.darkText,
+                        letterSpacing: 0.2,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Hairline rule between adjacent [AccountRow] items inside a panel.
+class AccountRowDivider extends StatelessWidget {
+  const AccountRowDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      indent: 66,
+      endIndent: 14,
+      color: AppColors.outline,
+    );
+  }
+}
+
+/// Rounded-square icon tile shared by every Profile and Settings row.
+class AccountIconBadge extends StatelessWidget {
+  const AccountIconBadge({
+    super.key,
     required this.icon,
-    this.size = 36,
-    this.radius = 10,
-    this.iconSize = 18,
+    this.enabled = true,
+    this.destructive = false,
+    this.size = 40,
+    this.radius = 12,
+    this.iconSize = 20,
     this.background,
   });
 
   final IconData icon;
+  final bool enabled;
+  final bool destructive;
   final double size;
   final double radius;
   final double iconSize;
@@ -641,101 +680,39 @@ class _IconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color fillColor =
+        background ??
+        (destructive
+            ? AppColors.expenseRed.withValues(alpha: enabled ? 0.14 : 0.08)
+            : (enabled
+                  ? AppColors.lightGreen
+                  : AppColors.beige.withValues(alpha: 0.45)));
+    final Color fgColor = destructive
+        ? (enabled
+              ? AppColors.expenseRed
+              : AppColors.expenseRed.withValues(alpha: 0.75))
+        : (enabled ? AppColors.primaryGreen : AppColors.softText);
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background ?? AppColors.lightGreen,
+        color: fillColor,
         borderRadius: BorderRadius.circular(radius),
       ),
-      child: Icon(icon, size: iconSize, color: AppColors.primaryGreen),
+      child: Icon(icon, size: iconSize, color: fgColor),
     );
   }
 }
 
-/// A fixed value: title, plain-language explanation, and the value plus its
-/// status chip. Never tappable, and announced as one readable unit.
-class _SettingRow extends StatelessWidget {
-  const _SettingRow({
+/// Value or status pill shared across Profile and Settings. Text wraps inside
+/// the capsule so long Bengali labels at 200% text never overflow.
+class AccountStatusChip extends StatelessWidget {
+  const AccountStatusChip({
     super.key,
-    required this.icon,
-    required this.title,
-    required this.detail,
-    required this.value,
-    this.status,
+    required this.label,
+    this.highlighted = false,
   });
-
-  final IconData icon;
-  final String title;
-  final String detail;
-  final String value;
-  final String? status;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: [title, value, ?status, detail].join('. '),
-      child: ExcludeSemantics(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: _IconBadge(icon: icon),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.darkText,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        detail,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          height: 1.4,
-                          color: AppColors.softText,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: <Widget>[
-                          _ValueChip(label: value, highlighted: true),
-                          if (status != null) _ValueChip(label: status!),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Value or status pill. Its text wraps, so a long label never overflows.
-class _ValueChip extends StatelessWidget {
-  const _ValueChip({required this.label, this.highlighted = false});
 
   final String label;
   final bool highlighted;
@@ -751,8 +728,6 @@ class _ValueChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        // Same pill type scale as the profile status chips and the sync card,
-        // so a "value + reason" reads the same on every settings-like screen.
         style: TextStyle(
           fontSize: 11.5,
           height: 1.2,
@@ -761,5 +736,170 @@ class _ValueChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Shared long-text-safe row primitive used once across Profile and Settings.
+///
+/// Layout guarantees at narrow widths (320 dp) and large text (`textScaler` 2.0):
+///   * The 40 dp leading icon tile sits at `CrossAxisAlignment.start` so it
+///     stays aligned with the first line rather than floating in the vertical
+///     middle of a tall wrapped row.
+///   * When [onTap] is non-null, the trailing chevron shares only the first-line
+///     header [Row] with `CrossAxisAlignment.start`, keeping it anchored to the
+///     first line while [subtitle] and value/status chips span the full
+///     remaining column width underneath.
+///   * Value and status badges wrap below the text copy so they never squeeze
+///     [title] onto one word per line.
+class AccountRow extends StatelessWidget {
+  const AccountRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.eyebrow,
+    this.subtitle,
+    this.subtitleMaxLines,
+    this.value,
+    this.status,
+    this.onTap,
+    this.destructive = false,
+    this.mergeReadOnlySemantics = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? eyebrow;
+  final String? subtitle;
+  final int? subtitleMaxLines;
+  final String? value;
+  final String? status;
+  final VoidCallback? onTap;
+  final bool destructive;
+  final bool mergeReadOnlySemantics;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool available = onTap != null;
+    final bool activeBadge = available || value != null || eyebrow != null;
+    final double verticalPadding = eyebrow != null && subtitle == null
+        ? 11
+        : 13;
+
+    final Widget content = ConstrainedBox(
+      constraints: BoxConstraints(minHeight: eyebrow != null ? 48 : 56),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: verticalPadding,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            AccountIconBadge(
+              icon: icon,
+              enabled: activeBadge,
+              destructive: destructive,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (eyebrow != null) ...<Widget>[
+                    Text(
+                      eyebrow!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.softText,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: destructive && available
+                                  ? AppColors.expenseRed
+                                  : AppColors.darkText,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (available) ...<Widget>[
+                        const SizedBox(width: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.chevron_right,
+                            size: 22,
+                            color: destructive
+                                ? AppColors.expenseRed
+                                : AppColors.primaryGreen,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (subtitle != null) ...<Widget>[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle!,
+                      maxLines: subtitleMaxLines,
+                      overflow: subtitleMaxLines != null
+                          ? TextOverflow.ellipsis
+                          : null,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: AppColors.softText,
+                      ),
+                    ),
+                  ],
+                  if (value != null || status != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        if (value != null)
+                          AccountStatusChip(label: value!, highlighted: true),
+                        if (status != null) AccountStatusChip(label: status!),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (available) {
+      return InkWell(onTap: onTap, child: content);
+    }
+    if (mergeReadOnlySemantics) {
+      return Semantics(
+        container: true,
+        label: <String>[?eyebrow, title, ?value, ?status, ?subtitle].join('. '),
+        child: ExcludeSemantics(child: content),
+      );
+    }
+    return content;
   }
 }

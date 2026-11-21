@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/l10n/app_strings.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
@@ -98,10 +99,137 @@ void main() {
       );
       expect(find.textContaining('nothing is uploaded'), findsOneWidget);
 
+      // Existing wallet artwork backs the signed-out identity avatar.
+      final Finder identityImages = find.descendant(
+        of: find.byKey(const Key('profile-identity-card')),
+        matching: find.byType(Image),
+      );
+      expect(identityImages, findsOneWidget);
+      final Image avatarImage = tester.widget<Image>(identityImages);
+      expect(
+        avatarImage.image,
+        const AssetImage('assets/illustrations/home_wallet.png'),
+      );
+
       // No invented account: no address, no name, no sync timestamp.
       expect(find.textContaining('@'), findsNothing);
       expect(find.textContaining('Last synced'), findsNothing);
       expect(find.textContaining('Keshab'), findsNothing);
+    });
+
+    testWidgets(
+      'orders action list for S5 reference parity and keeps honesty',
+      (WidgetTester tester) async {
+        await pumpScreen(tester, const ProfileScreen(), size: tallPhone);
+
+        const List<String> orderedActionKeys = <String>[
+          'profile-wallet-row',
+          'profile-backup-row',
+          'profile-sign-in-row',
+          'profile-app-settings-row',
+          'profile-about-row',
+          'profile-logout-row',
+        ];
+
+        double previousTop = -1;
+        for (final String key in orderedActionKeys) {
+          final Finder row = find.byKey(Key(key));
+          expect(row, findsOneWidget, reason: 'missing $key');
+          final double top = tester.getTopLeft(row).dy;
+          expect(
+            top,
+            greaterThan(previousTop),
+            reason: '$key must appear below the preceding action row',
+          );
+          previousTop = top;
+        }
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('profile-about-row')),
+            matching: find.text('About App'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('profile-logout-row')),
+            matching: find.text('Logout'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('preserves callbacks and routes when shell actions are wired', (
+      WidgetTester tester,
+    ) async {
+      int walletCalls = 0;
+      int backupCalls = 0;
+      int cloudCalls = 0;
+
+      await pumpScreen(
+        tester,
+        ProfileScreen(
+          onWalletSummary: () => walletCalls++,
+          onBackup: () => backupCalls++,
+          onCloudBackup: () => cloudCalls++,
+        ),
+        size: tallPhone,
+      );
+
+      for (final String key in <String>[
+        'profile-wallet-row',
+        'profile-backup-row',
+        'profile-sign-in-row',
+      ]) {
+        final Finder row = find.byKey(Key(key));
+        expect(
+          find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)),
+          findsOneWidget,
+          reason: '$key should show a chevron when wired',
+        );
+        expect(
+          find.descendant(of: row, matching: find.text('Not available yet')),
+          findsNothing,
+          reason: '$key should drop its unavailable chip when wired',
+        );
+      }
+
+      await revealAndTap(
+        tester,
+        find.byKey(const Key('profile-wallet-row')),
+        screen: ProfileScreen,
+      );
+      await revealAndTap(
+        tester,
+        find.byKey(const Key('profile-backup-row')),
+        screen: ProfileScreen,
+      );
+      await revealAndTap(
+        tester,
+        find.byKey(const Key('profile-sign-in-row')),
+        screen: ProfileScreen,
+      );
+      expect(walletCalls, 1);
+      expect(backupCalls, 1);
+      expect(cloudCalls, 1);
+
+      // Unbuilt routes (About App, Logout) remain honestly unavailable.
+      for (final String key in <String>[
+        'profile-about-row',
+        'profile-logout-row',
+      ]) {
+        final Finder row = find.byKey(Key(key));
+        expect(
+          find.descendant(of: row, matching: find.byType(InkWell)),
+          findsNothing,
+        );
+        expect(
+          find.descendant(of: row, matching: find.text('Not available yet')),
+          findsOneWidget,
+        );
+      }
     });
 
     testWidgets('About card carries real static app information', (
@@ -181,6 +309,8 @@ void main() {
         'profile-wallet-row',
         'profile-backup-row',
         'profile-sign-in-row',
+        'profile-about-row',
+        'profile-logout-row',
       ]) {
         final Finder row = find.byKey(Key(key));
 
@@ -391,7 +521,8 @@ void main() {
     ) async {
       await pumpScreen(tester, const SettingsScreen(), size: tallPhone);
 
-      // Each group title is a heading with a green rule beside it.
+      // Each group is a panel with a clear heading and a green rule beside it.
+      expect(find.byType(AccountSectionPanel), findsNWidgets(2));
       for (final String title in <String>['Preferences', 'Storage']) {
         final Text heading = tester.widget<Text>(find.text(title));
         expect(heading.style?.fontWeight, FontWeight.w800);
@@ -483,6 +614,184 @@ void main() {
         expect(find.byKey(Key(key)), findsOneWidget);
       }
     });
+
+    testWidgets('sources English and Bengali copy from AppStrings l10n layer', (
+      WidgetTester tester,
+    ) async {
+      const AppStrings bn = AppStrings(AppLanguage.bn);
+      await pumpScreen(
+        tester,
+        const SettingsScreen(language: AppLanguage.bn),
+        size: tallPhone,
+      );
+
+      expect(find.text(bn.text(AppString.appSettings)), findsOneWidget);
+      expect(find.text(bn.text(AppString.settingsDescription)), findsOneWidget);
+      expect(find.text(bn.text(AppString.readOnly)), findsOneWidget);
+      expect(find.text(bn.text(AppString.preferences)), findsOneWidget);
+      expect(find.text(bn.text(AppString.storage)), findsOneWidget);
+      expect(find.text(bn.text(AppString.currencyInr)), findsOneWidget);
+      expect(find.text(bn.buildLabel('1.0.0', 1)), findsOneWidget);
+    });
+  });
+
+  group('shared row primitive and small-screen large-text contract', () {
+    testWidgets(
+      'Profile and Settings reuse AccountRow and keep leading/chevron on line 1 at 320dp 200%',
+      (WidgetTester tester) async {
+        await pumpScreen(
+          tester,
+          ProfileScreen(onWalletSummary: () {}, onCloudBackup: () {}),
+          size: smallPhone,
+          scale: 2.0,
+        );
+        expect(tester.takeException(), isNull);
+
+        final Finder cloudRow = find.byKey(const Key('profile-sign-in-row'));
+        await reveal(tester, cloudRow, screen: ProfileScreen);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.descendant(
+            of: find.byType(ProfileScreen),
+            matching: find.byType(AccountRow),
+          ),
+          findsWidgets,
+        );
+
+        final Rect rowRect = tester.getRect(cloudRow);
+        final Rect badgeRect = tester.getRect(
+          find.descendant(
+            of: cloudRow,
+            matching: find.byType(AccountIconBadge),
+          ),
+        );
+        final Rect chevronRect = tester.getRect(
+          find.descendant(
+            of: cloudRow,
+            matching: find.byIcon(Icons.chevron_right),
+          ),
+        );
+
+        // Tall wrapped row at 200% text: leading icon and trailing chevron stay
+        // pinned to the first line rather than vertically centred in the row.
+        expect(rowRect.height, greaterThan(110));
+        expect(badgeRect.top - rowRect.top, lessThanOrEqualTo(20));
+        expect(badgeRect.center.dy, lessThan(rowRect.center.dy));
+        expect(chevronRect.top - rowRect.top, lessThanOrEqualTo(20));
+        expect(chevronRect.center.dy, lessThan(rowRect.center.dy));
+
+        // Settings reuses the same AccountRow and keeps titles full-width above chips.
+        await pumpScreen(
+          tester,
+          const SettingsScreen(),
+          size: smallPhone,
+          scale: 2.0,
+        );
+        expect(tester.takeException(), isNull);
+
+        final Finder storageRow = find.byKey(const Key('settings-storage-row'));
+        await reveal(tester, storageRow, screen: SettingsScreen);
+        expect(tester.takeException(), isNull);
+        expect(
+          find.descendant(
+            of: find.byType(SettingsScreen),
+            matching: find.byType(AccountRow),
+          ),
+          findsWidgets,
+        );
+
+        final Rect storageRect = tester.getRect(storageRow);
+        final Rect storageBadge = tester.getRect(
+          find.descendant(
+            of: storageRow,
+            matching: find.byType(AccountIconBadge),
+          ),
+        );
+        final Rect titleRect = tester.getRect(
+          find.descendant(
+            of: storageRow,
+            matching: find.text('Where entries are saved'),
+          ),
+        );
+        final Rect valueChipRect = tester.getRect(
+          find.descendant(of: storageRow, matching: find.text('This device')),
+        );
+
+        expect(storageBadge.center.dy, lessThan(storageRect.center.dy));
+        expect(titleRect.width, greaterThanOrEqualTo(180));
+        expect(valueChipRect.top, greaterThanOrEqualTo(titleRect.bottom - 1));
+      },
+    );
+
+    for (final AppLanguage language in AppLanguage.values) {
+      testWidgets(
+        'profile_small_large_text contract (320x568 @ 2.0x, ${language.name}) scrolls cleanly',
+        (WidgetTester tester) async {
+          await pumpScreen(
+            tester,
+            ProfileScreen(language: language),
+            size: smallPhone,
+            scale: 2.0,
+          );
+          expect(tester.takeException(), isNull);
+
+          for (final String key in <String>[
+            'profile-wallet-row',
+            'profile-backup-row',
+            'profile-sign-in-row',
+            'profile-app-settings-row',
+            'profile-about-row',
+            'profile-logout-row',
+            'profile-footer-tagline',
+            'profile-licences-row',
+          ]) {
+            await reveal(tester, find.byKey(Key(key)), screen: ProfileScreen);
+            expect(
+              tester.takeException(),
+              isNull,
+              reason: 'overflow while revealing $key in ${language.name}',
+            );
+          }
+        },
+      );
+
+      testWidgets(
+        'settings_small_large_text contract (320x568 @ 2.0x, ${language.name}) scrolls cleanly',
+        (WidgetTester tester) async {
+          final AppStrings strings = AppStrings(language);
+          await pumpScreen(
+            tester,
+            SettingsScreen(language: language),
+            size: smallPhone,
+            scale: 2.0,
+          );
+          expect(tester.takeException(), isNull);
+
+          for (final String key in <String>[
+            'settings-currency-row',
+            'settings-theme-row',
+            'settings-language-row',
+            'settings-backup-row',
+            'settings-storage-row',
+            'settings-offline-backup-row',
+          ]) {
+            await reveal(tester, find.byKey(Key(key)), screen: SettingsScreen);
+            expect(
+              tester.takeException(),
+              isNull,
+              reason: 'overflow while revealing $key in ${language.name}',
+            );
+          }
+
+          await reveal(
+            tester,
+            find.text(strings.buildLabel('1.0.0', 1)),
+            screen: SettingsScreen,
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   });
 
   group('small screens and large text', () {

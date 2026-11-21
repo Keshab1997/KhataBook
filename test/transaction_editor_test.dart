@@ -704,4 +704,126 @@ void main() {
       expect(find.text('Delete transaction'), findsOneWidget);
     });
   });
+
+  group('live preview, empty-zero grammar and the shared grid', () {
+    testWidgets('the preview names kind, amount and the balance delta', (
+      WidgetTester tester,
+    ) async {
+      await pumpEditor(
+        tester,
+        initial: sampleInitial(),
+        onUpdate: (EntryFormResult entry) async => true,
+        onDelete: () async => true,
+      );
+      // The stored entry unchanged: the delta is zero, so the line is the
+      // kind and the amount about to be written.
+      expect(find.text('Expense ₹1,234.56'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('editor-amount-field')),
+        '999.99',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Expense ₹999.99 → remaining +₹234.57'), findsOneWidget);
+
+      await tapControl(tester, const Key('editor-kind-income'));
+      expect(
+        find.text('Income ₹999.99 → remaining +₹2,234.55'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.byKey(const Key('editor-amount-field')), '');
+      await tester.pumpAndSettle();
+      expect(find.text('After saving: —'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the amount field carries a rupee prefix, never a 0.00 hint', (
+      WidgetTester tester,
+    ) async {
+      await pumpEditor(
+        tester,
+        initial: sampleInitial(amountPaise: 50),
+        onUpdate: (EntryFormResult entry) async => true,
+        onDelete: () async => true,
+      );
+      final TextField field = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const Key('editor-amount-field')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(field.controller!.text, '0.50');
+      expect(field.decoration!.hintText ?? '', isEmpty);
+      expect(field.decoration!.prefixText, '₹ ');
+      expect(find.text('0.00'), findsNothing);
+    });
+
+    testWidgets('leading zeros are rejected like any bad amount', (
+      WidgetTester tester,
+    ) async {
+      int calls = 0;
+      await pumpEditor(
+        tester,
+        initial: sampleInitial(),
+        onUpdate: (EntryFormResult entry) async {
+          calls++;
+          return true;
+        },
+        onDelete: () async => true,
+      );
+      for (final String bad in <String>['007', '00.5']) {
+        await tester.enterText(
+          find.byKey(const Key('editor-amount-field')),
+          bad,
+        );
+        await tester.pumpAndSettle();
+        await tapControl(tester, const Key('editor-update-button'));
+        expect(calls, 0, reason: '"$bad" must not reach the callback');
+      }
+      expect(
+        find.text('Enter an amount with up to 9 digits and 2 decimals'),
+        findsOneWidget,
+      );
+      // A disabled update is the gate: the button only wakes for a positive
+      // amount.
+      final FilledButton update = tester.widget<FilledButton>(
+        find.byKey(const Key('editor-update-button')),
+      );
+      expect(update.onPressed, isNull);
+      await tester.enterText(
+        find.byKey(const Key('editor-amount-field')),
+        '12',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('editor-update-button')))
+            .onPressed,
+        isNotNull,
+      );
+    });
+
+    testWidgets('categories lay out as one wrapping grid of even cells', (
+      WidgetTester tester,
+    ) async {
+      await pumpEditor(
+        tester,
+        initial: sampleInitial(),
+        onUpdate: (EntryFormResult entry) async => true,
+        onDelete: () async => true,
+        size: smallPhone,
+      );
+      double widthOf(String category) =>
+          tester.getSize(find.byKey(Key('editor-category-$category'))).width;
+      double topOf(String category) =>
+          tester.getTopLeft(find.byKey(Key('editor-category-$category'))).dy;
+      // One grid: every cell in a row shares the row's top and width. The
+      // original category keeps its place at the head of the set.
+      expect(widthOf('Shopping'), widthOf('Food'));
+      expect(topOf('Chai Stall'), topOf('Bills'));
+      expect(topOf('Gifts'), greaterThan(topOf('Bills')));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
