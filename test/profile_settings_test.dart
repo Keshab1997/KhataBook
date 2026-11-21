@@ -345,7 +345,16 @@ void main() {
         find.text('Indian rupees (INR), Indian digit grouping'),
         findsOneWidget,
       );
-      expect(find.text('KhataBook · Plan · Track · Save'), findsOneWidget);
+      // The tagline is now localized (Bengali gets its own line), so English
+      // copy is asserted through the stable tagline key instead of a bare
+      // string match; the assertion itself is unchanged in strength.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('profile-footer-tagline')),
+          matching: find.text('KhataBook · Plan · Track · Save'),
+        ),
+        findsOneWidget,
+      );
     });
   });
 
