@@ -21,8 +21,8 @@ class _Copy {
       _bn ? 'এখনো কোনো সংরক্ষিত গণনা নেই' : 'No saved counts yet';
 
   String get emptyHelp => _bn
-      ? 'শূন্য নয় এমন গণনা "সংরক্ষণ করুন" দিয়ে রাখলে এখানে দেখা যাবে'
-      : 'Save a non-zero count and it will show up here';
+      ? 'গণনা স্বয়ংক্রিয়ভাবে সংরক্ষিত হয়; এই তালিকা পুরানো সংরক্ষিত গণনা ধরে রাখে।'
+      : 'Counts are saved automatically; this list holds older saved sessions.';
 
   String get loadFailed =>
       _bn ? 'সংরক্ষিত গণনা লোড করা যায়নি' : 'Could not load the saved counts';

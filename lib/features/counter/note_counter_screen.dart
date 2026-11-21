@@ -37,11 +37,13 @@ import 'saved_sessions_sheet.dart';
 /// [onAddToKhata] action hands the Grand Total to its caller as integer paise
 /// plus a short note - the caller opens the entry form for the user to review
 /// and save, because cash already counted here may already be inside the
-/// opening balance. `Save` keeps a timestamped snapshot of a non-empty count
-/// as a per-khata saved session; saved sessions are listed, restored and
-/// deleted from the sessions sheet. Counter data lives only in the counter
-/// tables, and a format version 2 backup carries all of them - the screen
-/// says so rather than disclaiming the backup.
+/// opening balance. Per-khata mode is autosave: the screen writes the count on
+/// every edit, keeps the status line up to date and never asks you to press a
+/// save button. The sessions sheet still lists, restores and deletes snapshots
+/// created before the Save button was removed, but it cannot create new ones.
+/// Counter data lives only in the counter tables, and a format version 2
+/// backup carries all of them - the screen says so rather than disclaiming
+/// the backup.
 class NoteCounterScreen extends StatefulWidget {
   const NoteCounterScreen({
     super.key,
@@ -153,12 +155,6 @@ class _Copy {
       _bn ? 'খাতায় আয় হিসেবে যোগ করুন' : 'Add to khata as income';
 
   String get noteCounterWord => _bn ? 'নোট গণনা' : 'Note counter';
-
-  String get sessionSaved => _bn ? 'গণনা সংরক্ষিত হয়েছে' : 'Count saved';
-
-  String get sessionSaveFailed => _bn
-      ? 'গণনা সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।'
-      : 'Could not save the count. Try again.';
 
   String get sessionRestored =>
       _bn ? 'সংরক্ষিত গণনা ফিরিয়ে আনা হয়েছে' : 'Saved count restored';
@@ -488,23 +484,6 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
         .showSnackBar(SnackBar(content: Text(copy.summaryCopied)));
   }
 
-  Future<void> _saveSession() async {
-    final NoteCounterStore? store = widget.store;
-    final String? khataId = widget.khataId;
-    if (store == null || khataId == null) return;
-    final _Copy copy = _copy();
-    try {
-      await store.saveSession(khataId, _snapshot());
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaved)));
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(copy.sessionSaveFailed)));
-    }
-  }
-
   Future<void> _confirmNewCount() async {
     if (_isEmpty) {
       setState(_resetSession);
@@ -780,17 +759,10 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
               const SizedBox(height: 5),
             ],
             if (_persistent) ...<Widget>[
-              _ActionButton.filled(
-                buttonKey: const Key('note-counter-save'),
-                onPressed: _isEmpty ? null : _saveSession,
-                icon: Icons.save_outlined,
-                label: strings.text(AppString.save),
-              ),
-              const SizedBox(height: 5),
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: _ActionButton.tonal(
+                    child: _ActionButton.outlined(
                       buttonKey: const Key('note-counter-saved-sessions'),
                       onPressed: _showSessions,
                       icon: Icons.bookmark_outline,
@@ -799,7 +771,7 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _ActionButton.outlined(
+                    child: _ActionButton.filled(
                       buttonKey: const Key('note-counter-copy-summary'),
                       onPressed: _isEmpty ? null : _copySummary,
                       icon: Icons.content_copy,
@@ -862,22 +834,19 @@ class _NoteCounterScreenState extends State<NoteCounterScreen> {
 
 /// The tier of an [_ActionButton].
 enum _ActionTier {
-  /// The one primary action (Save): solid green.
+  /// The one primary action (Copy summary): solid green.
   primary,
-
-  /// A named, repeatable entry point (Saved sessions): light-green tonal.
-  tonal,
 
   /// Everything else: a plain green outline.
   outlined,
 }
 
-/// A flat-friendly full-width action button that tolerates two lines of
+/// A flat-friendly action button that tolerates two lines of
 /// label at large text scales. Never overflows: the label wraps.
 ///
-/// All three tiers share one height and one stadium shape, so the stack below
+/// All three tiers share one height and one stadium shape, so the row below
 /// the Grand Total reads as a single control group with a plain reading order:
-/// Save is the loudest, Saved sessions is named, Copy summary is quiet.
+/// Copy summary is the loudest, Saved sessions is the named entry point.
 class _ActionButton extends StatelessWidget {
   const _ActionButton.filled({
     required this.buttonKey,
@@ -885,13 +854,6 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
   }) : _tier = _ActionTier.primary;
-
-  const _ActionButton.tonal({
-    required this.buttonKey,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  }) : _tier = _ActionTier.tonal;
 
   const _ActionButton.outlined({
     required this.buttonKey,
@@ -942,21 +904,6 @@ class _ActionButton extends StatelessWidget {
           foregroundColor: AppColors.onPrimary,
           disabledBackgroundColor: AppColors.lightGreen,
           disabledForegroundColor: AppColors.softText,
-          padding: labelPadding,
-          shape: shape,
-        ),
-        child: child,
-      ),
-      _ActionTier.tonal => FilledButton(
-        key: buttonKey,
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(44),
-          backgroundColor: AppColors.lightGreen,
-          foregroundColor: AppColors.primaryGreen,
-          disabledBackgroundColor: AppColors.warmIvory,
-          disabledForegroundColor: AppColors.softText,
-          side: const BorderSide(color: AppColors.primaryGreen),
           padding: labelPadding,
           shape: shape,
         ),

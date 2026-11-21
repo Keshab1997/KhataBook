@@ -162,6 +162,27 @@ String fieldText(WidgetTester tester, int denominationPaise) {
   return editable.controller.text;
 }
 
+/// Seeds a timestamped snapshot directly through the store. The screen is
+/// autosave now - the Save button is gone - so this is how a test can create
+/// the sessions the sheet lists.
+Future<void> seedSession(
+  WidgetTester tester,
+  NoteCounterStore store,
+  String khataId, {
+  required int fiftyCount,
+}) async {
+  await tester.runAsync(() async {
+    await store.saveSession(
+      khataId,
+      NoteCounterSnapshot(
+        quantities: <int, int>{50000: fiftyCount},
+        selectedDenominationPaise: kDefaultDenominationPaise,
+        showTwoThousand: false,
+      ),
+    );
+  });
+}
+
 /// The rendered amount of [denominationPaise]'s row total.
 Finder rowTotalText(String formatted, int denominationPaise) => find.descendant(
   of: find.byKey(Key('note-counter-row-total-$denominationPaise')),
@@ -936,38 +957,40 @@ void main() {
   });
 
   group('saved sessions', () {
-    testWidgets('Save is disabled at zero and enabled once counted', (
+    testWidgets('no Save button — the count persists itself', (
       WidgetTester tester,
     ) async {
       final LocalLedger ledger = await openInMemoryLedger(tester);
       final NoteCounterStore store = NoteCounterStore(ledger);
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
-      FilledButton save = tester.widget<FilledButton>(
+      expect(
         find.byKey(const Key('note-counter-save')),
+        findsNothing,
       );
-      expect(save.onPressed, isNull);
+      expect(find.text('No changes to save yet'), findsOneWidget);
 
-      await typeFiveHundreds(tester, '1');
+      // Typing a value persists the count on its own.
+      await typeFiveHundreds(tester, '2'); // ₹500 x 2 = ₹1,000
       await tester.pumpAndSettle();
-      save = tester.widget<FilledButton>(
-        find.byKey(const Key('note-counter-save')),
-      );
-      expect(save.onPressed, isNotNull);
+      expect(grandTotalText('₹1,000'), findsOneWidget);
+      expect(find.text('Saved on this device'), findsOneWidget);
+
+      // And a reopen reads it back from storage.
+      await tester.pumpWidget(const SizedBox());
+      await pumpPersistedCounter(tester, store: store, khataId: 'personal');
+      expect(grandTotalText('₹1,000'), findsOneWidget);
     });
 
     testWidgets(
-      'Save keeps a snapshot; restoring from the sheet replaces the count',
+      'restoring a seeded session from the sheet replaces the count',
       (WidgetTester tester) async {
         final LocalLedger ledger = await openInMemoryLedger(tester);
         final NoteCounterStore store = NoteCounterStore(ledger);
 
         await pumpPersistedCounter(tester, store: store, khataId: 'personal');
         await typeFiveHundreds(tester, '3'); // ₹500 x 3 = ₹1,500
-        await tapHittable(tester, find.byKey(const Key('note-counter-save')));
-        expect(find.text('Count saved'), findsOneWidget);
-        await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
+        await seedSession(tester, store, 'personal', fiftyCount: 3);
 
         // Clear the screen (the count is not empty, so New count confirms
         // first), then restore the saved session. The current count is empty
@@ -1014,10 +1037,7 @@ void main() {
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
       await typeFiveHundreds(tester, '3'); // ₹1,500
-      await tapHittable(tester, find.byKey(const Key('note-counter-save')));
-      expect(find.text('Count saved'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      await seedSession(tester, store, 'personal', fiftyCount: 3);
       await typeFiveHundreds(tester, '5'); // ₹2,500
       expect(grandTotalText('₹2,500'), findsOneWidget);
 
@@ -1069,9 +1089,7 @@ void main() {
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
       await typeFiveHundreds(tester, '2'); // ₹1,000
-      await tapHittable(tester, find.byKey(const Key('note-counter-save')));
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      await seedSession(tester, store, 'personal', fiftyCount: 2);
       expect(
         await tester.runAsync(() => store.listSessions('personal')),
         hasLength(1),
@@ -1110,9 +1128,7 @@ void main() {
 
       await pumpPersistedCounter(tester, store: store, khataId: 'personal');
       await typeFiveHundreds(tester, '2'); // ₹1,000
-      await tapHittable(tester, find.byKey(const Key('note-counter-save')));
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
+      await seedSession(tester, store, 'personal', fiftyCount: 2);
 
       // The business khata has no sessions of its own.
       await tester.pumpWidget(
@@ -1285,7 +1301,6 @@ void main() {
     await typeFiveHundreds(tester, '2');
     for (final key in <String>[
       'note-counter-add-to-khata',
-      'note-counter-save',
       'note-counter-saved-sessions',
       'note-counter-copy-summary',
     ]) {
@@ -1323,13 +1338,8 @@ void main() {
               scale: scale,
               onAddToKhata: (_, _) {},
             );
-            await typeFiveHundreds(tester, '2');
-            await tapHittable(
-              tester,
-              find.byKey(const Key('note-counter-save')),
-            );
-            await tester.pump(const Duration(seconds: 5));
-            await tester.pumpAndSettle();
+            await typeFiveHundreds(tester, '2'); // ₹1,000
+            await seedSession(tester, store, 'personal', fiftyCount: 2);
             await tapHittable(
               tester,
               find.byKey(const Key('note-counter-saved-sessions')),

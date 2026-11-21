@@ -3,6 +3,7 @@
 // app's real theme. Run: python3 tool/local_screenshots.py --shot home
 import 'dart:io';
 
+import 'package:drift/native.dart';
 // Flutter 3.50 keeps this compatibility import for the current app.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
@@ -11,10 +12,12 @@ import 'package:flutter/services.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/calculator/calculator_screen.dart';
 import 'package:khatabook/features/counter/note_counter_screen.dart';
+import 'package:khatabook/features/counter/note_counter_store.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/home/home_screen.dart';
 import 'package:khatabook/features/home/models.dart';
 import 'package:khatabook/features/ledger/all_transactions_screen.dart';
+import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/profile/profile_screen.dart';
 import 'package:khatabook/features/profile/settings_screen.dart';
 import 'package:khatabook/features/sync/cloud_backend.dart';
@@ -22,6 +25,17 @@ import 'package:khatabook/features/sync/cloud_backup_screen.dart';
 import 'package:khatabook/features/sync/sign_in_screen.dart';
 
 import 'shot_framework.dart';
+
+// The per-khata counter shot reads and writes a real (in-memory) ledger, so it
+// renders the same saved-count chrome as the live app: the autosave status
+// line, the Saved sessions and Copy summary buttons and the device-save hint.
+NoteCounterStore? _perKhataStore;
+
+Future<void> _loadPerKhataCounter() async {
+  final LocalLedger ledger = LocalLedger(NativeDatabase.memory());
+  await ledger.initialize();
+  _perKhataStore = NoteCounterStore(ledger);
+}
 
 /// Widget tests otherwise use the Ahem test font, where every glyph is a
 /// square: text becomes boxes and a normal Row looks like an overflow bug.
@@ -59,7 +73,10 @@ final ShotEnv env = ShotEnv(
       ),
     ],
   ),
-  setUpAll: _loadRoboto,
+  setUpAll: () async {
+    await _loadRoboto();
+    await _loadPerKhataCounter();
+  },
 );
 
 bool _isDetailShot(String name) =>
@@ -71,11 +88,10 @@ bool _isDetailShot(String name) =>
 
 int _tabIndex(String name) {
   if (name.startsWith('profile')) return 3;
+  if (name.startsWith('counter')) return 2;
   switch (name) {
     case 'calculator':
       return 1;
-    case 'counter':
-      return 2;
     case 'profile':
       return 3;
     default:
@@ -140,6 +156,18 @@ final List<Shot> shots = <Shot>[
   ),
   Shot(name: 'calculator', build: () => const CalculatorScreen(), dark: false),
   Shot(name: 'counter', build: () => const NoteCounterScreen(), dark: false),
+  // The per-khata variant: the standalone counter above shows only the
+  // in-memory hint, while this one shows the autosave status line and the
+  // two-action button row the real app renders.
+  Shot(
+    name: 'counter_khata',
+    build: () => NoteCounterScreen(
+      store: _perKhataStore!,
+      khataId: 'personal',
+      onSettings: () {},
+    ),
+    dark: false,
+  ),
   Shot(name: 'profile', build: () => const ProfileScreen(), dark: false),
   // Honest signed-out/unconfigured states: no live auth, storage or network.
   Shot(name: 'settings', build: () => const SettingsScreen(), dark: false),
