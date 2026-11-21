@@ -316,7 +316,7 @@ void main() {
     });
   }
 
-  testWidgets('renders AI artwork for every canonical expense category', (
+  testWidgets('renders consistent rounded icons for each expense category', (
     tester,
   ) async {
     final List<EntryFormResult> saved = <EntryFormResult>[];
@@ -335,6 +335,53 @@ void main() {
         reason: '$category artwork should be visible',
       );
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('category badges share one style and selection changes the ink', (
+    tester,
+  ) async {
+    await showForm(tester, <EntryFormResult>[], size: const Size(360, 780));
+    const Map<String, IconData> icons = <String, IconData>{
+      'Shopping': Icons.shopping_bag_rounded,
+      'Food': Icons.restaurant_rounded,
+      'Travel': Icons.flight_rounded,
+      'Bills': Icons.receipt_long_rounded,
+      'Gifts': Icons.card_giftcard_rounded,
+    };
+    for (final MapEntry<String, IconData> entry in icons.entries) {
+      final Finder badge = find.byKey(Key('category-artwork-${entry.key}'));
+      expect(tester.getSize(badge), const Size(32, 32));
+      final Container frame = tester.widget<Container>(badge);
+      final BoxDecoration decoration = frame.decoration! as BoxDecoration;
+      expect(decoration.color, AppColors.lightGreen);
+      expect(decoration.borderRadius, BorderRadius.circular(10));
+      final Icon icon = tester.widget<Icon>(
+        find.descendant(of: badge, matching: find.byType(Icon)),
+      );
+      expect(icon.icon, entry.value);
+      expect(icon.size, 20);
+      expect(icon.color, AppColors.primaryGreen);
+      expect(
+        find.descendant(of: badge, matching: find.byType(Image)),
+        findsNothing,
+      );
+    }
+    await tapVisible(tester, find.text('Food'));
+    final Finder selected = find.byKey(const Key('category-artwork-Food'));
+    expect(
+      (tester.widget<Container>(selected).decoration! as BoxDecoration).color,
+      AppColors.primaryGreen,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(of: selected, matching: find.byType(Icon)),
+          )
+          .color,
+      AppColors.onPrimary,
+    );
+    expect(find.byKey(const Key('category-check-Food')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

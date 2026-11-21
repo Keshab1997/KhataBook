@@ -157,7 +157,7 @@ class _SectionLabel extends StatelessWidget {
 /// S2 in docs/spec/screens.md, styled after the "Add Expense" phone in
 /// docs/design/ui-preview.png: cream canvas, green header and action, a loud
 /// tabular amount, segmented Expense/Income, framed date and description rows,
-/// AI-illustrated category tiles, a live "After saving" preview and one save
+/// rounded category icon tiles, a live "After saving" preview and one save
 /// action at the end of the form.
 class AddEntryScreen extends StatefulWidget {
   const AddEntryScreen({
@@ -927,7 +927,19 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
 
   Widget _categoryTile(_CategoryOption option, double width) {
     final bool selected = _category == option.id;
-    final double art = _compact ? 24 : 40;
+    // Preserve the no-scroll form on short phones while allowing a roomier
+    // badge on ordinary devices. The glyph itself stays crisp and consistent.
+    final double art = _compact
+        ? (MediaQuery.sizeOf(context).height < 700 ? 26 : 32)
+        : 40;
+    final IconData categoryIcon = switch (option.id) {
+      'Shopping' => Icons.shopping_bag_rounded,
+      'Food' => Icons.restaurant_rounded,
+      'Travel' => Icons.flight_rounded,
+      'Bills' => Icons.receipt_long_rounded,
+      'Gifts' => Icons.card_giftcard_rounded,
+      _ => Icons.category_rounded,
+    };
     final double pad = _compact ? 5 : 8;
     return Semantics(
       container: true,
@@ -962,16 +974,23 @@ class _AddEntryScreenState extends State<AddEntryScreen> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        'assets/illustrations/'
-                        'entry_category_${option.id.toLowerCase()}.png',
-                        key: Key('category-artwork-${option.id}'),
-                        width: art,
-                        height: art,
-                        fit: BoxFit.cover,
-                        excludeFromSemantics: true,
+                    Container(
+                      key: Key('category-artwork-${option.id}'),
+                      width: art,
+                      height: art,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primaryGreen
+                            : AppColors.lightGreen,
+                        borderRadius: BorderRadius.circular(_compact ? 10 : 12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        categoryIcon,
+                        size: _compact ? 20 : 24,
+                        color: selected
+                            ? AppColors.onPrimary
+                            : AppColors.primaryGreen,
                       ),
                     ),
                     // The check is the selected affordance beyond colour and
