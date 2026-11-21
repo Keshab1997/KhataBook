@@ -157,7 +157,7 @@ class LocalLedger extends GeneratedDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
@@ -178,15 +178,28 @@ class LocalLedger extends GeneratedDatabase {
       }
       await _createActiveKhataPreferenceTable();
       await _createSyncMetadataTable();
+      await _createPendingCursorIndexes();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 2) await _createActiveKhataPreferenceTable();
       if (from < 3) await _createSyncMetadataTable();
+      if (from < 4) await _createPendingCursorIndexes();
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> _createPendingCursorIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_khatas_pending_cursor '
+      'ON khatas (sync_state, id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_pending_cursor '
+      'ON "transactions" (sync_state, id)',
+    );
+  }
 
   Future<void> _createActiveKhataPreferenceTable() async {
     await customStatement(
@@ -727,14 +740,21 @@ class LocalLedger extends GeneratedDatabase {
 
   /// Reads pending khata rows (`sync_state = 'pending'`) in deterministic order
   /// so they can be pushed before dependent transactions.
-  Future<List<CloudKhataRow>> readPendingKhatas({int? limit}) async {
+  Future<List<CloudKhataRow>> readPendingKhatas({
+    int? limit,
+    String? afterId,
+  }) async {
     final String limitClause = limit == null ? '' : ' LIMIT ?';
     final List<QueryRow> rows = await customSelect(
       'SELECT id, name, opening_balance_paise, currency, sort_order, '
       'created_at, updated_at, deleted_at FROM khatas '
       "WHERE sync_state = 'pending' "
-      'ORDER BY created_at ASC, id ASC$limitClause',
-      variables: <Variable<Object>>[if (limit != null) Variable<int>(limit)],
+      '${afterId == null ? '' : 'AND id > ? '}'
+      'ORDER BY id ASC$limitClause',
+      variables: <Variable<Object>>[
+        if (afterId != null) Variable<String>(afterId),
+        if (limit != null) Variable<int>(limit),
+      ],
     ).get();
     return List<CloudKhataRow>.unmodifiable(rows.map(_cloudKhataFromRow));
   }
@@ -743,6 +763,7 @@ class LocalLedger extends GeneratedDatabase {
   /// order.
   Future<List<CloudTransactionRow>> readPendingTransactions({
     int? limit,
+    String? afterId,
   }) async {
     final String limitClause = limit == null ? '' : ' LIMIT ?';
     final List<QueryRow> rows = await customSelect(
@@ -750,8 +771,12 @@ class LocalLedger extends GeneratedDatabase {
       'occurred_at, note_session_id, created_at, updated_at, deleted_at '
       'FROM "transactions" '
       "WHERE sync_state = 'pending' "
-      'ORDER BY created_at ASC, id ASC$limitClause',
-      variables: <Variable<Object>>[if (limit != null) Variable<int>(limit)],
+      '${afterId == null ? '' : 'AND id > ? '}'
+      'ORDER BY id ASC$limitClause',
+      variables: <Variable<Object>>[
+        if (afterId != null) Variable<String>(afterId),
+        if (limit != null) Variable<int>(limit),
+      ],
     ).get();
     return List<CloudTransactionRow>.unmodifiable(
       rows.map(_cloudTransactionFromRow),

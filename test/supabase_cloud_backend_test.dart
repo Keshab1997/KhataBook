@@ -424,7 +424,7 @@ void main() {
       expect(storedTx.single.noteSessionId, 'session-9');
     });
 
-    test('fetchChanges filters gt(server_updated_at), orders ascending by server_updated_at then id, pages with range(), and tracks cursor', () async {
+    test('fetchChanges pages by timestamp and id and tracks cursor', () async {
       final List<Uri> requestedUrls = <Uri>[];
       final DateTime since = DateTime.utc(2026, 11, 20, 8, 0);
       final DateTime t1 = DateTime.utc(2026, 11, 20, 8, 10);
@@ -444,9 +444,8 @@ void main() {
           return _jsonResponse(<Object>[]);
         }
 
-        final int offset = int.parse(req.url.queryParameters['offset'] ?? '0');
         if (req.url.path == '/rest/v1/khatas') {
-          if (offset == 0) {
+          if (!req.url.queryParameters.containsKey('or')) {
             return _jsonResponse(<Map<String, dynamic>>[
               <String, dynamic>{
                 'user_id': 'uid-42',
@@ -544,14 +543,19 @@ void main() {
         requestedUrls[0].queryParameters['order'],
         'server_updated_at.asc.nullslast,id.asc.nullslast',
       );
-      expect(requestedUrls[0].queryParameters['offset'], '0');
+      expect(requestedUrls[0].queryParameters.containsKey('offset'), isFalse);
       expect(requestedUrls[0].queryParameters['limit'], '2');
 
-      expect(requestedUrls[1].queryParameters['offset'], '2');
+      expect(requestedUrls[1].queryParameters.containsKey('offset'), isFalse);
+      expect(
+        requestedUrls[1].queryParameters['or'],
+        '(server_updated_at.gt."${t2.toIso8601String()}",'
+        'and(server_updated_at.eq."${t2.toIso8601String()}",id.gt."k-2"))',
+      );
       expect(requestedUrls[1].queryParameters['limit'], '2');
 
       expect(requestedUrls[2].path, '/rest/v1/transactions');
-      expect(requestedUrls[2].queryParameters['offset'], '0');
+      expect(requestedUrls[2].queryParameters.containsKey('offset'), isFalse);
       expect(requestedUrls[2].queryParameters['limit'], '2');
 
       // When since is null, no server_updated_at filter is sent; when nothing
@@ -571,6 +575,122 @@ void main() {
         isFalse,
       );
     });
+  });
+
+  test('pull deduplicates a row updated between keyset pages', () async {
+    final DateTime t1 = DateTime.utc(2026, 11, 20, 9);
+    final DateTime t2 = DateTime.utc(2026, 11, 20, 10);
+    final List<Uri> khataRequests = <Uri>[];
+
+    Map<String, dynamic> khata(String id, DateTime stamp, String name) =>
+        <String, dynamic>{
+          'user_id': 'uid-42',
+          'id': id,
+          'name': name,
+          'opening_balance_paise': 0,
+          'currency': 'INR',
+          'sort_order': 0,
+          'created_at': t1.toIso8601String(),
+          'updated_at': stamp.toIso8601String(),
+          'deleted_at': null,
+          'server_updated_at': stamp.toIso8601String(),
+        };
+
+    final SupabaseClient client = _buildClient((http.Request req) async {
+      if (req.url.path.endsWith('/auth/v1/token')) {
+        return _jsonResponse(
+          _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
+        );
+      }
+      if (!req.url.path.endsWith('/khatas')) return _jsonResponse(<Object>[]);
+      khataRequests.add(req.url);
+      switch (khataRequests.length) {
+        case 1:
+          return _jsonResponse(<Map<String, dynamic>>[
+            khata('k-1', t1, 'Old'),
+            khata('k-2', t1, 'Second'),
+          ]);
+        case 2:
+          return _jsonResponse(<Map<String, dynamic>>[
+            khata('k-3', t1, 'Third'),
+            khata('k-1', t2, 'Updated'),
+          ]);
+        default:
+          return _jsonResponse(<Object>[]);
+      }
+    });
+    addTearDown(client.dispose);
+    await client.auth.signInWithPassword(
+      email: 'sync@example.com',
+      password: 'pw',
+    );
+
+    final CloudChangeSet changes = await SupabaseCloudBackend(
+      client: client,
+      pageSize: 2,
+    ).fetchChanges(null);
+    expect(changes.khatas, hasLength(3));
+    expect(
+      changes.khatas.singleWhere((CloudKhataRow row) => row.id == 'k-1').name,
+      'Updated',
+    );
+    expect(changes.cursor, t2);
+    expect(khataRequests, hasLength(3));
+    expect(
+      khataRequests.every((Uri uri) => !uri.queryParameters.containsKey('offset')),
+      isTrue,
+    );
+    expect(khataRequests[1].queryParameters['or'], contains('id.gt."k-2"'));
+    expect(khataRequests[2].queryParameters['or'], contains('id.gt."k-1"'));
+  });
+
+  test('pull advances by id through legacy null timestamps', () async {
+    final List<Uri> requests = <Uri>[];
+    final DateTime created = DateTime.utc(2026, 1, 1);
+    Map<String, dynamic> khata(String id) => <String, dynamic>{
+      'user_id': 'uid-42',
+      'id': id,
+      'name': id,
+      'opening_balance_paise': 0,
+      'currency': 'INR',
+      'sort_order': 0,
+      'created_at': created.toIso8601String(),
+      'updated_at': created.toIso8601String(),
+      'deleted_at': null,
+      'server_updated_at': null,
+    };
+
+    final SupabaseClient client = _buildClient((http.Request req) async {
+      if (req.url.path.endsWith('/auth/v1/token')) {
+        return _jsonResponse(
+          _sessionPayload(userId: 'uid-42', email: 'sync@example.com'),
+        );
+      }
+      if (!req.url.path.endsWith('/khatas')) return _jsonResponse(<Object>[]);
+      requests.add(req.url);
+      return _jsonResponse(
+        requests.length == 1
+            ? <Map<String, dynamic>>[khata('k-1'), khata('k-2')]
+            : <Map<String, dynamic>>[khata('k-3')],
+      );
+    });
+    addTearDown(client.dispose);
+    await client.auth.signInWithPassword(
+      email: 'sync@example.com',
+      password: 'pw',
+    );
+
+    final CloudChangeSet changes = await SupabaseCloudBackend(
+      client: client,
+      pageSize: 2,
+    ).fetchChanges(null);
+    expect(changes.khatas.map((CloudKhataRow row) => row.id), <String>[
+      'k-1',
+      'k-2',
+      'k-3',
+    ]);
+    expect(requests[1].queryParameters['server_updated_at'], 'is.null');
+    expect(requests[1].queryParameters['id'], 'gt.k-2');
   });
 
   group('SupabaseCloudBackend offline & error normalization', () {

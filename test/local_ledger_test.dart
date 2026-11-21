@@ -236,9 +236,23 @@ void main() {
         expect(
           (await ledger.customSelect('PRAGMA user_version').getSingle())
               .read<int>('user_version'),
-          3,
+          4,
         );
         expect(await ledger.readSyncMetadata(), LocalSyncMetadata());
+        final List<QueryRow> cursorIndexes = await ledger
+            .customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'index' "
+              "AND name IN ('idx_khatas_pending_cursor', "
+              "'idx_transactions_pending_cursor') ORDER BY name",
+            )
+            .get();
+        expect(
+          cursorIndexes.map((QueryRow row) => row.read<String>('name')),
+          <String>[
+            'idx_khatas_pending_cursor',
+            'idx_transactions_pending_cursor',
+          ],
+        );
         expect(await ledger.readPendingSyncCount(), 2);
         await ledger.close();
       } finally {
@@ -258,7 +272,7 @@ void main() {
       expect(
         (await ledger.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        3,
+        4,
       );
       expect(
         (await ledger

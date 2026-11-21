@@ -257,8 +257,13 @@ class SupabaseCloudBackend implements CloudBackend {
     required String table,
     required String? sinceIso,
   }) async {
-    final List<Map<String, dynamic>> collected = <Map<String, dynamic>>[];
-    int offset = 0;
+    // Keep only the latest version if a row is updated after an earlier page
+    // and reappears later. The server schema makes the timestamp non-null, but
+    // the null branch also handles older or test servers defensively.
+    final Map<String, Map<String, dynamic>> collected =
+        <String, Map<String, dynamic>>{};
+    String? cursorId;
+    String? cursorTimestamp;
 
     while (true) {
       PostgrestFilterBuilder<List<Map<String, dynamic>>> filter = client
@@ -267,20 +272,55 @@ class SupabaseCloudBackend implements CloudBackend {
       if (sinceIso != null) {
         filter = filter.gt('server_updated_at', sinceIso);
       }
+      if (cursorId != null) {
+        if (cursorTimestamp == null) {
+          filter = filter.isFilter('server_updated_at', null).gt('id', cursorId);
+        } else {
+          final String timestamp = _postgrestQuoted(cursorTimestamp);
+          final String id = _postgrestQuoted(cursorId);
+          filter = filter.or(
+            'server_updated_at.gt.$timestamp,'
+            'and(server_updated_at.eq.$timestamp,id.gt.$id)'
+            '${sinceIso == null ? ',server_updated_at.is.null' : ''}',
+          );
+        }
+      }
       final List<Map<String, dynamic>> page = await filter
           .order('server_updated_at', ascending: true)
           .order('id', ascending: true)
-          .range(offset, offset + pageSize - 1)
+          .limit(pageSize)
           .timeout(requestTimeout);
 
-      collected.addAll(page);
-      if (page.length < pageSize) {
-        break;
+      for (final Map<String, dynamic> row in page) {
+        final Object? id = row['id'];
+        if (id is! String || id.isEmpty) {
+          throw const FormatException('Pull row has no id');
+        }
+        collected[id] = row;
       }
-      offset += page.length;
+      if (page.length < pageSize) break;
+
+      final Map<String, dynamic> last = page.last;
+      final String nextId = last['id'] as String;
+      final String? nextTimestamp = last['server_updated_at'] as String?;
+      // A broken server response must not turn sync into an infinite loop.
+      if (cursorId == nextId && cursorTimestamp == nextTimestamp) {
+        throw const FormatException('Pull cursor did not advance');
+      }
+      cursorId = nextId;
+      cursorTimestamp = nextTimestamp;
     }
 
-    return collected;
+    return collected.values.toList(growable: false);
+  }
+
+  /// Quote PostgREST filter values so punctuation in server data cannot alter
+  /// the cursor expression. URI encoding is handled by the client library.
+  static String _postgrestQuoted(String value) {
+    final String escaped = value
+        .replaceAll('\\', '\\\\')
+        .replaceAll('"', '\\"');
+    return '"$escaped"';
   }
 
   CloudUser _requireSignedInUser() {
