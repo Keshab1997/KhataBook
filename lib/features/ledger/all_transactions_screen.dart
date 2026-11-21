@@ -28,7 +28,6 @@ const double _softEdge = 0.6;
 /// Row geometry: one calendar tile, one gap, then the text column.
 const double _rowPadding = 12;
 const double _avatarSize = 40;
-const double _rowGap = 12;
 
 /// The one type scale for this screen. Only the text a user types into the
 /// search box sits outside it.
@@ -747,16 +746,37 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           Expanded(
             child: SafeArea(
               top: false,
-              child: ListView(
+              child: LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: <Widget>[
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: (constraints.maxHeight - 40).clamp(0.0, double.infinity)),
+                  child: IntrinsicHeight(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
                   _SummaryCard(
                     totalCount: allEntries.length,
                     entries: visible,
                     strings: strings,
                     copy: _copy,
+                    onSearch: _toggleFilters,
                   ),
                   const SizedBox(height: _cardGap + 2),
+                  _QuickFilters(
+                    strings: strings,
+                    type: _typeFilter,
+                    category: _categoryFilter,
+                    categories: _categoryOptions,
+                    categoryLabel: (category) => categories == null
+                        ? _categoryLabel(strings, category)
+                        : categoryDisplayName(widget.language, category, categories),
+                    dateLabel: hasDates ? '$fromLabel - $toLabel' :
+                        (widget.language == AppLanguage.bn ? 'থেকে - পর্যন্ত' : 'From - To'),
+                    onType: _selectType,
+                    onCategory: _selectCategory,
+                    onDate: _toggleFilters,
+                  ),
+                  if (_filtersOpen) ...<Widget>[
+                    const SizedBox(height: _cardGap),
                   _SearchPill(
                     controller: _searchController,
                     focusNode: _searchFocus,
@@ -771,6 +791,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     onTune: _toggleFilters,
                     onTuneLongPress: _toggleFilters,
                   ),
+                  ],
                   if (_filtersOpen) ...<Widget>[
                     const SizedBox(height: _cardGap),
                     _FilterPanel(
@@ -913,9 +934,12 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     // there".
                     _EndOfList(strings: strings, hasFilters: _hasFilters),
                   ],
+                  const Spacer(),
                   _FooterArtwork(copy: _copy),
                 ],
-              ),
+              )),
+                ),
+              )),
             ),
           ),
         ],
@@ -996,7 +1020,7 @@ class _LedgerHeader extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(8, topInset + 6, 8, 26),
+              padding: EdgeInsets.fromLTRB(12, topInset + 10, 12, 30),
               child: Row(
                 children: <Widget>[
                   _RoundHeaderAction(
@@ -1018,10 +1042,11 @@ class _LedgerHeader extends StatelessWidget {
                           softWrap: false,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
+                            fontFamily: 'serif',
                             fontSize: _headerTitleSize,
                             height: 1.2,
                             letterSpacing: -0.3,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w500,
                             color: AppColors.onPrimary,
                           ),
                         ),
@@ -1033,7 +1058,8 @@ class _LedgerHeader extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 11.5,
+                              fontFamily: 'serif',
+                              fontSize: 13,
                               height: 1.3,
                               fontStyle: FontStyle.italic,
                               color: AppColors.onPrimary,
@@ -1141,8 +1167,10 @@ class _SummaryCard extends StatelessWidget {
     required this.entries,
     required this.strings,
     required this.copy,
+    required this.onSearch,
   });
 
+  final VoidCallback onSearch;
   final int totalCount;
   final List<LedgerEntry> entries;
   final AppStrings strings;
@@ -1169,149 +1197,49 @@ class _SummaryCard extends StatelessWidget {
       expensePaise: expensePaise,
     );
 
-    // The ribbon straddles the card's top edge. Its own height grows with the
-    // text scale, so the card reserves half of it above the figures: at 200 %
-    // the capsule can never sit on top of the income caption.
     final double scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    final double ribbonHeight =
-        MediaQuery.textScalerOf(context).scale(12) * 1.3 + 14;
-
     return Semantics(
       container: true,
-      label:
-          '$countText. $totalsText '
-          '${strings.text(AppString.filteredTotalsExplanation)}',
-      child: ExcludeSemantics(
-        child: Stack(
-          clipBehavior: Clip.none,
+      label: '$countText. $totalsText ${strings.text(AppString.filteredTotalsExplanation)}',
+      child: Column(
           children: <Widget>[
             Container(
               key: const Key('transactions-summary'),
-              padding: EdgeInsets.fromLTRB(16, ribbonHeight / 2 + 12, 16, 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(_cardRadius),
-                border: Border.all(
-                  color: AppColors.outline.withValues(alpha: _edge),
-                ),
+                border: Border.all(color: AppColors.outline),
                 boxShadow: _cardShadow(),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  // Two columns at normal size, as the reference draws them.
-                  // At 200 % text each caption needs the full width, so the
-                  // pair stacks with a horizontal hairline in place of the
-                  // vertical one - the same two figures, never squeezed into
-                  // half a line each.
-                  if (scale > 1.45) ...<Widget>[
-                    _TotalTile(
-                      label: strings.text(AppString.income),
-                      value: strings.money(incomePaise),
-                      color: AppColors.incomeGreen,
-                      icon: Icons.trending_up_rounded,
-                      income: true,
-                    ),
-                    const SizedBox(height: 10),
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: AppColors.outline.withValues(alpha: 0.8),
-                    ),
-                    const SizedBox(height: 10),
-                    _TotalTile(
-                      label: strings.text(AppString.expense),
-                      value: strings.money(expensePaise),
-                      color: AppColors.expenseRed,
-                      icon: Icons.trending_down_rounded,
-                      income: false,
-                    ),
-                  ] else
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: _TotalTile(
-                            label: strings.text(AppString.income),
-                            value: strings.money(incomePaise),
-                            color: AppColors.incomeGreen,
-                            icon: Icons.trending_up_rounded,
-                            income: true,
-                          ),
-                        ),
-                        // One hairline between the two figures, with its own
-                        // breathing room on either side.
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Container(
-                            key: const Key('transactions-summary-rule'),
-                            width: _separator,
-                            height: 54,
-                            color: AppColors.outline.withValues(alpha: 0.8),
-                          ),
-                        ),
-                        Expanded(
-                          child: _TotalTile(
-                            label: strings.text(AppString.expense),
-                            value: strings.money(expensePaise),
-                            color: AppColors.expenseRed,
-                            icon: Icons.trending_down_rounded,
-                            income: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 14),
-                  Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: AppColors.outline.withValues(alpha: 0.55),
-                  ),
-                  const SizedBox(height: 10),
-                  // The bundled coins sit beside the note, never over it: a
-                  // decorative asset may share this row, it may not hide a
-                  // word of the promise the totals rely on.
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          strings.text(AppString.filteredTotalsExplanation),
-                          style: _metaBlock,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ExcludeSemantics(
-                        child: Opacity(
-                          opacity: 0.7,
-                          child: Image.asset(
-                            'assets/illustrations/counter_header_coins.png',
-                            key: const Key('transactions-summary-art'),
-                            height: 40,
-                            fit: BoxFit.contain,
-                            excludeFromSemantics: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              child: scale > 1.45
+                  ? Column(children: <Widget>[
+                      _TotalTile(label: strings.text(AppString.income), value: strings.money(incomePaise), color: AppColors.incomeGreen, icon: Icons.trending_up_rounded, income: true),
+                      const Divider(),
+                      _TotalTile(label: strings.text(AppString.expense), value: strings.money(expensePaise), color: AppColors.expenseRed, icon: Icons.trending_down_rounded, income: false),
+                    ])
+                  : Row(children: <Widget>[
+                      Expanded(child: _TotalTile(label: strings.text(AppString.income), value: strings.money(incomePaise), color: AppColors.incomeGreen, icon: Icons.trending_up_rounded, income: true)),
+                      Container(key: const Key('transactions-summary-rule'), width: 1, height: 48, margin: const EdgeInsets.symmetric(horizontal: 10), color: AppColors.outline),
+                      Expanded(child: _TotalTile(label: strings.text(AppString.expense), value: strings.money(expensePaise), color: AppColors.expenseRed, icon: Icons.trending_down_rounded, income: false)),
+                      Image.asset('assets/illustrations/counter_header_coins.png', key: const Key('transactions-summary-art'), width: 48, height: 48, fit: BoxFit.contain, excludeFromSemantics: true),
+                    ]),
             ),
-            // The ribbon sits on the card's top edge: a green capsule with the
-            // chart glyph and the live count.
-            Positioned(
-              top: -ribbonHeight / 2,
-              left: 16,
-              right: 16,
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: _CountRibbon(label: countText, copy: copy),
-              ),
-            ),
+            const SizedBox(height: 10),
+            Row(children: <Widget>[
+              Expanded(child: Container(height: 1, color: AppColors.primaryGreen)),
+              const SizedBox(width: 10),
+              Flexible(flex: 4, child: _CountRibbon(label: countText, copy: copy)),
+              const SizedBox(width: 10),
+              Expanded(child: Container(height: 1, color: AppColors.primaryGreen)),
+              Semantics(button: true, label: strings.text(AppString.searchTransactions), child: GestureDetector(
+                onTap: onSearch,
+                behavior: HitTestBehavior.opaque,
+                child: const SizedBox(width: 40, height: 40, child: Icon(Icons.search, size: 20, color: AppColors.primaryGreen)),
+              )),
+            ]),
           ],
         ),
-      ),
     );
   }
 }
@@ -1401,48 +1329,96 @@ class _TotalTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 15, color: color),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                // Two lines: at 200 % a single line of this caption would
-                // ellipsize to "Inco…", which names nothing.
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: _cardLabel.copyWith(color: AppColors.softText),
-              ),
-            ),
-          ],
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+          child: Icon(icon, size: 20, color: color),
         ),
-        const SizedBox(height: 6),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            softWrap: false,
-            style: _money(size: _valueSize, color: color, letterSpacing: -0.3),
-          ),
-        ),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+          Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontFamily: 'serif', fontSize: 14, color: AppColors.darkText)),
+          FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+            child: Text(value, maxLines: 1, style: _money(size: 20, color: color, weight: FontWeight.w600).copyWith(fontFamily: 'serif'))),
+        ])),
       ],
     );
   }
+}
+
+/// Compact controls keep the most common filters visible, while the search
+/// and date controls reveal the full filter panel when needed.
+class _QuickFilters extends StatelessWidget {
+  const _QuickFilters({required this.strings, required this.type,
+    required this.category, required this.categories, required this.categoryLabel,
+    required this.dateLabel, required this.onType, required this.onCategory,
+    required this.onDate});
+
+  final AppStrings strings;
+  final EntryType? type;
+  final String? category;
+  final List<String> categories;
+  final String Function(String) categoryLabel;
+  final String dateLabel;
+  final ValueChanged<EntryType?> onType;
+  final ValueChanged<String?> onCategory;
+  final VoidCallback onDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = strings.text(AppString.all);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: <Widget>[
+        PopupMenuButton<String>(
+          tooltip: strings.text(AppString.type),
+          onSelected: (value) => onType(value == 'income' ? EntryType.income : value == 'expense' ? EntryType.expense : null),
+          itemBuilder: (_) => <PopupMenuEntry<String>>[
+            PopupMenuItem(value: 'all', child: Text(all)),
+            PopupMenuItem(value: 'income', child: Text(strings.text(AppString.income))),
+            PopupMenuItem(value: 'expense', child: Text(strings.text(AppString.expense))),
+          ],
+          child: _QuickFilterPill(icon: Icons.check, label: type == null ? all : strings.text(type == EntryType.income ? AppString.income : AppString.expense)),
+        ),
+        PopupMenuButton<int>(
+          tooltip: strings.text(AppString.category),
+          onSelected: (index) => onCategory(index == -1 ? null : categories[index]),
+          itemBuilder: (_) => <PopupMenuEntry<int>>[
+            PopupMenuItem(value: -1, child: Text(all)),
+            for (var i = 0; i < categories.length; i++)
+              PopupMenuItem(value: i, child: Text(categoryLabel(categories[i]))),
+          ],
+          child: _QuickFilterPill(icon: Icons.sell_outlined, label: category == null ? all : categoryLabel(category!)),
+        ),
+        InkWell(onTap: onDate, borderRadius: BorderRadius.circular(40),
+          child: _QuickFilterPill(icon: Icons.calendar_month_outlined, label: dateLabel)),
+      ],
+    );
+  }
+}
+
+class _QuickFilterPill extends StatelessWidget {
+  const _QuickFilterPill({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 44, maxWidth: 175),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(40), border: Border.all(color: AppColors.outline)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+      Container(padding: const EdgeInsets.all(5), decoration: const BoxDecoration(color: AppColors.lightGreen, shape: BoxShape.circle), child: Icon(icon, size: 19, color: AppColors.primaryGreen)),
+      const SizedBox(width: 5),
+      Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'serif', fontSize: 14, color: AppColors.darkText))),
+      const SizedBox(width: 3),
+      const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.darkText),
+    ]),
+  );
 }
 
 /// The rounded search pill: leading glyph, the real controller, and the tune
@@ -1822,119 +1798,17 @@ class _MonthHeader extends StatelessWidget {
       incomePaise: group.incomePaise,
       expensePaise: group.expensePaise,
     );
-    return Padding(
-      padding: const EdgeInsets.only(top: _groupGap, bottom: _labelGap),
-      child: Semantics(
-        container: true,
-        label: '$label. $totals',
-        child: ExcludeSemantics(
-          child: Container(
-            key: Key(_monthKey(group.month)),
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(_cardRadius),
-              border: Border.all(
-                color: AppColors.outline.withValues(alpha: _edge),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: _cardTitleSize,
-                    height: 1.3,
-                    letterSpacing: -0.1,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.darkText,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // The two figures stay on one line each, with their captions
-                // in the caption size, so a month reads as a compact summary
-                // rather than as a second totals card.
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: _MonthFigure(
-                        label: strings.text(AppString.income),
-                        value: strings.money(group.incomePaise),
-                        color: AppColors.incomeGreen,
-                        icon: Icons.trending_up_rounded,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MonthFigure(
-                        label: strings.text(AppString.expense),
-                        value: strings.money(group.expensePaise),
-                        color: AppColors.expenseRed,
-                        icon: Icons.trending_down_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+    return Semantics(
+      label: '$label. $totals',
+      child: Container(
+        key: Key(_monthKey(group.month)),
+        margin: const EdgeInsets.only(top: 8, bottom: 8),
+        child: Row(children: <Widget>[
+          Container(width: 4, height: 20, decoration: BoxDecoration(color: AppColors.primaryGreen, borderRadius: BorderRadius.circular(4))),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(fontFamily: 'serif', fontSize: 18, color: AppColors.headerGreen))),
+        ]),
       ),
-    );
-  }
-}
-
-/// One month figure: glyph, caption and value on one baseline.
-class _MonthFigure extends StatelessWidget {
-  const _MonthFigure({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: <Widget>[
-        Icon(icon, size: 15, color: color),
-        const SizedBox(width: 5),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _meta.copyWith(fontSize: 11, height: 1.2),
-              ),
-              const SizedBox(height: 2),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: _money(size: 15, color: color, letterSpacing: -0.2),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1968,7 +1842,7 @@ class _DayHeader extends StatelessWidget {
               strings.day(day),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: _cardLabel,
+              style: const TextStyle(fontFamily: 'serif', fontSize: 16, color: AppColors.darkText),
             ),
           ),
         ],
@@ -2004,6 +1878,7 @@ class _EndOfList extends StatelessWidget {
       padding: const EdgeInsets.only(top: _groupGap),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           const Icon(
             Icons.horizontal_rule,
@@ -2011,7 +1886,9 @@ class _EndOfList extends StatelessWidget {
             color: AppColors.navigationGrey,
           ),
           const SizedBox(width: 6),
-          Expanded(child: Text(message, maxLines: 2, style: _meta)),
+          Flexible(child: Text(message, maxLines: 2, textAlign: TextAlign.center, style: _meta.copyWith(fontFamily: 'serif', fontSize: 15))),
+          const SizedBox(width: 6),
+          const Icon(Icons.horizontal_rule, size: 16, color: AppColors.navigationGrey),
         ],
       ),
     );
@@ -2118,7 +1995,7 @@ class _EntryCard extends StatelessWidget {
                       income: isIncome,
                       strings: strings,
                     ),
-                    const SizedBox(width: _rowGap),
+                    Container(width: 1, height: 48, margin: const EdgeInsets.symmetric(horizontal: 9), color: AppColors.outline),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2140,7 +2017,7 @@ class _EntryCard extends StatelessWidget {
                             rowMeta,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: _meta.copyWith(height: 1.35),
+                            style: _meta.copyWith(height: 1.35, fontFamily: 'serif', fontSize: 14),
                           ),
                         ],
                       ),
@@ -2211,7 +2088,7 @@ class _CalendarTile extends StatelessWidget {
     final Color accent = income ? AppColors.incomeGreen : AppColors.expenseRed;
     return Container(
       key: const Key('transaction-day-tile'),
-      width: _avatarSize + 6,
+      width: _avatarSize + 14,
       padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.lightGreen,
@@ -2227,7 +2104,8 @@ class _CalendarTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 9.5,
+              fontFamily: 'serif',
+              fontSize: 12,
               height: 1.1,
               letterSpacing: 0.4,
               fontWeight: FontWeight.w800,
@@ -2239,7 +2117,8 @@ class _CalendarTile extends StatelessWidget {
             maxLines: 1,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 17,
+              fontFamily: 'serif',
+              fontSize: 19,
               height: 1.1,
               fontWeight: FontWeight.w800,
               color: AppColors.headerGreen,
@@ -2429,6 +2308,8 @@ class _FooterArtwork extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: _meta.copyWith(
+                fontFamily: 'serif',
+                fontSize: 14,
                 fontStyle: FontStyle.italic,
                 color: AppColors.headerGreen,
                 fontWeight: FontWeight.w600,
