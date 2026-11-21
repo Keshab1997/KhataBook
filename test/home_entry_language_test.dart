@@ -66,10 +66,7 @@ void main() {
       // A Bengali screen may not borrow the English instruction, which was the
       // actual defect: `_EmptyTransactions` compared `.name` with a display
       // name that can never match.
-      expect(
-        find.byKey(const Key('home-empty-instruction')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('home-empty-instruction')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
   });
@@ -203,9 +200,7 @@ void main() {
     // label, because the avatar that used to carry it is decorative.
     expect(
       tester
-          .getSemantics(
-            find.byKey(const Key('home-recent-Grocery Shopping')),
-          )
+          .getSemantics(find.byKey(const Key('home-recent-Grocery Shopping')))
           .label,
       contains('কেনাকাটা'),
     );

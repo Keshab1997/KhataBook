@@ -378,10 +378,10 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      expect(
-        taps.map((LedgerEntry entry) => entry.id),
-        <String?>['entry-freelance', 'entry-bus-pass'],
-      );
+      expect(taps.map((LedgerEntry entry) => entry.id), <String?>[
+        'entry-freelance',
+        'entry-bus-pass',
+      ]);
       // Tapping rows never invents data or navigates: Home stays on screen.
       expect(find.byType(HomeScreen), findsOneWidget);
       expectNoLayoutErrors(tester);
