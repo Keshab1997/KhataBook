@@ -1,0 +1,23 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "A",
+  "task": "a-entry-flow",
+  "allowed": [
+    "lib/features/entry/add_entry_screen.dart",
+    "lib/features/entry/category_picker.dart",
+    "lib/features/entry/transaction_editor_screen.dart",
+    "test/add_entry_screen_test.dart",
+    "test/custom_categories_test.dart",
+    "test/transaction_editor_test.dart"
+  ],
+  "commit": "style(entry): polish add-entry form hierarchy, spacing and states",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/add_entry_screen_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "e4bea1f8a9faaa7a20e6f9ce06741ce2da5587cc"
+  }
+}

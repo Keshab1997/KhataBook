@@ -1,0 +1,29 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "c-tools-profile",
+  "allowed": [
+    "lib/features/counter/note_counter_screen.dart",
+    "lib/features/counter/saved_sessions_sheet.dart",
+    "lib/features/calculator/calculator_screen.dart",
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "lib/features/profile/backup_screen.dart",
+    "lib/features/sync/account_card.dart",
+    "test/note_counter_test.dart",
+    "test/calculator_test.dart",
+    "test/profile_settings_test.dart",
+    "test/account_card_test.dart",
+    "test/backup_screen_test.dart"
+  ],
+  "commit": "style(counter,profile): polish tool screens, settings rows and sync cards",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/note_counter_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "e4bea1f8a9faaa7a20e6f9ce06741ce2da5587cc"
+  }
+}

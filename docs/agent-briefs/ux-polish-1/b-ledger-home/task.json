@@ -1,0 +1,26 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "B",
+  "task": "b-ledger-home",
+  "allowed": [
+    "lib/features/ledger/all_transactions_screen.dart",
+    "lib/features/ledger/wallet_summary_screen.dart",
+    "lib/features/ledger/khata_manage_screen.dart",
+    "lib/features/ledger/khata_switcher.dart",
+    "lib/features/home/home_screen.dart",
+    "test/all_transactions_test.dart",
+    "test/wallet_summary_test.dart",
+    "test/khata_manage_screen_test.dart",
+    "test/home_design_test.dart"
+  ],
+  "commit": "style(ledger,home): polish list scanning, empty states and card rhythm",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.0",
+    "test": "test/home_design_test.dart"
+  },
+  "arena": {
+    "branch": "auto",
+    "base_sha": "e4bea1f8a9faaa7a20e6f9ce06741ce2da5587cc"
+  }
+}
