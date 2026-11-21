@@ -1,6 +1,7 @@
 // Flutter 3.50 deprecates this import; migrate to material_ui in a dedicated dependency update.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/core/format/money.dart';
 import 'package:khatabook/core/theme/app_colors.dart';
@@ -411,7 +412,7 @@ void main() {
       final SemanticsNode node = tester.getSemantics(rowOf(incomeTitle));
       // Direction is in words, so the green/red amount is never the only
       // carrier of the meaning; the figure is spoken with its sign.
-      expect(node.label, contains('income'));
+      expect(node.label, contains('Income +'));
       expect(node.label, contains('+₹87,65,432.10'));
       expect(node.label, contains(incomeTitle));
       // A stored row with a handler announces the edit affordance.
@@ -446,7 +447,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final SemanticsNode node = tester.getSemantics(rowOf(expenseTitle));
-      expect(node.label, contains('expense'));
+      expect(node.label, contains('Expense -'));
       expect(node.label, contains('-₹12,34,567.89'));
 
       final Text amount = tester.widget<Text>(

@@ -459,7 +459,7 @@ void main() {
       );
       expect(
         tester.getSemantics(recentRow('Live Coffee')).label,
-        contains('expense'),
+        contains('Expense -'),
       );
       expect(
         tester.getSemantics(recentRow('Live Coffee')).label,
