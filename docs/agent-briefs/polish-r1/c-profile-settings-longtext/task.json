@@ -1,0 +1,20 @@
+{
+  "repo": "Keshab1997/KhataBook",
+  "worker": "C",
+  "task": "c-profile-settings-longtext",
+  "allowed": [
+    "lib/features/profile/profile_screen.dart",
+    "lib/features/profile/settings_screen.dart",
+    "test/profile_settings_test.dart",
+    "test/profile_settings_design_test.dart",
+    "test/settings_navigation_test.dart",
+    "test/settings_language_test.dart"
+  ],
+  "commit": "fix(profile,settings): long-text-safe rows and reference profile parity",
+  "check": {
+    "kind": "flutter",
+    "version": "3.50.1",
+    "test": "test/profile_settings_test.dart"
+  },
+  "base_sha": null
+}
