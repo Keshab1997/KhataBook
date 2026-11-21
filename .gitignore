@@ -44,3 +44,7 @@ service-account*.json
 /android/app/profile
 /android/app/release
 .widget_preview/
+
+# Python test artifacts
+tests/__pycache__/
+*.pyc
