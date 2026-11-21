@@ -1,0 +1,57 @@
+name: PR quick checks — pytest & analyze
+
+# Cheap, automatic safety net for pull requests only. It runs the offline
+# schema contract tests (tests/test_ledger_schema.py, ~1 s) and a single
+# `flutter analyze` (~1 min with a cached SDK). No `flutter test`, no builds:
+# the heavy suite stays in the manual "Flutter CI — Format, Analyze & Test"
+# dispatch, exactly as AGENTS.md prescribes.
+#
+# Path-filtered so docs-only or asset-only PRs do not spend a runner.
+
+on:
+  pull_request:
+    paths:
+      - "lib/**"
+      - "test/**"
+      - "tests/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
+      - ".github/workflows/pr-checks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema-contract:
+    name: Schema contract tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pytest
+        run: python -m pip install --quiet pytest
+      - name: Run contract tests
+        run: python -m pytest tests/ -q
+
+  analyze:
+    name: flutter analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve packages
+        run: flutter pub get
+      - name: Analyze
+        run: flutter analyze

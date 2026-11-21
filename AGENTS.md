@@ -347,17 +347,23 @@ down here is never touched).
   in a feature widget; English + বাংলা via the in-code `AppString` enum
   (`lib/core/l10n/app_strings.dart`), not `arb` files. Runtime dependencies:
   drift, drift_flutter, supabase_flutter, shared_preferences, image_picker,
-  uuid, http — add more with `flutter pub add` only when a feature needs them.
+  uuid — add more with `flutter pub add` only when a feature needs them
+  (`http` is dev-only: MockClient in test/supabase_cloud_backend_test.dart).
 - **Extra verification:** the seeded Home screen shows ₹10,000 income, ₹3,580
   expense and ₹6,420 remaining (test/home_design_test.dart expects them);
   `250 × 4 = 1,000` and `₹500 × 10 = ₹5,000` are the calculator/counter smoke
-  cases. 47 Dart test files cover the app (`flutter test` after `flutter
-  pub get`); `tests/test_ledger_schema.py` keeps the ledger DDL honest (65
+  cases. 48 Dart test files cover the app (`flutter test` after `flutter
+  pub get`), including `test/local_ledger_migration_test.dart` which upgrades
+  real v1/v2 database files through `onUpgrade`;
+  `tests/test_ledger_schema.py` keeps the ledger DDL honest (65
   tests, offline, `python3 -m pytest tests/ -q`). Check a UI change with
   `python3 tool/local_screenshots.py --shot <name>` before asking Keshab to
   look at it.
-- **Workflows (`.github/workflows/`):** five files pinned at
-  `Keshab1997/flutter-builder@v1.18.9`. Approved manual gates: *Flutter CI —
+- **Workflows (`.github/workflows/`):** six files; the flutter-builder gates
+  are pinned at `Keshab1997/flutter-builder@v1.18.9`. Automatic PR gate:
+  *PR quick checks — pytest & analyze* (`pr-checks.yml`) runs on
+  `pull_request` (path-filtered) with `pytest tests/` + `flutter analyze`
+  only — no `flutter test`, no builds. Approved manual gates: *Flutter CI —
   Format, Analyze & Test* (`ci.yml`) and *Flutter widget-test diagnostics*
   (`widget-tests.yml`). NOT approved, do not run without Keshab: *Web preview*
   (`web-preview.yml` — push-triggered, visibility is a yes-no for Pages setup),

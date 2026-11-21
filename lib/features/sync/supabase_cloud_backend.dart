@@ -10,7 +10,6 @@ library;
 
 import 'dart:async';
 
-import 'package:http/http.dart' show ClientException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cloud_backend.dart';
@@ -432,7 +431,11 @@ class SupabaseCloudBackend implements CloudBackend {
         errorType == 'SocketException' ||
         errorType == 'TlsException' ||
         errorType == 'HandshakeException' ||
-        error is ClientException ||
+        // `package:http`'s ClientException (and its private socket subclass,
+        // whose toString also starts with "ClientException") matched without
+        // a direct dependency on http — supabase_flutter owns that transport.
+        errorType == 'ClientException' ||
+        error.toString().startsWith('ClientException') ||
         error is TimeoutException) {
       return true;
     }

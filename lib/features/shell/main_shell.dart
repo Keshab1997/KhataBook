@@ -482,8 +482,11 @@ class _MainShellState extends State<MainShell> {
   void _openCloudBackup() {
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            CloudBackupScreen(language: _language, cloudSync: _cloudSync),
+        builder: (_) => CloudBackupScreen(
+          language: _language,
+          cloudSync: _cloudSync,
+          ledger: _ledger,
+        ),
       ),
     );
   }

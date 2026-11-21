@@ -1,8 +1,19 @@
 # Workflows in this repository
 
-Five files, all pinned to **`Keshab1997/flutter-builder@v1.18.9`**. Nothing here
-is installed without Keshab's approval — the file is the source of truth for
-what each workflow actually does.
+Six files; the flutter-builder gates are pinned to
+**`Keshab1997/flutter-builder@v1.18.9`**. Nothing here is installed without
+Keshab's approval — the file is the source of truth for what each workflow
+actually does.
+
+## Approved — automatic PR gate (read-only, cheap)
+
+| File | Workflow name (as shown in Actions) | Trigger | What it does |
+| --- | --- | --- | --- |
+| `pr-checks.yml` | **PR quick checks — pytest & analyze** | `pull_request` (path-filtered to `lib/`, `test/`, `tests/`, pubspec, analysis options) | `pytest tests/` (schema contract) + `flutter analyze` only — ~1 min, no `flutter test`, no builds |
+
+This is the only workflow that runs without a dispatch. It exists so the 65
+contract tests in `tests/test_ledger_schema.py` and the analyzer are never
+skipped on a PR; the heavy suite still belongs to the manual gate below.
 
 ## Approved — manual gates (manual only, read-only)
 

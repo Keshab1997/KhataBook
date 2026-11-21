@@ -2,6 +2,8 @@
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
+import 'dart:async' show runZonedGuarded, unawaited;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'app.dart';
@@ -14,6 +16,15 @@ import 'features/ledger/data/web_ledger_stub.dart'
 import 'features/sync/cloud_sync.dart';
 
 Future<void> main() async {
+  // Last-resort hook so an uncaught async error in the field at least reaches
+  // the device log instead of dying silently. (No crash reporter is wired up;
+  // this is deliberately the cheapest observable sink.)
+  await runZonedGuarded<Future<void>>(_run, (Object error, StackTrace stack) {
+    debugPrint('KhataBook uncaught error: $error\n$stack');
+  });
+}
+
+Future<void> _run() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Read the saved language before the first frame, so a Bengali user never
   // sees an English flash.
@@ -29,10 +40,22 @@ Future<void> main() async {
   CloudSync? cloudSync;
   try {
     cloudSync = await CloudSync.start(ledger: ledger);
-  } catch (_) {
+  } catch (error) {
     // Sync must never block startup: a bad config or an unreachable project
-    // leaves the app purely local-only.
+    // leaves the app purely local-only. But the failure must not vanish
+    // either — persist it to sync_metadata.last_error so the Diagnostics
+    // screen (Cloud Backup → Diagnostics) can show it, and log it.
     cloudSync = null;
+    final String reason = _startupSyncFailure(error);
+    debugPrint(reason);
+    unawaited(
+      ledger
+          .writeSyncMetadata(lastError: reason)
+          .catchError(
+            (Object e) =>
+                debugPrint('Could not record startup sync error: $e'),
+          ),
+    );
   }
   runApp(
     KhataBookApp(
@@ -41,4 +64,16 @@ Future<void> main() async {
       initialLanguage: language,
     ),
   );
+}
+
+/// One-line, length-capped description of a `CloudSync.start` failure, safe
+/// to persist in `sync_metadata.last_error` and show on the Diagnostics
+/// screen.
+String _startupSyncFailure(Object error) {
+  const int maxLength = 300;
+  final String detail = error.toString().replaceAll('\n', ' ');
+  final String reason = 'Cloud sync failed to start: $detail';
+  return reason.length <= maxLength
+      ? reason
+      : '${reason.substring(0, maxLength - 1)}…';
 }
