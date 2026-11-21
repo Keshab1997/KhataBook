@@ -807,346 +807,346 @@ void main() {
       );
     });
 
-  group('unsaved changes', () {
-    const Key amountField = Key('editor-amount-field');
-    const Key descriptionField = Key('editor-description-field');
-    const Key discardDialog = Key('discard-confirm-dialog');
-    const Key keepEditing = Key('keep-editing-button');
-    const Key discardChanges = Key('discard-changes-button');
+    group('unsaved changes', () {
+      const Key amountField = Key('editor-amount-field');
+      const Key descriptionField = Key('editor-description-field');
+      const Key discardDialog = Key('discard-confirm-dialog');
+      const Key keepEditing = Key('keep-editing-button');
+      const Key discardChanges = Key('discard-changes-button');
 
-    Future<void> editField(
-      WidgetTester tester,
-      Key key,
-      String value,
-    ) async {
-      final Finder field = find.byKey(key);
-      await tester.scrollUntilVisible(
-        field,
-        120,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(field, value);
-      await tester.pumpAndSettle();
-    }
+      Future<void> editField(WidgetTester tester, Key key, String value) async {
+        final Finder field = find.byKey(key);
+        await tester.scrollUntilVisible(
+          field,
+          120,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(field, value);
+        await tester.pumpAndSettle();
+      }
 
-    testWidgets('an unchanged editor exits at once on either back path', (
-      WidgetTester tester,
-    ) async {
-      final List<TransactionEditResult?> results = <TransactionEditResult?>[];
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-        onPopped: results.add,
-      );
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(find.byType(TransactionEditorScreen), findsNothing);
-      expect(results, <TransactionEditResult?>[null]);
+      testWidgets('an unchanged editor exits at once on either back path', (
+        WidgetTester tester,
+      ) async {
+        final List<TransactionEditResult?> results = <TransactionEditResult?>[];
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+          onPopped: results.add,
+        );
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(find.byType(TransactionEditorScreen), findsNothing);
+        expect(results, <TransactionEditResult?>[null]);
 
-      results.clear();
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-        onPopped: results.add,
-      );
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(find.byType(TransactionEditorScreen), findsNothing);
-      expect(results, <TransactionEditResult?>[null]);
-      expect(tester.takeException(), isNull);
-    });
+        results.clear();
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+          onPopped: results.add,
+        );
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(find.byType(TransactionEditorScreen), findsNothing);
+        expect(results, <TransactionEditResult?>[null]);
+        expect(tester.takeException(), isNull);
+      });
 
-    testWidgets('system back asks; keep preserves, discard exits unwritten', (
-      WidgetTester tester,
-    ) async {
-      int updates = 0;
-      int deletes = 0;
-      final List<TransactionEditResult?> results = <TransactionEditResult?>[];
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async {
-          updates++;
-          return true;
-        },
-        onDelete: () async {
-          deletes++;
-          return true;
-        },
-        onPopped: results.add,
-      );
+      testWidgets('system back asks; keep preserves, discard exits unwritten', (
+        WidgetTester tester,
+      ) async {
+        int updates = 0;
+        int deletes = 0;
+        final List<TransactionEditResult?> results = <TransactionEditResult?>[];
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async {
+            updates++;
+            return true;
+          },
+          onDelete: () async {
+            deletes++;
+            return true;
+          },
+          onPopped: results.add,
+        );
 
-      await editField(tester, descriptionField, 'Changed note');
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      expect(find.byType(TransactionEditorScreen), findsOneWidget);
-      expect(results, isEmpty);
+        await editField(tester, descriptionField, 'Changed note');
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsOneWidget);
+        expect(find.byType(TransactionEditorScreen), findsOneWidget);
+        expect(results, isEmpty);
 
-      // Keeping the draft preserves every field and calls nothing.
-      await tester.tap(find.byKey(keepEditing));
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(fieldText(tester, 'editor-description-field'), 'Changed note');
-      expect(fieldText(tester, 'editor-amount-field'), '1234.56');
-      expect(updates, 0);
-      expect(deletes, 0);
-      expect(results, isEmpty);
+        // Keeping the draft preserves every field and calls nothing.
+        await tester.tap(find.byKey(keepEditing));
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(fieldText(tester, 'editor-description-field'), 'Changed note');
+        expect(fieldText(tester, 'editor-amount-field'), '1234.56');
+        expect(updates, 0);
+        expect(deletes, 0);
+        expect(results, isEmpty);
 
-      // Asking again and discarding leaves without writing anything.
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      await tester.tap(find.byKey(discardChanges));
-      await tester.pumpAndSettle();
-      expect(find.byType(TransactionEditorScreen), findsNothing);
-      expect(results, <TransactionEditResult?>[null]);
-      expect(updates, 0);
-      expect(deletes, 0);
-      expect(tester.takeException(), isNull);
-    });
+        // Asking again and discarding leaves without writing anything.
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsOneWidget);
+        await tester.tap(find.byKey(discardChanges));
+        await tester.pumpAndSettle();
+        expect(find.byType(TransactionEditorScreen), findsNothing);
+        expect(results, <TransactionEditResult?>[null]);
+        expect(updates, 0);
+        expect(deletes, 0);
+        expect(tester.takeException(), isNull);
+      });
 
-    testWidgets('the header back control asks before discarding too', (
-      WidgetTester tester,
-    ) async {
-      int updates = 0;
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async {
-          updates++;
-          return true;
-        },
-        onDelete: () async => true,
-      );
-      await editField(tester, amountField, '777.00');
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      // Dismissing the dialog (back while it is open) keeps the draft too.
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(find.byType(TransactionEditorScreen), findsOneWidget);
-      expect(fieldText(tester, 'editor-amount-field'), '777.00');
-      expect(updates, 0);
-      expect(tester.takeException(), isNull);
-    });
+      testWidgets('the header back control asks before discarding too', (
+        WidgetTester tester,
+      ) async {
+        int updates = 0;
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async {
+            updates++;
+            return true;
+          },
+          onDelete: () async => true,
+        );
+        await editField(tester, amountField, '777.00');
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsOneWidget);
+        // Dismissing the dialog (back while it is open) keeps the draft too.
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(find.byType(TransactionEditorScreen), findsOneWidget);
+        expect(fieldText(tester, 'editor-amount-field'), '777.00');
+        expect(updates, 0);
+        expect(tester.takeException(), isNull);
+      });
 
-    testWidgets('reverting every edit removes the prompt', (
-      WidgetTester tester,
-    ) async {
-      final List<TransactionEditResult?> results = <TransactionEditResult?>[];
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-        onPopped: results.add,
-      );
-      await editField(tester, amountField, '999.99');
-      await editField(tester, amountField, '1234.56');
-      await tapControl(tester, const Key('editor-kind-income'));
-      await tapControl(tester, const Key('editor-kind-expense'));
-      await tapControl(tester, const Key('editor-category-Food'));
-      await tapControl(tester, const Key('editor-category-Chai Stall'));
-      await editField(tester, descriptionField, 'Something else');
-      await editField(tester, descriptionField, 'Evening tea');
+      testWidgets('reverting every edit removes the prompt', (
+        WidgetTester tester,
+      ) async {
+        final List<TransactionEditResult?> results = <TransactionEditResult?>[];
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+          onPopped: results.add,
+        );
+        await editField(tester, amountField, '999.99');
+        await editField(tester, amountField, '1234.56');
+        await tapControl(tester, const Key('editor-kind-income'));
+        await tapControl(tester, const Key('editor-kind-expense'));
+        await tapControl(tester, const Key('editor-category-Food'));
+        await tapControl(tester, const Key('editor-category-Chai Stall'));
+        await editField(tester, descriptionField, 'Something else');
+        await editField(tester, descriptionField, 'Evening tea');
 
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(find.byType(TransactionEditorScreen), findsNothing);
-      expect(results, <TransactionEditResult?>[null]);
-      expect(tester.takeException(), isNull);
-    });
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(find.byType(TransactionEditorScreen), findsNothing);
+        expect(results, <TransactionEditResult?>[null]);
+        expect(tester.takeException(), isNull);
+      });
 
-    testWidgets('changing amount, kind, category or date each asks', (
-      WidgetTester tester,
-    ) async {
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-      );
+      testWidgets('changing amount, kind, category or date each asks', (
+        WidgetTester tester,
+      ) async {
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+        );
 
-      Future<void> expectPrompt() async {
+        Future<void> expectPrompt() async {
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(find.byKey(discardDialog), findsOneWidget);
+          await tester.tap(find.byKey(keepEditing));
+          await tester.pumpAndSettle();
+          expect(find.byType(TransactionEditorScreen), findsOneWidget);
+        }
+
+        await editField(tester, amountField, '1.00');
+        await expectPrompt();
+        await editField(tester, amountField, '1234.56');
+
+        await tapControl(tester, const Key('editor-kind-income'));
+        await expectPrompt();
+        await tapControl(tester, const Key('editor-kind-expense'));
+
+        await tapControl(tester, const Key('editor-category-Food'));
+        await expectPrompt();
+        await tapControl(tester, const Key('editor-category-Chai Stall'));
+
+        // Pick a different day in the date picker.
+        await tapControl(tester, const Key('editor-date-field'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(DatePickerDialog),
+            matching: find.text('20'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        await expectPrompt();
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a failed update keeps the draft and the back guard', (
+        WidgetTester tester,
+      ) async {
+        int updates = 0;
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async {
+            updates++;
+            return false;
+          },
+          onDelete: () async => true,
+        );
+        await editField(tester, descriptionField, 'Unsaved note');
+        await tapControl(tester, const Key('editor-update-button'));
+        expect(updates, 1);
+        expect(find.byKey(const Key('editor-error')), findsOneWidget);
+
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
         expect(find.byKey(discardDialog), findsOneWidget);
         await tester.tap(find.byKey(keepEditing));
         await tester.pumpAndSettle();
-        expect(find.byType(TransactionEditorScreen), findsOneWidget);
-      }
+        expect(fieldText(tester, 'editor-description-field'), 'Unsaved note');
+        expect(updates, 1);
+        expect(tester.takeException(), isNull);
+      });
 
-      await editField(tester, amountField, '1.00');
-      await expectPrompt();
-      await editField(tester, amountField, '1234.56');
-
-      await tapControl(tester, const Key('editor-kind-income'));
-      await expectPrompt();
-      await tapControl(tester, const Key('editor-kind-expense'));
-
-      await tapControl(tester, const Key('editor-category-Food'));
-      await expectPrompt();
-      await tapControl(tester, const Key('editor-category-Chai Stall'));
-
-      // Pick a different day in the date picker.
-      await tapControl(tester, const Key('editor-date-field'));
-      await tester.tap(
-        find.descendant(
-          of: find.byType(DatePickerDialog),
-          matching: find.text('20'),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-      await expectPrompt();
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('a failed update keeps the draft and the back guard', (
-      WidgetTester tester,
-    ) async {
-      int updates = 0;
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async {
-          updates++;
-          return false;
-        },
-        onDelete: () async => true,
-      );
-      await editField(tester, descriptionField, 'Unsaved note');
-      await tapControl(tester, const Key('editor-update-button'));
-      expect(updates, 1);
-      expect(find.byKey(const Key('editor-error')), findsOneWidget);
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      await tester.tap(find.byKey(keepEditing));
-      await tester.pumpAndSettle();
-      expect(fieldText(tester, 'editor-description-field'), 'Unsaved note');
-      expect(updates, 1);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('a saved edit exits at once with no discard prompt', (
-      WidgetTester tester,
-    ) async {
-      final List<TransactionEditResult?> results = <TransactionEditResult?>[];
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-        onPopped: results.add,
-      );
-      await editField(tester, descriptionField, 'Saved note');
-      await tapControl(tester, const Key('editor-update-button'));
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(results, <TransactionEditResult?>[TransactionEditResult.updated]);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('a pending delete still blocks back without prompting', (
-      WidgetTester tester,
-    ) async {
-      final Completer<bool> pending = Completer<bool>();
-      final List<TransactionEditResult?> results = <TransactionEditResult?>[];
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () => pending.future,
-        onPopped: results.add,
-      );
-      await editField(tester, descriptionField, 'About to delete');
-      await tapControl(tester, const Key('editor-delete-button'));
-      await tester.tap(find.byKey(const Key('confirm-delete-button')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('editor-busy')), findsOneWidget);
-
-      await tester.binding.handlePopRoute();
-      await tester.pump();
-      expect(find.byKey(discardDialog), findsNothing);
-      expect(find.byType(TransactionEditorScreen), findsOneWidget);
-
-      pending.complete(true);
-      await tester.pumpAndSettle();
-      expect(results, <TransactionEditResult?>[TransactionEditResult.deleted]);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('the discard prompt speaks Bengali in the BN editor', (
-      WidgetTester tester,
-    ) async {
-      final AppStrings bn = AppStrings(AppLanguage.bn);
-      int updates = 0;
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        language: AppLanguage.bn,
-        onUpdate: (EntryFormResult entry) async {
-          updates++;
-          return true;
-        },
-        onDelete: () async => true,
-      );
-      await editField(tester, descriptionField, 'Changed note');
-      await tester.tap(find.byTooltip(bn.text(AppString.back)));
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      expect(find.text('পরিবর্তন বাতিল করবেন?'), findsOneWidget);
-      expect(find.text('সম্পাদনা চালিয়ে যান'), findsOneWidget);
-      expect(find.text('বাতিল করুন'), findsOneWidget);
-      await tester.tap(find.byKey(keepEditing));
-      await tester.pumpAndSettle();
-      expect(fieldText(tester, 'editor-description-field'), 'Changed note');
-      expect(updates, 0);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('the discard prompt fits 320 dp at 200% text', (
-      WidgetTester tester,
-    ) async {
-      await pumpEditor(
-        tester,
-        initial: sampleInitial(),
-        onUpdate: (EntryFormResult entry) async => true,
-        onDelete: () async => true,
-        size: smallPhone,
-        scale: 2.0,
-      );
-      await editField(tester, descriptionField, 'Changed note');
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byKey(discardDialog), findsOneWidget);
-      for (final Key action in <Key>[keepEditing, discardChanges]) {
-        expect(
-          tester.getSize(find.byKey(action)).height,
-          greaterThanOrEqualTo(44),
-          reason: '$action must stay a 44 dp+ target',
+      testWidgets('a saved edit exits at once with no discard prompt', (
+        WidgetTester tester,
+      ) async {
+        final List<TransactionEditResult?> results = <TransactionEditResult?>[];
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+          onPopped: results.add,
         );
-      }
-      await tester.tap(find.byKey(keepEditing));
-      await tester.pumpAndSettle();
-      expect(find.byType(TransactionEditorScreen), findsOneWidget);
-      expect(fieldText(tester, 'editor-description-field'), 'Changed note');
-      expect(tester.takeException(), isNull);
+        await editField(tester, descriptionField, 'Saved note');
+        await tapControl(tester, const Key('editor-update-button'));
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(results, <TransactionEditResult?>[
+          TransactionEditResult.updated,
+        ]);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a pending delete still blocks back without prompting', (
+        WidgetTester tester,
+      ) async {
+        final Completer<bool> pending = Completer<bool>();
+        final List<TransactionEditResult?> results = <TransactionEditResult?>[];
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () => pending.future,
+          onPopped: results.add,
+        );
+        await editField(tester, descriptionField, 'About to delete');
+        await tapControl(tester, const Key('editor-delete-button'));
+        await tester.tap(find.byKey(const Key('confirm-delete-button')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('editor-busy')), findsOneWidget);
+
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.byKey(discardDialog), findsNothing);
+        expect(find.byType(TransactionEditorScreen), findsOneWidget);
+
+        pending.complete(true);
+        await tester.pumpAndSettle();
+        expect(results, <TransactionEditResult?>[
+          TransactionEditResult.deleted,
+        ]);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the discard prompt speaks Bengali in the BN editor', (
+        WidgetTester tester,
+      ) async {
+        final AppStrings bn = AppStrings(AppLanguage.bn);
+        int updates = 0;
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          language: AppLanguage.bn,
+          onUpdate: (EntryFormResult entry) async {
+            updates++;
+            return true;
+          },
+          onDelete: () async => true,
+        );
+        await editField(tester, descriptionField, 'Changed note');
+        await tester.tap(find.byTooltip(bn.text(AppString.back)));
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsOneWidget);
+        expect(find.text('পরিবর্তন বাতিল করবেন?'), findsOneWidget);
+        expect(find.text('সম্পাদনা চালিয়ে যান'), findsOneWidget);
+        expect(find.text('বাতিল করুন'), findsOneWidget);
+        await tester.tap(find.byKey(keepEditing));
+        await tester.pumpAndSettle();
+        expect(fieldText(tester, 'editor-description-field'), 'Changed note');
+        expect(updates, 0);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('the discard prompt fits 320 dp at 200% text', (
+        WidgetTester tester,
+      ) async {
+        await pumpEditor(
+          tester,
+          initial: sampleInitial(),
+          onUpdate: (EntryFormResult entry) async => true,
+          onDelete: () async => true,
+          size: smallPhone,
+          scale: 2.0,
+        );
+        await editField(tester, descriptionField, 'Changed note');
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byKey(discardDialog), findsOneWidget);
+        for (final Key action in <Key>[keepEditing, discardChanges]) {
+          expect(
+            tester.getSize(find.byKey(action)).height,
+            greaterThanOrEqualTo(44),
+            reason: '$action must stay a 44 dp+ target',
+          );
+        }
+        await tester.tap(find.byKey(keepEditing));
+        await tester.pumpAndSettle();
+        expect(find.byType(TransactionEditorScreen), findsOneWidget);
+        expect(fieldText(tester, 'editor-description-field'), 'Changed note');
+        expect(tester.takeException(), isNull);
+      });
     });
-  });
 
     testWidgets('categories lay out as one wrapping grid of even cells', (
       WidgetTester tester,
