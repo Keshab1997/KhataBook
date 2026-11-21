@@ -3,6 +3,7 @@ import 'dart:async';
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/ledger/khata_manage_screen.dart';
 
@@ -365,5 +366,76 @@ void main() {
     expect(find.text('Personal'), findsOneWidget);
     expect(find.text('Business'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('card language', () {
+    testWidgets('a khata row and an empty placeholder are the same card', (
+      tester,
+    ) async {
+      await pumpManageScreen(
+        tester,
+        loadActive: () async => <LocalKhata>[personal, business],
+        loadArchived: () async => <LocalKhata>[],
+      );
+
+      // One radius for a row and for the placeholder that stands in for an
+      // empty group, so the two read as the same kind of object.
+      final Card row = tester.widget<Card>(
+        find.ancestor(of: find.text('Business'), matching: find.byType(Card)),
+      );
+      final RoundedRectangleBorder rowShape =
+          row.shape! as RoundedRectangleBorder;
+      expect(row.color, AppColors.surface);
+      expect(rowShape.borderRadius, BorderRadius.circular(20));
+
+      final Container empty = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byKey(const Key('empty-archived-khatas')),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final BoxDecoration emptyBox = empty.decoration! as BoxDecoration;
+      expect(emptyBox.borderRadius, BorderRadius.circular(20));
+      expect(emptyBox.color, AppColors.surface);
+      // A placeholder that holds nothing asks for less attention: a softer
+      // edge than a row that carries a khata.
+      expect(
+        emptyBox.border!.top.color,
+        AppColors.outline.withValues(alpha: 0.6),
+      );
+      expect(
+        rowShape.side.color,
+        AppColors.outline.withValues(alpha: 0.85),
+      );
+
+      // One gap between rows, matching every other ledger surface. A Card's
+      // margin is its gap, so the contract is the margin itself.
+      expect(row.margin, const EdgeInsets.only(bottom: 12));
+    });
+
+    testWidgets('headings, row titles and meta lines use the shared scale', (
+      tester,
+    ) async {
+      await pumpManageScreen(
+        tester,
+        loadActive: () async => <LocalKhata>[personal, business],
+        loadArchived: () async => <LocalKhata>[],
+      );
+
+      double sizeOf(String text) =>
+          tester.widget<Text>(find.text(text)).style!.fontSize!;
+      FontWeight weightOf(String text) =>
+          tester.widget<Text>(find.text(text)).style!.fontWeight!;
+
+      // Group heading: a caption, not a competing title.
+      expect(sizeOf('Active Khatas'), 12);
+      expect(sizeOf('Archived Khatas'), 12);
+      expect(weightOf('Active Khatas'), FontWeight.w800);
+      // Row title and its meta line, the same two steps a transaction row uses.
+      expect(sizeOf('Personal'), 15);
+      expect(sizeOf('Default'), 12);
+    });
   });
 }

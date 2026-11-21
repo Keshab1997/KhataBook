@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/features/home/models.dart';
 import 'package:khatabook/features/ledger/data/local_ledger.dart';
 import 'package:khatabook/features/ledger/wallet_summary_screen.dart';
@@ -187,6 +188,73 @@ void main() {
       expect(find.text('₹5,040'), findsOneWidget);
       expect(find.text('₹12,040'), findsOneWidget);
       expect(find.text('₹5,050'), findsNothing);
+    });
+
+    testWidgets('the combined card and every khata card share one radius', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(ledger));
+      await tester.pumpAndSettle();
+
+      BoxDecoration boxOf(Finder finder) =>
+          tester.widget<Container>(finder).decoration! as BoxDecoration;
+      final Finder combined = find.byKey(const Key('wallet-combined-card'));
+      final Finder personal = find.byKey(const Key('wallet-khata-personal'));
+      final Finder shop = find.byKey(Key('wallet-khata-${business.id}'));
+
+      final Set<BorderRadius> radii = <BorderRadius>{
+        boxOf(combined).borderRadius!,
+        boxOf(personal).borderRadius!,
+        boxOf(shop).borderRadius!,
+      };
+      // One card radius for the hero and for every khata, as on Home.
+      expect(radii, <BorderRadius>{BorderRadius.circular(20)});
+
+      // One gap between cards, and the same 16 dp page grid.
+      expect(
+        tester.getRect(personal).top - tester.getRect(combined).bottom,
+        12,
+      );
+      expect(tester.getRect(combined).left, 16);
+    });
+
+    testWidgets('a khata card reads label, then figure, in tabular figures', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(_host(ledger));
+      await tester.pumpAndSettle();
+
+      // Personal holds one income of ₹7,000 on an opening of ₹0, so the
+      // figure shows twice: once as an input, once as the result.
+      final Iterable<Text> figures = tester.widgetList<Text>(
+        find.descendant(
+          of: find.byKey(const Key('wallet-khata-personal')),
+          matching: find.text('₹7,000'),
+        ),
+      );
+      expect(figures, hasLength(2));
+      for (final Text figure in figures) {
+        expect(figure.style?.textAlign, TextAlign.right);
+        expect(
+          figure.style?.fontFeatures,
+          contains(FontFeature.tabularFigures()),
+          reason: 'figures in a card must line up in a column',
+        );
+      }
+      // One size for an input, one step up for the figure that matters.
+      expect(
+        figures.map((Text figure) => figure.style!.fontSize).toSet(),
+        <double?>{14, 20},
+      );
+
+      // Card title and caption follow the same steps as every other card.
+      final Text title = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('wallet-khata-personal')),
+          matching: find.text('Personal Khata'),
+        ),
+      );
+      expect(title.style?.fontSize, 16);
     });
   });
 
@@ -514,5 +582,33 @@ void main() {
     expect(refresh.width, greaterThanOrEqualTo(44));
     expect(refresh.height, greaterThanOrEqualTo(44));
     await tester.runAsync(() => ledger.close());
+  });
+  testWidgets('an empty device gets the same quiet card', (
+    WidgetTester tester,
+  ) async {
+    // Opened without seeding, so there is no khata to show at all.
+    final LocalLedger empty = LocalLedger(NativeDatabase.memory());
+    await tester.runAsync(() => empty.listKhatas());
+
+    await tester.pumpWidget(_host(empty));
+    await tester.pumpAndSettle();
+
+    final Container card = tester.widget<Container>(
+      find
+          .ancestor(
+            of: find.text('No khatas on this device yet.'),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final BoxDecoration box = card.decoration! as BoxDecoration;
+    expect(box.borderRadius, BorderRadius.circular(20));
+    expect(box.color, AppColors.surface);
+    // A placeholder with no figures asks for less attention: a softer edge
+    // than a card of balances, and no shadow.
+    expect(box.border!.top.color, AppColors.outline.withValues(alpha: 0.6));
+    expect(box.boxShadow, isNull);
+
+    await tester.runAsync(() => empty.close());
   });
 }

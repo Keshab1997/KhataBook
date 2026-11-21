@@ -6,9 +6,23 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'data/local_ledger.dart';
 
-/// One radius for the sheet and for every row inside it.
-const double _sheetRadius = 24;
-const double _rowRadius = 14;
+/// The card language of every other ledger surface, so the sheet, its dialog
+/// and the rows inside it are cut from the same cloth: one card radius, one
+/// smaller radius for a row, one gap and one 1 px rule.
+const double _cardRadius = 20;
+const double _rowRadius = 16;
+const double _gap = 12;
+const double _separator = 1;
+
+/// The same caption / row-title / card-title steps Home and the ledger screens
+/// use, and the same flat tile shape every row gets.
+const double _labelSize = 12;
+const double _rowTitleSize = 15;
+const double _cardTitleSize = 16;
+
+const RoundedRectangleBorder _tileShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
+);
 
 /// Choosing a khata is session-only; ledger contents always remain on device.
 ///
@@ -29,43 +43,46 @@ Future<LocalKhata?> showKhataSwitcher(
     showDragHandle: true,
     backgroundColor: AppColors.surface,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(_sheetRadius)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(_cardRadius)),
     ),
     builder: (context) => SafeArea(
       child: ListView(
         shrinkWrap: true,
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        padding: const EdgeInsets.fromLTRB(_gap, 0, _gap, _gap),
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            padding: const EdgeInsets.fromLTRB(_gap, 4, _gap, _labelSize),
             child: Text(
               strings.text(AppString.chooseKhata),
               style: const TextStyle(
-                fontSize: 16,
-                height: 1.2,
-                letterSpacing: -0.2,
-                fontWeight: FontWeight.w800,
+                fontSize: _cardTitleSize,
+                height: 1.3,
+                letterSpacing: -0.1,
+                fontWeight: FontWeight.w700,
                 color: AppColors.darkText,
               ),
             ),
           ),
+          // The active khata is the selected one, so it wears the same
+          // lightGreen tile, bold green label and check mark the entry form
+          // uses for a chosen category: emphasis by fill, type and a mark.
           for (final khata in khatas)
             ListTile(
               key: Key('khata-${khata.id}'),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
-              ),
+              selected: khata.id == activeId,
+              shape: _tileShape,
+              tileColor: khata.id == activeId ? AppColors.lightGreen : null,
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 2,
+                horizontal: _gap,
+                vertical: 4,
               ),
               title: Text(
                 khata.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 15,
-                  height: 1.25,
+                  fontSize: _rowTitleSize,
+                  height: 1.3,
                   fontWeight: khata.id == activeId
                       ? FontWeight.w700
                       : FontWeight.w600,
@@ -79,19 +96,25 @@ Future<LocalKhata?> showKhataSwitcher(
                   : null,
               onTap: () => Navigator.pop(context, khata.id),
             ),
-          const Divider(height: 12, color: AppColors.outline),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: _gap),
+            child: SizedBox(
+              height: _separator,
+              child: ColoredBox(color: AppColors.beige),
+            ),
+          ),
           ListTile(
             key: const Key('new-khata'),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            shape: _tileShape,
+            contentPadding: const EdgeInsets.symmetric(horizontal: _gap),
             leading: const Icon(Icons.add, color: AppColors.primaryGreen),
             title: Text(
               strings.text(AppString.newKhata),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 15,
-                height: 1.25,
+                fontSize: _rowTitleSize,
+                height: 1.3,
                 fontWeight: FontWeight.w600,
                 color: AppColors.darkText,
               ),
@@ -101,19 +124,19 @@ Future<LocalKhata?> showKhataSwitcher(
           if (onManage != null)
             ListTile(
               key: const Key('manage-khatas'),
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(_rowRadius)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              shape: _tileShape,
+              contentPadding: const EdgeInsets.symmetric(horizontal: _gap),
               leading: const Icon(
                 Icons.manage_accounts_outlined,
                 color: AppColors.softText,
               ),
               title: Text(
                 strings.text(AppString.manageKhatas),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 15,
-                  height: 1.25,
+                  fontSize: _rowTitleSize,
+                  height: 1.3,
                   fontWeight: FontWeight.w600,
                   color: AppColors.darkText,
                 ),
@@ -213,14 +236,15 @@ class _CreateKhataState extends State<_CreateKhata> {
     final AppStrings strings = _strings;
     return AlertDialog(
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(_sheetRadius - 4)),
+        borderRadius: BorderRadius.all(Radius.circular(_cardRadius)),
       ),
       title: Text(
         strings.text(AppString.newKhata),
         style: const TextStyle(
-          fontSize: 18,
-          height: 1.25,
-          fontWeight: FontWeight.w800,
+          fontSize: _cardTitleSize,
+          height: 1.3,
+          letterSpacing: -0.1,
+          fontWeight: FontWeight.w700,
           color: AppColors.darkText,
         ),
       ),

@@ -7,11 +7,37 @@ import '../../core/l10n/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import 'data/local_ledger.dart';
 
-/// Geometry shared by this screen: one card radius and one hairline border, so
-/// the khata rows, the banners and the empty states line up.
-const double _cardRadius = 18;
+/// Geometry shared by this screen: the same card radius, gap, hairline and rule
+/// the Home and ledger cards use, so a khata row, a banner and an empty state
+/// all read as pieces of one screen.
+const double _cardRadius = 20;
+const double _pagePadding = 16;
+const double _cardGap = 12;
+const double _labelGap = 8;
+
+/// The gap a new group gets above its heading - one step wider than the gap
+/// between two cards, so a heading reads as the start of a block.
+const double _sectionGap = 24;
 const double _edge = 0.85;
 const double _softEdge = 0.6;
+
+/// The one type scale, matching the other ledger surfaces: a caption and a row
+/// title, nothing else.
+const double _labelSize = 12;
+const double _rowTitleSize = 15;
+
+const TextStyle _cardLabel = TextStyle(
+  fontSize: _labelSize,
+  height: 1.25,
+  letterSpacing: 0.4,
+  fontWeight: FontWeight.w800,
+);
+
+const TextStyle _metaBlock = TextStyle(
+  fontSize: _labelSize,
+  height: 1.45,
+  color: AppColors.softText,
+);
 
 /// Callback-driven screen for managing active and archived khatas.
 ///
@@ -245,8 +271,9 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(_cardRadius),
+              // A panel with no list in it stays quiet.
               border: Border.all(
-                color: AppColors.outline.withValues(alpha: _edge),
+                color: AppColors.outline.withValues(alpha: _softEdge),
               ),
             ),
             child: Column(
@@ -261,11 +288,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                 Text(
                   _loadError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    height: 1.4,
-                    color: AppColors.softText,
-                  ),
+                  style: _metaBlock,
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
@@ -281,7 +304,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(_pagePadding),
       children: <Widget>[
         if (_actionError != null) ...<Widget>[
           ClipRRect(
@@ -292,11 +315,7 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
               elevation: 0,
               content: Text(
                 _actionError!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: AppColors.darkText,
-                ),
+                style: _metaBlock.copyWith(color: AppColors.darkText),
               ),
               actions: <Widget>[
                 TextButton(
@@ -312,19 +331,15 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _cardGap),
         ],
         Text(
           strings.text(AppString.activeKhatas),
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.2,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryGreen,
-          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: _cardLabel.copyWith(color: AppColors.primaryGreen),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: _labelGap),
         if (_active.isEmpty)
           _EmptyGroup(
             key: const Key('empty-active-khatas'),
@@ -344,18 +359,14 @@ class _KhataManageScreenState extends State<KhataManageScreen> {
                   ? null
                   : () => _promptArchive(khata),
             ),
-        const SizedBox(height: 28),
+        const SizedBox(height: _sectionGap),
         Text(
           strings.text(AppString.archivedKhatas),
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.2,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primaryGreen,
-          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: _cardLabel.copyWith(color: AppColors.primaryGreen),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: _labelGap),
         if (_archived.isEmpty)
           _EmptyGroup(
             key: const Key('empty-archived-khatas'),
@@ -387,7 +398,7 @@ class _EmptyGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(_cardRadius),
@@ -397,21 +408,22 @@ class _EmptyGroup extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          const Icon(
-            Icons.inbox_outlined,
-            color: AppColors.navigationGrey,
-            size: 20,
+          Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              color: AppColors.lightGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.inbox_outlined,
+              color: AppColors.primaryGreen,
+              size: 16,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.softText,
-              ),
-            ),
+            child: Text(message, style: _metaBlock),
           ),
         ],
       ),
@@ -444,7 +456,7 @@ class _KhataRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: _cardGap),
       elevation: 0,
       color: AppColors.surface,
       shape: RoundedRectangleBorder(
@@ -452,7 +464,7 @@ class _KhataRow extends StatelessWidget {
         side: BorderSide(color: AppColors.outline.withValues(alpha: _edge)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
@@ -465,11 +477,16 @@ class _KhataRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  // Row title and meta line, exactly the two steps a
+                  // transaction row uses, so a khata and an entry scan the
+                  // same way down the page.
                   Text(
                     khata.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.25,
+                      fontSize: _rowTitleSize,
+                      height: 1.3,
                       letterSpacing: -0.1,
                       fontWeight: FontWeight.w700,
                       color: AppColors.darkText,
@@ -479,11 +496,10 @@ class _KhataRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       strings.text(AppString.defaultKhata),
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        height: 1.3,
+                      style: _cardLabel.copyWith(
                         color: AppColors.softText,
                         fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],

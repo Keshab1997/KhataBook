@@ -7,10 +7,63 @@ import '../../core/theme/app_colors.dart';
 import '../home/models.dart';
 import 'data/local_ledger.dart';
 
-/// Geometry shared by this screen, so the combined card and every khata card
-/// sit on one radius with one hairline border.
+/// Geometry shared by this screen, so the combined card, every khata card and
+/// both placeholder panels sit on one radius with one hairline border - the
+/// same radius and gap the Home and All Transactions cards use.
 const double _cardRadius = 20;
+const double _cardGap = 12;
+const double _innerGap = 8;
+const double _separator = 1;
 const double _edge = 0.85;
+
+/// A softer edge for a panel that carries no figures: an empty or failed read
+/// still gets a card, it just asks for less attention than a card full of
+/// balances.
+const double _softEdge = 0.6;
+
+/// The one type scale for this screen, matching Home's: a caption, a card
+/// title, a figure in a stat row, the emphasized remaining balance of a khata,
+/// and the combined figure at the top.
+const double _labelSize = 12;
+const double _rowTitleSize = 15;
+const double _cardTitleSize = 16;
+const double _statValueSize = 14;
+const double _valueSize = 20;
+const double _displaySize = 30;
+
+/// A caption above a figure - the entry screens' caption spec, unchanged.
+const TextStyle _cardLabel = TextStyle(
+  fontSize: _labelSize,
+  height: 1.25,
+  letterSpacing: 0.4,
+  fontWeight: FontWeight.w800,
+);
+
+/// A quiet paragraph: an explanation under a heading, a note under a card.
+const TextStyle _metaBlock = TextStyle(
+  fontSize: _labelSize,
+  height: 1.45,
+  color: AppColors.softText,
+);
+
+/// Money text with tabular figures, so the four figures in a khata card line up
+/// at the decimal and can be read as a column.
+TextStyle _money({
+  required double size,
+  required Color color,
+  double letterSpacing = 0,
+  double height = 1.25,
+  FontWeight weight = FontWeight.w600,
+}) {
+  return TextStyle(
+    fontSize: size,
+    height: height,
+    letterSpacing: letterSpacing,
+    fontWeight: weight,
+    color: color,
+    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+  );
+}
 
 /// S8 - My Wallet Summary. See docs/spec/screens.md (Wallet Summary).
 ///
@@ -182,11 +235,7 @@ class _LoadingPanel extends StatelessWidget {
             Text(
               strings.text(AppString.readingKhatas),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
-                color: AppColors.softText,
-              ),
+              style: _metaBlock,
             ),
           ],
         ),
@@ -219,7 +268,7 @@ class _ErrorPanel extends StatelessWidget {
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(_cardRadius),
             border: Border.all(
-              color: AppColors.outline.withValues(alpha: _edge),
+              color: AppColors.outline.withValues(alpha: _softEdge),
             ),
           ),
           child: Column(
@@ -237,7 +286,8 @@ class _ErrorPanel extends StatelessWidget {
                     child: Text(
                       strings.text(AppString.readKhatasFailed),
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: _cardTitleSize,
+                        height: 1.3,
                         fontWeight: FontWeight.w700,
                         color: AppColors.darkText,
                       ),
@@ -248,13 +298,12 @@ class _ErrorPanel extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 strings.text(AppString.walletLoadExplanation),
-                style: const TextStyle(fontSize: 13, color: AppColors.softText),
+                style: _metaBlock,
               ),
               const SizedBox(height: 12),
-              Text(
-                error.toString(),
-                style: const TextStyle(fontSize: 12, color: AppColors.softText),
-              ),
+              // The real reason, at the caption size and never truncated: a
+              // failed read is worth reading.
+              Text(error.toString(), style: _metaBlock),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onRetry,
@@ -262,7 +311,7 @@ class _ErrorPanel extends StatelessWidget {
                 label: Text(
                   _copy(strings, en: 'Try again', bn: 'আবার চেষ্টা করুন'),
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: _rowTitleSize,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -292,16 +341,17 @@ class _SummaryList extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(_cardRadius),
+              // A placeholder asks for less attention than a card of figures.
               border: Border.all(
-                color: AppColors.outline.withValues(alpha: _edge),
+                color: AppColors.outline.withValues(alpha: _softEdge),
               ),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 40,
+                  height: 40,
                   decoration: const BoxDecoration(
                     color: AppColors.lightGreen,
                     shape: BoxShape.circle,
@@ -309,18 +359,14 @@ class _SummaryList extends StatelessWidget {
                   child: const Icon(
                     Icons.account_balance_wallet_outlined,
                     color: AppColors.primaryGreen,
-                    size: 22,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     strings.text(AppString.noLocalKhatas),
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      height: 1.4,
-                      color: AppColors.softText,
-                    ),
+                    style: _metaBlock,
                   ),
                 ),
               ],
@@ -333,10 +379,10 @@ class _SummaryList extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         _CombinedCard(data: data, strings: strings),
-        const SizedBox(height: 12),
+        const SizedBox(height: _cardGap),
         for (final _KhataTotals totals in data.khatas) ...<Widget>[
           _KhataCard(totals: totals, strings: strings),
-          const SizedBox(height: 12),
+          const SizedBox(height: _cardGap),
         ],
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,7 +392,7 @@ class _SummaryList extends StatelessWidget {
             Expanded(
               child: Text(
                 strings.text(AppString.walletOpeningExplanation),
-                style: const TextStyle(fontSize: 12, color: AppColors.softText),
+                style: _metaBlock,
               ),
             ),
           ],
@@ -372,6 +418,7 @@ class _CombinedCard extends StatelessWidget {
       excludeSemantics: true,
       label: strings.walletTotal(khatas: count, paise: combined),
       child: Container(
+        key: const Key('wallet-combined-card'),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -379,7 +426,7 @@ class _CombinedCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: <Color>[AppColors.primaryGreen, AppColors.headerGreen],
           ),
-          borderRadius: BorderRadius.circular(_cardRadius + 2),
+          borderRadius: BorderRadius.circular(_cardRadius),
           boxShadow: <BoxShadow>[
             BoxShadow(
               color: AppColors.darkText.withValues(alpha: 0.16),
@@ -393,10 +440,9 @@ class _CombinedCard extends StatelessWidget {
           children: <Widget>[
             Text(
               strings.text(AppString.combinedRemaining),
-              style: TextStyle(
-                fontSize: 12.5,
-                letterSpacing: 0.3,
-                fontWeight: FontWeight.w600,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _cardLabel.copyWith(
                 color: AppColors.onPrimary.withValues(alpha: 0.85),
               ),
             ),
@@ -408,20 +454,21 @@ class _CombinedCard extends StatelessWidget {
                 strings.money(combined),
                 maxLines: 1,
                 softWrap: false,
-                style: const TextStyle(
-                  fontSize: 30,
-                  height: 1.1,
-                  letterSpacing: -0.5,
-                  fontWeight: FontWeight.w800,
+                style: _money(
+                  size: _displaySize,
                   color: AppColors.onPrimary,
+                  letterSpacing: -0.5,
+                  height: 1.1,
+                  weight: FontWeight.w800,
                 ),
               ),
             ),
             const SizedBox(height: 6),
             Text(
               caption,
+              maxLines: 2,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: _labelSize,
                 height: 1.3,
                 color: AppColors.onPrimary.withValues(alpha: 0.85),
               ),
@@ -445,6 +492,7 @@ class _KhataCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final LedgerSummary summary = totals.summary;
     return Container(
+      key: Key('wallet-khata-${totals.khata.id}'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -461,14 +509,18 @@ class _KhataCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          // Card title, then its caption, then the figures: the same three
+          // steps the Home cards and the transaction rows use.
           Semantics(
             header: true,
             child: Text(
               totals.khata.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 16,
-                height: 1.25,
-                letterSpacing: -0.2,
+                fontSize: _cardTitleSize,
+                height: 1.3,
+                letterSpacing: -0.1,
                 fontWeight: FontWeight.w700,
                 color: AppColors.darkText,
               ),
@@ -477,33 +529,36 @@ class _KhataCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             strings.entryCount(summary.entries.length),
-            style: const TextStyle(
-              fontSize: 12,
-              height: 1.3,
-              letterSpacing: 0.2,
+            style: _cardLabel.copyWith(
               color: AppColors.softText,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: _cardGap),
           _StatRow(
             label: strings.text(AppString.openingBalance),
             value: strings.money(totals.khata.openingBalancePaise),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: _innerGap),
           _StatRow(
             label: strings.text(AppString.incomeIncludingOpening),
             value: strings.money(summary.totalIncomePaise),
             color: AppColors.incomeGreen,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: _innerGap),
           _StatRow(
             label: strings.text(AppString.expense),
             value: strings.money(summary.totalExpensePaise),
             color: AppColors.expenseRed,
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(height: 1, thickness: 1, color: AppColors.outline),
+          // The same 1 px beige rule that separates two transaction rows: here
+          // it separates the four figures from the one that matters.
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: _cardGap),
+            child: SizedBox(
+              height: _separator,
+              child: const ColoredBox(color: AppColors.beige),
+            ),
           ),
           _StatRow(
             label: strings.text(AppString.remaining),
@@ -542,26 +597,28 @@ class _StatRow extends StatelessWidget {
             flex: 3,
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 12.5,
-                height: 1.3,
+              style: _cardLabel.copyWith(
                 color: AppColors.softText,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: _innerGap),
           Expanded(
             flex: 2,
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: emphasized ? 17 : 14,
-                height: 1.25,
-                letterSpacing: emphasized ? -0.2 : 0,
-                fontWeight: emphasized ? FontWeight.w800 : FontWeight.w600,
-                color: color,
-              ),
+              // One figure size for the three inputs, one step up for the
+              // result; tabular figures keep every right edge on the grid.
+              style: emphasized
+                  ? _money(
+                      size: _valueSize,
+                      color: color,
+                      letterSpacing: -0.2,
+                      weight: FontWeight.w800,
+                    )
+                  : _money(size: _statValueSize, color: color),
             ),
           ),
         ],

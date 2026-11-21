@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khatabook/core/theme/app_colors.dart';
 import 'package:khatabook/core/theme/app_theme.dart';
 import 'package:khatabook/features/entry/add_entry_screen.dart';
 import 'package:khatabook/features/home/models.dart';
@@ -903,6 +904,203 @@ void main() {
       expect(searchTop, lessThan(datesTop));
       expect(datesTop, lessThan(rowTop));
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('polish contract: scanning, chrome and quiet states', () {
+    testWidgets('a day is one sheet with a rule between its rows', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      // Nov 19 holds three entries, so two rules; Nov 18 holds one and none.
+      final Finder busy = find.byKey(const Key('day-sheet-2026-11-19'));
+      final Finder single = find.byKey(const Key('day-sheet-2026-11-18'));
+      expect(busy, findsOneWidget);
+      expect(single, findsOneWidget);
+      Finder rules(Finder sheet) => find.descendant(
+        of: sheet,
+        matching: find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is ColoredBox && widget.color == AppColors.beige,
+        ),
+      );
+      expect(rules(busy), findsNWidgets(2));
+      expect(rules(single), findsNothing);
+
+      // The sheet carries the surface; no row casts a shadow of its own.
+      final Iterable<DecoratedBox> boxes = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(of: busy, matching: find.byType(DecoratedBox)),
+          )
+          .where((DecoratedBox box) => box.decoration is BoxDecoration);
+      expect(
+        boxes.where(
+          (DecoratedBox box) =>
+              (box.decoration! as BoxDecoration).boxShadow?.isNotEmpty ??
+              false,
+        ),
+        isEmpty,
+      );
+    });
+
+    testWidgets('amounts sit in one right-hand column, in tabular figures', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      const List<String> amounts = <String>[
+        '-₹1,200',
+        '-₹580',
+        '-₹199',
+        '+₹5,000',
+        '-₹301',
+        '-₹2,500.50',
+        '+₹7,500',
+        '-₹25',
+      ];
+      final Set<double> rights = <double>{
+        for (final String amount in amounts)
+          tester.getRect(find.text(amount)).right,
+      };
+      // Eight rows, one right-hand edge: the column is the point.
+      expect(rights, hasLength(1));
+
+      for (final String amount in amounts) {
+        final Text figure = tester.widget<Text>(find.text(amount));
+        expect(
+          figure.style?.fontFeatures,
+          contains(FontFeature.tabularFigures()),
+          reason: '$amount must use tabular figures',
+        );
+        expect(figure.style?.textAlign, TextAlign.right, reason: amount);
+        expect(figure.style?.fontSize, 18, reason: amount);
+      }
+
+      // The totals in the cards are set the same way, so a figure is one
+      // kind of thing anywhere on the screen.
+      // The month's own totals, inside the month header they belong to.
+      final Finder november = find.byKey(const Key('month-2026-11'));
+      for (final String total in <String>['₹5,000', '₹2,280']) {
+        expect(
+          tester
+              .widget<Text>(
+                find.descendant(of: november, matching: find.text(total)),
+              )
+              .style!
+              .fontFeatures,
+          contains(FontFeature.tabularFigures()),
+          reason: '$total must use tabular figures',
+        );
+      }
+    });
+
+    testWidgets('headings step down in one scale', (WidgetTester tester) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      double sizeOf(String text) =>
+          tester.widget<Text>(find.text(text)).style!.fontSize!;
+      expect(sizeOf('Nov 2026'), 16);
+      expect(sizeOf('19 Nov 2026'), 12);
+      expect(sizeOf('Showing 8 transactions'), 16);
+      expect(sizeOf('Grocery Shopping'), 15);
+      expect(sizeOf('Bills · 19 Nov 2026, 10:20 AM'), 12);
+    });
+
+    testWidgets('the search box and the chips use the entry screen chrome', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      final TextField field = tester.widget<TextField>(
+        find.byKey(const Key('search-field')),
+      );
+      final OutlineInputBorder border =
+          field.decoration!.border! as OutlineInputBorder;
+      final OutlineInputBorder focused =
+          field.decoration!.focusedBorder! as OutlineInputBorder;
+      expect(border.borderRadius, BorderRadius.circular(16));
+      expect(border.borderSide.color, AppColors.beige.withValues(alpha: 0.9));
+      expect(border.borderSide.width, 1);
+      expect(focused.borderRadius, BorderRadius.circular(16));
+      expect(focused.borderSide.color, AppColors.primaryGreen);
+      expect(focused.borderSide.width, 1.5);
+      expect(field.decoration!.filled, isTrue);
+      expect(field.decoration!.fillColor, AppColors.surface);
+
+      // One gap for every chip group, and the entry screen's chip caption.
+      for (final Wrap wrap in tester.widgetList<Wrap>(find.byType(Wrap))) {
+        expect(wrap.spacing, 12);
+        expect(wrap.runSpacing, 12);
+      }
+      final Text label = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('type-filter-all')),
+          matching: find.text('All'),
+        ),
+      );
+      expect(label.style?.fontSize, 12);
+      expect(label.style?.fontWeight, FontWeight.w800);
+
+      // A chosen chip is flat: the fill, the edge and the check mark already
+      // say it is selected, so no elevation is needed.
+      final Material chip = tester.widget<Material>(
+        find.descendant(
+          of: find.byKey(const Key('type-filter-all')),
+          matching: find.byType(Material),
+        ),
+      );
+      expect(chip.elevation, 0);
+    });
+
+    testWidgets('the end of the list is quiet and tells the truth', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(tester, sampleSummary());
+
+      expect(find.byKey(const Key('transactions-end')), findsOneWidget);
+      expect(find.text('Nothing else in this khata'), findsOneWidget);
+      expect(find.text('Nothing else under these filters'), findsNothing);
+
+      // With a filter on, the same line says what has ended: the slice, not
+      // the khata.
+      await tapChip(tester, 'type-filter-income');
+      expect(find.text('Nothing else under these filters'), findsOneWidget);
+      expect(find.text('Nothing else in this khata'), findsNothing);
+
+      // No rows at all, so no end-of-list line either - only the no-match card.
+      await tapChip(tester, 'category-filter-Food');
+      expect(find.byKey(const Key('transactions-no-match')), findsOneWidget);
+      expect(find.byKey(const Key('transactions-end')), findsNothing);
+    });
+
+    testWidgets('both empty states stay quiet and distinct', (
+      WidgetTester tester,
+    ) async {
+      await pumpAllTransactions(
+        tester,
+        const LedgerSummary(
+          openingBalancePaise: kOpeningPaise,
+          entries: <LedgerEntry>[],
+        ),
+      );
+
+      BoxDecoration cardOf(Finder key) =>
+          tester.widget<Container>(
+            find
+                .descendant(of: key, matching: find.byType(Container))
+                .first,
+          ).decoration!
+              as BoxDecoration;
+
+      final Finder empty = find.byKey(const Key('transactions-empty'));
+      expect(cardOf(empty).borderRadius, BorderRadius.circular(20));
+      // A placeholder that carries no figures gets the softer edge.
+      expect(
+        cardOf(empty).border!.top.color,
+        AppColors.outline.withValues(alpha: 0.6),
+      );
+      expect(cardOf(empty).boxShadow, isNull);
     });
   });
 }
